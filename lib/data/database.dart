@@ -2,7 +2,7 @@
 //
 // The drift database. You declare TABLES as Dart classes; the build_runner
 // generator reads them and writes `database.g.dart` containing the real query
-// code, the row type (`PaletteColor`), and insert helpers (`...Companion`).
+// code, the row types, and insert helpers (`...Companion`).
 //
 // For a C# dev: this class is your EF Core `DbContext`, the Table classes are
 // your entities, and `schemaVersion` + `migration` are explicit, hand-written
@@ -11,61 +11,78 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
-// Links this file to the generated half. Until you run the generator, the
-// editor will show errors about `_$AppDatabase` / `PaletteColor` — that's
-// expected; they vanish once `database.g.dart` exists.
+import '../model/card_model.dart';
+import '../model/sample_card.dart';
+import 'converters.dart';
+
 part 'database.g.dart';
 
 /// A reusable palette colour (spec §3.1). Single colour => [c2] is null.
-/// Colours are stored OPAQUE (alpha = FF); transparency is applied at the use
-/// site, never stored here.
+/// Stored OPAQUE; transparency is applied at the use site, never stored here.
 class PaletteColors extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
-  IntColumn get c1 => integer()(); // ARGB int, e.g. 0xFFD64545
+  IntColumn get c1 => integer()(); // ARGB int
   IntColumn get c2 => integer().nullable()(); // null => single colour
   TextColumn get orientation =>
-      text().withDefault(const Constant('vertical'))(); // 'vertical'|'horizontal'
-  RealColumn get mix => real().withDefault(const Constant(0.3))(); // 0..1
+      text().withDefault(const Constant('vertical'))();
+  RealColumn get mix => real().withDefault(const Constant(0.3))();
   IntColumn get position => integer().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [PaletteColors])
-class AppDatabase extends _$AppDatabase {
-  // drift_flutter's `driftDatabase` opens (or creates) a `cardboardpress.sqlite`
-  // file in the app's documents directory, picking the right native engine per
-  // platform. No path handling on our side.
-  AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
+/// A template (spec §3): identity + ordered layout. The whole layout
+/// (dimensions, base colour, border, fields) is stored as one JSON column via
+/// [TemplateSpecConverter] — structured value data, not a relationship.
+class Templates extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  IntColumn get position => integer().withDefault(const Constant(0))();
+  TextColumn get spec => text().map(const TemplateSpecConverter())();
 
   @override
-  int get schemaVersion => 1;
+  Set<Column> get primaryKey => {id};
+}
+
+@DriftDatabase(tables: [PaletteColors, Templates])
+class AppDatabase extends _$AppDatabase {
+  AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
+
+  // Bumped to 2 when the Templates table was added. Each bump gets an onUpgrade
+  // step; old steps are never edited after release.
+  @override
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
-          await _seedDefaultColors(); // only runs the first time the DB is made
+          await _seedDefaultColors();
+          await _seedDefaultTemplates();
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            // v1 → v2: add the Templates table and seed the defaults. Existing
+            // palette colours are untouched.
+            await m.createTable(templates);
+            await _seedDefaultTemplates();
+          }
         },
       );
 
-  /// A live, ordered stream of the palette. drift re-emits whenever the table
-  /// changes, which is what makes "edit a colour → everything updates" free.
+  // ---- palette colours ----
+
   Stream<List<PaletteColor>> watchColors() {
     return (select(paletteColors)
           ..orderBy([(t) => OrderingTerm(expression: t.position)]))
         .watch();
   }
 
-  // --- writes (no codegen needed; these use drift's runtime query API) ---
-
   Future<void> insertColor(PaletteColorsCompanion c) =>
       into(paletteColors).insert(c);
 
-  /// Updates only the columns present in [c]; absent ones (e.g. position) are
-  /// left untouched. Updating a non-existent id affects 0 rows (safe no-op).
   Future<void> updateColor(String id, PaletteColorsCompanion c) =>
       (update(paletteColors)..where((t) => t.id.equals(id))).write(c);
 
@@ -83,10 +100,7 @@ class AppDatabase extends _$AppDatabase {
       PaletteColorsCompanion.insert(
           id: 'c_ruby', name: 'Ruby', c1: 0xFFD64545, position: const Value(0)),
       PaletteColorsCompanion.insert(
-          id: 'c_amber',
-          name: 'Amber',
-          c1: 0xFFE0A33A,
-          position: const Value(1)),
+          id: 'c_amber', name: 'Amber', c1: 0xFFE0A33A, position: const Value(1)),
       PaletteColorsCompanion.insert(
           id: 'c_leaf', name: 'Leaf', c1: 0xFF6FAE6F, position: const Value(2)),
       PaletteColorsCompanion.insert(
@@ -96,11 +110,7 @@ class AppDatabase extends _$AppDatabase {
       PaletteColorsCompanion.insert(
           id: 'c_ink', name: 'Ink', c1: 0xFF2C2B27, position: const Value(5)),
       PaletteColorsCompanion.insert(
-          id: 'c_paper',
-          name: 'Paper',
-          c1: 0xFFF1EFE8,
-          position: const Value(6)),
-      // One double colour, to prove the split renders in the swatch.
+          id: 'c_paper', name: 'Paper', c1: 0xFFF1EFE8, position: const Value(6)),
       PaletteColorsCompanion.insert(
         id: 'c_forest',
         name: 'Forest Fade',
@@ -112,5 +122,30 @@ class AppDatabase extends _$AppDatabase {
       ),
     ];
     await batch((b) => b.insertAll(paletteColors, defaults));
+  }
+
+  // ---- templates ----
+
+  Stream<List<Template>> watchTemplates() {
+    return (select(templates)
+          ..orderBy([(t) => OrderingTerm(expression: t.position)]))
+        .watch();
+  }
+
+  Future<void> _seedDefaultTemplates() async {
+    final defaults = defaultTemplates();
+    await batch((b) {
+      for (var i = 0; i < defaults.length; i++) {
+        b.insert(
+          templates,
+          TemplatesCompanion.insert(
+            id: defaults[i].id,
+            name: defaults[i].name,
+            spec: defaults[i].data,
+            position: Value(i),
+          ),
+        );
+      }
+    });
   }
 }

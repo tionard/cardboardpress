@@ -1,0 +1,149 @@
+// lib/model/serialization.dart
+//
+// JSON encode/decode for the structured value objects we store as a single DB
+// column (a template's whole layout). Pure Dart — no widgets, no drift.
+//
+// Two principles for resilient loading (spec §3, §8 "older saves load safely"):
+//   * Every decoder supplies a SAFE DEFAULT for a missing/!invalid field, so an
+//     older or partial save never throws.
+//   * The map carries a 'v' (shape version) we can branch on if the JSON shape
+//     ever changes — separate from drift's table-level schemaVersion.
+
+import 'dart:convert';
+import 'dart:ui';
+
+import 'card_model.dart';
+
+// Look up an enum by its .name with a fallback (never throws on bad data).
+T _byName<T extends Enum>(List<T> values, Object? name, T fallback) {
+  if (name is! String) return fallback;
+  for (final v in values) {
+    if (v.name == name) return v;
+  }
+  return fallback;
+}
+
+double _d(Object? v, double fallback) => (v is num) ? v.toDouble() : fallback;
+int _i(Object? v, int fallback) => (v is num) ? v.toInt() : fallback;
+bool _b(Object? v, bool fallback) => (v is bool) ? v : fallback;
+
+// ---- ColorValue ----
+Map<String, dynamic> _colorValueToMap(ColorValue v) => {
+      'c1': v.c1.toARGB32(),
+      if (v.c2 != null) 'c2': v.c2!.toARGB32(),
+      'orientation': v.orientation.name,
+      'mix': v.mix,
+    };
+
+ColorValue _colorValueFromMap(Map m) {
+  final c1 = Color(_i(m['c1'], 0xFF000000));
+  final c2 = m['c2'];
+  if (c2 == null) return ColorValue.single(c1);
+  return ColorValue.duo(
+    c1,
+    Color(_i(c2, 0xFF000000)),
+    orientation: _byName(MixOrientation.values, m['orientation'], MixOrientation.vertical),
+    mix: _d(m['mix'], 0.3),
+  );
+}
+
+// ---- ColorRef ----
+Map<String, dynamic> _colorRefToMap(ColorRef r) => {
+      if (r.id != null) 'id': r.id,
+      'snapshot': _colorValueToMap(r.snapshot),
+    };
+
+ColorRef _colorRefFromMap(Map m) => ColorRef(
+      id: m['id'] as String?,
+      snapshot: _colorValueFromMap((m['snapshot'] as Map?) ?? const {}),
+    );
+
+// ---- OutlineSpec ----
+Map<String, dynamic> _outlineToMap(OutlineSpec o) =>
+    {'lighter': o.lighter, 'intensity': o.intensity, 'thickness': o.thickness};
+
+OutlineSpec _outlineFromMap(Map m) => OutlineSpec(
+      lighter: _b(m['lighter'], false),
+      intensity: _d(m['intensity'], 0.4),
+      thickness: _d(m['thickness'], 0.004),
+    );
+
+// ---- TextStyleSpec ----
+Map<String, dynamic> _textToMap(TextStyleSpec t) => {
+      'sizeFrac': t.sizeFrac,
+      'bold': t.bold,
+      'italic': t.italic,
+      'align': t.align.name,
+      'colorRef': _colorRefToMap(t.colorRef),
+      'colorAlpha': t.colorAlpha,
+    };
+
+TextStyleSpec _textFromMap(Map m) => TextStyleSpec(
+      sizeFrac: _d(m['sizeFrac'], 0.03),
+      bold: _b(m['bold'], false),
+      italic: _b(m['italic'], false),
+      align: _byName(TextAlign.values, m['align'], TextAlign.left),
+      colorRef: _colorRefFromMap((m['colorRef'] as Map?) ?? const {}),
+      colorAlpha: _d(m['colorAlpha'], 1.0),
+    );
+
+// ---- BorderSpec ----
+Map<String, dynamic> _borderToMap(BorderSpec b) =>
+    {'black': b.black, 'thickness': b.thickness};
+
+BorderSpec _borderFromMap(Map m) =>
+    BorderSpec(black: _b(m['black'], true), thickness: _d(m['thickness'], 0.02));
+
+// ---- FieldSpec ----
+Map<String, dynamic> _fieldToMap(FieldSpec f) => {
+      'type': f.type.name,
+      'frac': [f.frac.left, f.frac.top, f.frac.right, f.frac.bottom],
+      'cornerRadius': f.cornerRadius,
+      'sharp': f.sharp,
+      if (f.fill != null) 'fill': _colorRefToMap(f.fill!),
+      'fillAlpha': f.fillAlpha,
+      if (f.outline != null) 'outline': _outlineToMap(f.outline!),
+      if (f.text != null) 'text': _textToMap(f.text!),
+    };
+
+FieldSpec _fieldFromMap(Map m) {
+  final raw = (m['frac'] as List?) ?? const [0.0, 0.0, 1.0, 1.0];
+  final f = raw.map((e) => _d(e, 0.0)).toList();
+  return FieldSpec(
+    type: _byName(FieldType.values, m['type'], FieldType.name),
+    frac: Rect.fromLTRB(f[0], f[1], f[2], f[3]),
+    cornerRadius: _d(m['cornerRadius'], 0.02),
+    sharp: _b(m['sharp'], false),
+    fill: m['fill'] == null ? null : _colorRefFromMap(m['fill'] as Map),
+    fillAlpha: _d(m['fillAlpha'], 1.0),
+    outline: m['outline'] == null ? null : _outlineFromMap(m['outline'] as Map),
+    text: m['text'] == null ? null : _textFromMap(m['text'] as Map),
+  );
+}
+
+// ---- TemplateData ----
+Map<String, dynamic> templateToMap(TemplateData t) => {
+      'v': 1,
+      'widthInches': t.widthInches,
+      'heightInches': t.heightInches,
+      'cornerRadiusFrac': t.cornerRadiusFrac,
+      'baseColor': _colorRefToMap(t.baseColor),
+      if (t.border != null) 'border': _borderToMap(t.border!),
+      'fields': t.fields.map(_fieldToMap).toList(),
+    };
+
+TemplateData templateFromMap(Map m) => TemplateData(
+      widthInches: _d(m['widthInches'], 2.5),
+      heightInches: _d(m['heightInches'], 3.5),
+      cornerRadiusFrac: _d(m['cornerRadiusFrac'], 0.05),
+      baseColor: _colorRefFromMap((m['baseColor'] as Map?) ?? const {}),
+      border: m['border'] == null ? null : _borderFromMap(m['border'] as Map),
+      fields: ((m['fields'] as List?) ?? const [])
+          .map((e) => _fieldFromMap(e as Map))
+          .toList(),
+    );
+
+String templateToJson(TemplateData t) => jsonEncode(templateToMap(t));
+
+TemplateData templateFromJson(String s) =>
+    templateFromMap(jsonDecode(s) as Map<String, dynamic>);

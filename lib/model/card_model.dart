@@ -196,3 +196,38 @@ class PaletteSwatch {
     required this.value,
   });
 }
+
+/// A template's layout (spec §3): card geometry, base colour, optional border,
+/// and the ordered fields. It holds NO text content — that's per-card. A card
+/// composes a TemplateData with its content into a [CardData] for rendering.
+class TemplateData {
+  final double widthInches;
+  final double heightInches;
+  final double cornerRadiusFrac;
+  final ColorRef baseColor;
+  final BorderSpec? border;
+  final List<FieldSpec> fields;
+
+  const TemplateData({
+    this.widthInches = 2.5,
+    this.heightInches = 3.5,
+    this.cornerRadiusFrac = 0.05,
+    required this.baseColor,
+    this.border,
+    required this.fields,
+  });
+}
+
+/// A persisted template as the UI/state layer sees it: identity + name + the
+/// layout. (The drift row is mapped into this so features never import db types.)
+class TemplateEntry {
+  final String id;
+  final String name;
+  final TemplateData data;
+
+  const TemplateEntry({
+    required this.id,
+    required this.name,
+    required this.data,
+  });
+}

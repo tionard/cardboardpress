@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database.dart';
 import '../data/palette_repository.dart';
+import '../data/template_repository.dart';
 import '../model/card_model.dart';
 
 /// The single database instance, disposed when no longer needed.
@@ -36,3 +37,13 @@ final paletteMapProvider = Provider<Map<String, ColorValue>>((ref) {
     orElse: () => const <String, ColorValue>{},
   );
 });
+
+/// Data API for templates.
+final templateRepositoryProvider = Provider<TemplateRepository>(
+  (ref) => TemplateRepository(ref.watch(databaseProvider)),
+);
+
+/// Live list of persisted templates.
+final templatesProvider = StreamProvider<List<TemplateEntry>>(
+  (ref) => ref.watch(templateRepositoryProvider).watch(),
+);
