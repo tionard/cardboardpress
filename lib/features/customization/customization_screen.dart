@@ -1,12 +1,13 @@
 // lib/features/customization/customization_screen.dart
 //
-// Customization → Colors, now EDITABLE. Demonstrates the full write loop:
-// edit a control -> debounced save through the repository -> drift re-emits ->
-// the swatch grid (and any future card using the colour) updates.
+// Customization → Colors, editable. Each colour can be tuned via R/G/B sliders
+// OR by typing a hex value; the two stay in sync. Edits autosave (debounced)
+// through the repository, drift re-emits, and the swatch grid updates.
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/palette_repository.dart';
@@ -62,7 +63,6 @@ class _CustomizationScreenState extends ConsumerState<CustomizationScreen> {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Could not load palette:\n$e')),
       data: (swatches) {
-        // Resolve the current selection against the latest list.
         PaletteSwatch? selected;
         for (final s in swatches) {
           if (s.id == _selectedId) {
@@ -170,8 +170,8 @@ class _SwatchGrid extends StatelessWidget {
   }
 }
 
-/// Builds a BoxDecoration previewing a ColorValue (single fill or double split).
-/// A preview only — the real card uses paintCard.
+/// Builds a BoxDecoration previewing a ColorValue. A preview only — the real
+/// card uses paintCard.
 BoxDecoration swatchDecoration(ColorValue v,
     {bool selected = false, Color? accent}) {
   final radius = BorderRadius.circular(10);
@@ -196,7 +196,7 @@ BoxDecoration swatchDecoration(ColorValue v,
 }
 
 // ---------------------------------------------------------------------------
-// Color editor (single / double, R/G/B, orientation, mix) with debounced save
+// Color editor: single/double, R/G/B sliders + editable hex, orientation, mix
 // ---------------------------------------------------------------------------
 class _ColorEditor extends StatefulWidget {
   final PaletteSwatch swatch;
@@ -216,6 +216,11 @@ class _ColorEditor extends StatefulWidget {
 
 class _ColorEditorState extends State<_ColorEditor> {
   late final TextEditingController _name;
+  late final TextEditingController _hex1;
+  late final TextEditingController _hex2;
+  late final FocusNode _hex1Focus;
+  late final FocusNode _hex2Focus;
+
   late bool _double;
   late int _r1, _g1, _b1, _r2, _g2, _b2;
   late MixOrientation _orientation;
@@ -226,7 +231,8 @@ class _ColorEditorState extends State<_ColorEditor> {
   void initState() {
     super.initState();
     final v = widget.swatch.value;
-    _name = TextEditingController(text: widget.swatch.name);
+    _name = TextEditingController(text: widget.swatch.name)
+      ..addListener(_scheduleSave);
     _double = v.isDouble;
     final a = _rgb(v.c1);
     _r1 = a.$1;
@@ -238,7 +244,11 @@ class _ColorEditorState extends State<_ColorEditor> {
     _b2 = b.$3;
     _orientation = v.orientation;
     _mix = v.mix;
-    _name.addListener(_scheduleSave);
+
+    _hex1 = TextEditingController(text: _hex6(_r1, _g1, _b1));
+    _hex2 = TextEditingController(text: _hex6(_r2, _g2, _b2));
+    _hex1Focus = FocusNode()..addListener(_resync1);
+    _hex2Focus = FocusNode()..addListener(_resync2);
   }
 
   @override
@@ -247,6 +257,10 @@ class _ColorEditorState extends State<_ColorEditor> {
     _saveTimer?.cancel();
     widget.repo.save(_current()); // flush the latest edit before leaving
     _name.dispose();
+    _hex1.dispose();
+    _hex2.dispose();
+    _hex1Focus.dispose();
+    _hex2Focus.dispose();
     super.dispose();
   }
 
@@ -261,16 +275,45 @@ class _ColorEditorState extends State<_ColorEditor> {
     return PaletteSwatch(id: widget.swatch.id, name: name, value: value);
   }
 
-  // Update in-memory state immediately (smooth UI), debounce the DB write.
   void _scheduleSave() {
     _saveTimer?.cancel();
-    _saveTimer =
-        Timer(const Duration(milliseconds: 400), () => widget.repo.save(_current()));
+    _saveTimer = Timer(
+        const Duration(milliseconds: 400), () => widget.repo.save(_current()));
   }
 
   void _change(VoidCallback apply) {
     setState(apply);
     _scheduleSave();
+  }
+
+  // When the change comes from a slider we also push the value into the hex
+  // field; when it comes FROM the hex field we leave the field alone so the
+  // user's cursor/typing isn't disturbed.
+  void _setRgb1(int r, int g, int b, bool fromHex) {
+    _change(() {
+      _r1 = r;
+      _g1 = g;
+      _b1 = b;
+    });
+    if (!fromHex) _hex1.text = _hex6(r, g, b);
+  }
+
+  void _setRgb2(int r, int g, int b, bool fromHex) {
+    _change(() {
+      _r2 = r;
+      _g2 = g;
+      _b2 = b;
+    });
+    if (!fromHex) _hex2.text = _hex6(r, g, b);
+  }
+
+  // On blur, snap a half-typed/invalid field back to the real colour's hex.
+  void _resync1() {
+    if (!_hex1Focus.hasFocus && mounted) _hex1.text = _hex6(_r1, _g1, _b1);
+  }
+
+  void _resync2() {
+    if (!_hex2Focus.hasFocus && mounted) _hex2.text = _hex6(_r2, _g2, _b2);
   }
 
   @override
@@ -289,8 +332,8 @@ class _ColorEditorState extends State<_ColorEditor> {
               Expanded(
                 child: TextField(
                   controller: _name,
-                  decoration: const InputDecoration(
-                      labelText: 'Name', isDense: true),
+                  decoration:
+                      const InputDecoration(labelText: 'Name', isDense: true),
                 ),
               ),
               IconButton(
@@ -320,26 +363,24 @@ class _ColorEditorState extends State<_ColorEditor> {
           ),
           const SizedBox(height: 14),
           _rgbGroup(
-            _double ? 'Color 1' : 'Color',
-            _c1,
-            _r1,
-            _g1,
-            _b1,
-            (v) => _change(() => _r1 = v),
-            (v) => _change(() => _g1 = v),
-            (v) => _change(() => _b1 = v),
+            title: _double ? 'Color 1' : 'Color',
+            r: _r1,
+            g: _g1,
+            b: _b1,
+            hexController: _hex1,
+            hexFocus: _hex1Focus,
+            onRgb: _setRgb1,
           ),
           if (_double) ...[
             const SizedBox(height: 14),
             _rgbGroup(
-              'Color 2',
-              _c2,
-              _r2,
-              _g2,
-              _b2,
-              (v) => _change(() => _r2 = v),
-              (v) => _change(() => _g2 = v),
-              (v) => _change(() => _b2 = v),
+              title: 'Color 2',
+              r: _r2,
+              g: _g2,
+              b: _b2,
+              hexController: _hex2,
+              hexFocus: _hex2Focus,
+              onRgb: _setRgb2,
             ),
             const SizedBox(height: 14),
             SegmentedButton<MixOrientation>(
@@ -348,7 +389,8 @@ class _ColorEditorState extends State<_ColorEditor> {
                 ButtonSegment(
                     value: MixOrientation.vertical, label: Text('Vertical')),
                 ButtonSegment(
-                    value: MixOrientation.horizontal, label: Text('Horizontal')),
+                    value: MixOrientation.horizontal,
+                    label: Text('Horizontal')),
               ],
               selected: {_orientation},
               onSelectionChanged: (s) => _change(() => _orientation = s.first),
@@ -377,16 +419,16 @@ class _ColorEditorState extends State<_ColorEditor> {
     );
   }
 
-  Widget _rgbGroup(
-    String title,
-    Color preview,
-    int r,
-    int g,
-    int b,
-    ValueChanged<int> onR,
-    ValueChanged<int> onG,
-    ValueChanged<int> onB,
-  ) {
+  Widget _rgbGroup({
+    required String title,
+    required int r,
+    required int g,
+    required int b,
+    required TextEditingController hexController,
+    required FocusNode hexFocus,
+    required void Function(int r, int g, int b, bool fromHex) onRgb,
+  }) {
+    final preview = Color.fromARGB(255, r, g, b);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -398,17 +440,38 @@ class _ColorEditorState extends State<_ColorEditor> {
               decoration: BoxDecoration(
                 color: preview,
                 borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: Colors.black.withOpacity(0.15)),
+                border: Border.all(color: Colors.black.withValues(alpha: 0.15)),
               ),
             ),
             const SizedBox(width: 8),
-            Text('$title · ${_hex(preview)}',
-                style: Theme.of(context).textTheme.labelMedium),
+            Text(title, style: Theme.of(context).textTheme.labelMedium),
+            const Spacer(),
+            SizedBox(
+              width: 118,
+              child: TextField(
+                controller: hexController,
+                focusNode: hexFocus,
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-F]')),
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                decoration: const InputDecoration(
+                  prefixText: '#',
+                  labelText: 'Hex',
+                  isDense: true,
+                ),
+                onChanged: (txt) {
+                  final p = _parseHex(txt);
+                  if (p != null) onRgb(p.$1, p.$2, p.$3, true);
+                },
+              ),
+            ),
           ],
         ),
-        _channel('R', r, onR),
-        _channel('G', g, onG),
-        _channel('B', b, onB),
+        _channel('R', r, (nr) => onRgb(nr, g, b, false)),
+        _channel('G', g, (ng) => onRgb(r, ng, b, false)),
+        _channel('B', b, (nb) => onRgb(r, g, nb, false)),
       ],
     );
   }
@@ -439,7 +502,17 @@ class _ColorEditorState extends State<_ColorEditor> {
   return ((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF);
 }
 
-String _hex(Color c) {
-  final v = c.toARGB32() & 0xFFFFFF;
-  return '#${v.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+// Six uppercase hex digits (no '#'), to match the field's '#' prefix.
+String _hex6(int r, int g, int b) =>
+    ((r << 16) | (g << 8) | b).toRadixString(16).padLeft(6, '0').toUpperCase();
+
+// Parse a 6-digit hex string (optional leading '#') -> (r, g, b), or null if
+// it isn't a valid complete hex colour. Caller ignores null = "do nothing".
+(int, int, int)? _parseHex(String input) {
+  var s = input.trim();
+  if (s.startsWith('#')) s = s.substring(1);
+  if (s.length != 6) return null;
+  final n = int.tryParse(s, radix: 16);
+  if (n == null) return null;
+  return ((n >> 16) & 0xFF, (n >> 8) & 0xFF, n & 0xFF);
 }
