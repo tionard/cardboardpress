@@ -103,11 +103,14 @@ void _paintField(
     canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
   }
 
-  // 2.3 Content — text. (Rules rich-text + inline symbols come later; for the
-  //     spike every text field is laid out as one simple paragraph.)
+  // 2.3 Content — text, drawn in its resolved colour (single or double).
+  //     (Rules rich-text + inline symbols come later.)
   if (field.text != null) {
     final s = card.textContent[field.type] ?? '';
-    if (s.isNotEmpty) _paintText(canvas, rect, s, field.text!, size);
+    if (s.isNotEmpty) {
+      final textColor = refs.resolveColor(field.text!.colorRef);
+      _paintText(canvas, rect, s, field.text!, size, textColor);
+    }
   }
 }
 
@@ -115,34 +118,34 @@ void _paintField(
 // Colour fills (single + double)
 // ---------------------------------------------------------------------------
 
-/// Fills [rrect] with a [ColorValue] at use-site [alpha].
-/// A single colour paints flat; a double colour paints a two-stop gradient
-/// split along its orientation, with a mix band whose width is [ColorValue.mix].
+/// Builds a linear gradient shader for a *double* [ColorValue] spanning [rect],
+/// with the use-site [alpha] baked into the colours. Returns null for a single
+/// colour. Shared by area fills and text, so a double colour looks consistent
+/// wherever it's applied.
+ui.Shader? _doubleShader(ColorValue cv, ui.Rect rect, double alpha) {
+  if (!cv.isDouble) return null;
+  final c1 = cv.c1.withValues(alpha: alpha);
+  final c2 = cv.c2!.withValues(alpha: alpha);
+  final m = cv.mix.clamp(0.0, 1.0);
+  final half = m / 2;
+  // m==0 => duplicate stops at 0.5 => hard edge. m==1 => blend across all.
+  final stops = <double>[0.0, 0.5 - half, 0.5 + half, 1.0];
+  final colors = <ui.Color>[c1, c1, c2, c2];
+  final (from, to) = cv.orientation == MixOrientation.vertical
+      ? (rect.topCenter, rect.bottomCenter)
+      : (rect.centerLeft, rect.centerRight);
+  return ui.Gradient.linear(from, to, colors, stops);
+}
+
+/// Fills [rrect] with a [ColorValue] at use-site [alpha] (single or double).
 void _fillRRect(ui.Canvas canvas, ui.RRect rrect, ColorValue cv, double alpha) {
   final paint = ui.Paint();
-
-  if (cv.isDouble) {
-    // Bake the use-site opacity straight into the gradient colours (a shader
-    // ignores paint.color's RGB, so this is the clean way to apply alpha).
-    final c1 = cv.c1.withValues(alpha: alpha);
-    final c2 = cv.c2!.withValues(alpha: alpha);
-
-    final m = cv.mix.clamp(0.0, 1.0);
-    final half = m / 2;
-    // m==0 => duplicate stops at 0.5 => hard edge. m==1 => blend across all.
-    final stops = <double>[0.0, 0.5 - half, 0.5 + half, 1.0];
-    final colors = <ui.Color>[c1, c1, c2, c2];
-
-    final rect = rrect.outerRect;
-    final (from, to) = cv.orientation == MixOrientation.vertical
-        ? (rect.topCenter, rect.bottomCenter)
-        : (rect.centerLeft, rect.centerRight);
-
-    paint.shader = ui.Gradient.linear(from, to, colors, stops);
+  final shader = _doubleShader(cv, rrect.outerRect, alpha);
+  if (shader != null) {
+    paint.shader = shader;
   } else {
     paint.color = cv.c1.withValues(alpha: alpha);
   }
-
   canvas.drawRRect(rrect, paint);
 }
 
@@ -157,37 +160,70 @@ ui.Color _shade(ui.Color base, {required bool lighter, required double t}) {
 // Text
 // ---------------------------------------------------------------------------
 
-/// Lays out [text] as a single paragraph and centres it vertically in [rect].
+/// Lays out [text] and centres it vertically in [rect], filled with [color]
+/// (single → flat fill; double → a gradient spanning the actual text box).
 /// Uses dart:ui's ParagraphBuilder directly (no Flutter widgets) so the exact
 /// same layout is produced for preview and for export.
-void _paintText(
-    ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts, ui.Size size) {
+void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
+    ui.Size size, ColorValue color) {
   final fontSize = ts.sizeFrac * size.height;
   final weight = ts.bold ? ui.FontWeight.bold : ui.FontWeight.normal;
   final slant = ts.italic ? ui.FontStyle.italic : ui.FontStyle.normal;
 
-  final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
-    textAlign: ts.align,
-    fontWeight: weight,
-    fontStyle: slant,
-    fontSize: fontSize,
-    maxLines: 4,
-    ellipsis: '…',
-  ))
-    ..pushStyle(ui.TextStyle(
-      color: ts.color,
-      fontWeight: weight,
-      fontStyle: slant,
-      fontSize: fontSize,
-    ))
-    ..addText(text);
+  ui.ParagraphStyle paraStyle() => ui.ParagraphStyle(
+        textAlign: ts.align,
+        fontWeight: weight,
+        fontStyle: slant,
+        fontSize: fontSize,
+        maxLines: 4,
+        ellipsis: '…',
+      );
 
-  final paragraph = builder.build()
+  // First pass: measure the laid-out text so a double-colour gradient can span
+  // the actual glyph box (not the whole field), matching the swatch preview.
+  final measure = (ui.ParagraphBuilder(paraStyle())
+        ..pushStyle(ui.TextStyle(
+            fontSize: fontSize, fontWeight: weight, fontStyle: slant))
+        ..addText(text))
+      .build()
     ..layout(ui.ParagraphConstraints(width: rect.width));
 
-  final dy = rect.top + (rect.height - paragraph.height) / 2;
-  canvas.drawParagraph(
-      paragraph, ui.Offset(rect.left, dy < rect.top ? rect.top : dy));
+  final textW = measure.longestLine;
+  final textH = measure.height;
+  final top = rect.top + (rect.height - textH) / 2;
+  final clampedTop = top < rect.top ? rect.top : top;
+
+  // Horizontal start of the text within the field, by alignment — so the
+  // gradient lines up with where the glyphs are actually drawn.
+  double left = rect.left;
+  if (ts.align == ui.TextAlign.center) {
+    left = rect.left + (rect.width - textW) / 2;
+  } else if (ts.align == ui.TextAlign.right || ts.align == ui.TextAlign.end) {
+    left = rect.left + (rect.width - textW);
+  }
+  final textRect = ui.Rect.fromLTWH(left, clampedTop, textW, textH);
+
+  final shader = _doubleShader(color, textRect, ts.colorAlpha);
+  final runStyle = shader != null
+      ? ui.TextStyle(
+          foreground: ui.Paint()..shader = shader,
+          fontSize: fontSize,
+          fontWeight: weight,
+          fontStyle: slant)
+      : ui.TextStyle(
+          color: color.c1.withValues(alpha: ts.colorAlpha),
+          fontSize: fontSize,
+          fontWeight: weight,
+          fontStyle: slant);
+
+  // Second pass: real paragraph with the resolved fill.
+  final paragraph = (ui.ParagraphBuilder(paraStyle())
+        ..pushStyle(runStyle)
+        ..addText(text))
+      .build()
+    ..layout(ui.ParagraphConstraints(width: rect.width));
+
+  canvas.drawParagraph(paragraph, ui.Offset(rect.left, clampedTop));
 }
 
 // ---------------------------------------------------------------------------
@@ -254,7 +290,12 @@ void _paintArtPlaceholder(ui.Canvas canvas, ui.RRect rrect, ui.Size size) {
     rect,
     'ART',
     const TextStyleSpec(
-        sizeFrac: 0.04, align: ui.TextAlign.center, color: ui.Color(0x66000000)),
+      sizeFrac: 0.04,
+      align: ui.TextAlign.center,
+      colorRef: ColorRef.literal(ColorValue.single(ui.Color(0xFF000000))),
+      colorAlpha: 0.4,
+    ),
     size,
+    const ColorValue.single(ui.Color(0xFF000000)),
   );
 }

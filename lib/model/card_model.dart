@@ -75,20 +75,24 @@ class OutlineSpec {
   });
 }
 
-/// Per-field text styling for the simple (non-Rules) text fields.
+/// Per-field text styling. The text colour REFERENCES the palette (like fills
+/// and the base colour), so it can be single or double and updates live when
+/// the referenced swatch changes. [colorAlpha] applies use-site transparency.
 class TextStyleSpec {
   final double sizeFrac; // font size as a fraction of card HEIGHT
   final bool bold;
   final bool italic;
   final TextAlign align;
-  final Color color;
+  final ColorRef colorRef;
+  final double colorAlpha;
 
   const TextStyleSpec({
     required this.sizeFrac,
     this.bold = false,
     this.italic = false,
     this.align = TextAlign.left,
-    required this.color,
+    required this.colorRef,
+    this.colorAlpha = 1.0,
   });
 }
 
