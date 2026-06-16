@@ -59,6 +59,25 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
+  // --- writes (no codegen needed; these use drift's runtime query API) ---
+
+  Future<void> insertColor(PaletteColorsCompanion c) =>
+      into(paletteColors).insert(c);
+
+  /// Updates only the columns present in [c]; absent ones (e.g. position) are
+  /// left untouched. Updating a non-existent id affects 0 rows (safe no-op).
+  Future<void> updateColor(String id, PaletteColorsCompanion c) =>
+      (update(paletteColors)..where((t) => t.id.equals(id))).write(c);
+
+  Future<void> deleteColor(String id) =>
+      (delete(paletteColors)..where((t) => t.id.equals(id))).go();
+
+  Future<int> maxColorPosition() async {
+    final rows = await select(paletteColors).get();
+    if (rows.isEmpty) return -1;
+    return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
+  }
+
   Future<void> _seedDefaultColors() async {
     final defaults = <PaletteColorsCompanion>[
       PaletteColorsCompanion.insert(
