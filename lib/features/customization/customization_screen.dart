@@ -177,7 +177,7 @@ BoxDecoration swatchDecoration(ColorValue v,
   final radius = BorderRadius.circular(10);
   final border = (selected && accent != null)
       ? Border.all(color: accent, width: 3)
-      : Border.all(color: Colors.black.withOpacity(0.12));
+      : Border.all(color: Colors.black.withValues(alpha: 0.12));
   if (!v.isDouble) {
     return BoxDecoration(color: v.c1, borderRadius: radius, border: border);
   }

@@ -120,8 +120,8 @@ void _fillRRect(ui.Canvas canvas, ui.RRect rrect, ColorValue cv, double alpha) {
   if (cv.isDouble) {
     // Bake the use-site opacity straight into the gradient colours (a shader
     // ignores paint.color's RGB, so this is the clean way to apply alpha).
-    final c1 = cv.c1.withOpacity(alpha);
-    final c2 = cv.c2!.withOpacity(alpha);
+    final c1 = cv.c1.withValues(alpha: alpha);
+    final c2 = cv.c2!.withValues(alpha: alpha);
 
     final m = cv.mix.clamp(0.0, 1.0);
     final half = m / 2;
@@ -136,7 +136,7 @@ void _fillRRect(ui.Canvas canvas, ui.RRect rrect, ColorValue cv, double alpha) {
 
     paint.shader = ui.Gradient.linear(from, to, colors, stops);
   } else {
-    paint.color = cv.c1.withOpacity(alpha);
+    paint.color = cv.c1.withValues(alpha: alpha);
   }
 
   canvas.drawRRect(rrect, paint);
