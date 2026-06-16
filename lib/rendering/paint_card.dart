@@ -31,13 +31,13 @@ void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
   canvas.save();
   canvas.clipRRect(cardRRect);
 
-  // 1. Card base colour.
-  _fillRRect(canvas, cardRRect, card.baseColor, 1.0);
+  // 1. Card base colour (resolved from its palette reference).
+  _fillRRect(canvas, cardRRect, refs.resolveColor(card.baseColor), 1.0);
 
   // 2. Each field, in order. (Draw order WITHIN a field: bg → outline →
   //    content — handled inside _paintField.)
   for (final field in card.fields) {
-    _paintField(canvas, size, field, card);
+    _paintField(canvas, size, field, card, refs);
   }
 
   // 3. Foil overlay, over the card content (but below the border).
@@ -65,7 +65,8 @@ void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
 // Fields
 // ---------------------------------------------------------------------------
 
-void _paintField(ui.Canvas canvas, ui.Size size, FieldSpec field, CardData card) {
+void _paintField(
+    ui.Canvas canvas, ui.Size size, FieldSpec field, CardData card, CardRefs refs) {
   final rect = ui.Rect.fromLTRB(
     field.frac.left * size.width,
     field.frac.top * size.height,
@@ -81,16 +82,19 @@ void _paintField(ui.Canvas canvas, ui.Size size, FieldSpec field, CardData card)
     return;
   }
 
+  // Resolve the fill reference once; outline is derived from the SAME resolved
+  // value so it tracks live palette edits too.
+  final fill = field.fill == null ? null : refs.resolveColor(field.fill!);
+
   // 2.1 Background fill (flat for now; 9-slice sprites come later).
-  if (field.fill != null) {
-    _fillRRect(canvas, rrect, field.fill!, field.fillAlpha);
+  if (fill != null) {
+    _fillRRect(canvas, rrect, fill, field.fillAlpha);
   }
 
   // 2.2 Outline — a relative shade of the fill, so it tracks the fill.
   final outline = field.outline;
-  if (outline != null && field.fill != null) {
-    final shaded = _shade(field.fill!.c1,
-        lighter: outline.lighter, t: outline.intensity);
+  if (outline != null && fill != null) {
+    final shaded = _shade(fill.c1, lighter: outline.lighter, t: outline.intensity);
     final strokeW = outline.thickness * size.width;
     final paint = ui.Paint()
       ..style = ui.PaintingStyle.stroke

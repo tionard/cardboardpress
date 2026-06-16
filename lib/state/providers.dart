@@ -26,3 +26,13 @@ final paletteRepositoryProvider = Provider<PaletteRepository>(
 final paletteProvider = StreamProvider<List<PaletteSwatch>>(
   (ref) => ref.watch(paletteRepositoryProvider).watch(),
 );
+
+/// Palette as an id -> value map, ready for the renderer's CardRefs. Empty
+/// while the stream is still loading (reference snapshots cover that case).
+final paletteMapProvider = Provider<Map<String, ColorValue>>((ref) {
+  final async = ref.watch(paletteProvider);
+  return async.maybeWhen(
+    data: (list) => {for (final s in list) s.id: s.value},
+    orElse: () => const <String, ColorValue>{},
+  );
+});

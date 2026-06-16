@@ -46,6 +46,20 @@ class ColorValue {
   bool get isDouble => c2 != null;
 }
 
+/// A reference to a palette colour (spec §1, §8). Models "live id + retained
+/// snapshot": while the referenced palette colour exists, the live value wins;
+/// once it's deleted, the [snapshot] keeps dependents rendering. So deleting a
+/// palette colour never breaks a card.
+class ColorRef {
+  final String? id; // palette colour id, or null for a one-off literal value
+  final ColorValue snapshot; // last-known value; the fallback after deletion
+
+  const ColorRef({required this.id, required this.snapshot});
+
+  /// A non-referencing literal colour (no palette link).
+  const ColorRef.literal(this.snapshot) : id = null;
+}
+
 /// A field's optional outline. Stored as a *relationship to the fill*, not an
 /// absolute colour, so it tracks the fill automatically when the fill changes
 /// (spec §3.6).
@@ -89,7 +103,7 @@ class FieldSpec {
   final Rect frac; // L,T,R,B each in 0..1 of the card
   final double cornerRadius; // fraction of card width
   final bool sharp; // sharp corners override cornerRadius
-  final ColorValue? fill; // background fill (null for Art)
+  final ColorRef? fill; // background fill reference (null for Art)
   final double fillAlpha; // use-site opacity for the fill, 0..1
   final OutlineSpec? outline; // optional
   final TextStyleSpec? text; // present on text-bearing fields
@@ -121,7 +135,7 @@ class CardData {
   final double widthInches;
   final double heightInches;
   final double cornerRadiusFrac; // card corner radius as fraction of width
-  final ColorValue baseColor;
+  final ColorRef baseColor;
   final BorderSpec? border;
   final List<FieldSpec> fields;
   final FoilType foil;
@@ -139,15 +153,29 @@ class CardData {
   });
 }
 
-/// Resolves references (template, palette colours, rarity, symbols) to their
-/// live value *or a retained snapshot* if the target was deleted (spec §1, §8).
+/// Resolves references (palette colours today; template, rarity, symbols later)
+/// to their live value *or a retained snapshot* if the target was deleted
+/// (spec §1, §8).
 ///
-/// For this spike it does nothing yet — the card carries its own values
-/// directly. It exists now so `paintCard`'s signature is final and the
-/// snapshot/live-resolution logic has a home later, without touching the
-/// renderer.
+/// This is a plain value object the UI builds from the current palette and
+/// hands to `paintCard`. It keeps the renderer PURE — `paintCard` asks the
+/// resolver for a value and never sees a dangling reference or touches storage.
 class CardRefs {
-  const CardRefs();
+  /// Current palette: colour id -> live value. Built by the UI from the
+  /// palette provider; empty while still loading (snapshots cover that).
+  final Map<String, ColorValue> palette;
+
+  const CardRefs({this.palette = const {}});
+
+  /// Live value if the referenced colour still exists, else the snapshot.
+  ColorValue resolveColor(ColorRef ref) {
+    final id = ref.id;
+    if (id != null) {
+      final live = palette[id];
+      if (live != null) return live;
+    }
+    return ref.snapshot;
+  }
 }
 
 /// A palette entry as the UI/state layer sees it: identity + name + the colour
