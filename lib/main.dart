@@ -5,7 +5,7 @@
 
 import 'package:flutter/material.dart';
 
-import 'features/spike/spike_screen.dart';
+import 'app/app_shell.dart';
 
 void main() => runApp(const CardboardPressApp());
 
@@ -21,9 +21,9 @@ class CardboardPressApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF3F6FB0),
       ),
-      // For now the app opens straight onto the renderer spike.
-      // The 5-tab navigation shell comes in the next session.
-      home: const SpikeScreen(),
+      // The app now opens onto the tabbed shell. The renderer spike is reachable
+      // from the Card Editor tab until the real editor replaces it.
+      home: const AppShell(),
     );
   }
 }
