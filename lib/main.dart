@@ -4,10 +4,13 @@
 // hands the root widget to the Flutter engine to render.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app_shell.dart';
 
-void main() => runApp(const CardboardPressApp());
+// ProviderScope is the root that holds all Riverpod provider state. Every app
+// using Riverpod wraps its root widget in exactly one of these.
+void main() => runApp(const ProviderScope(child: CardboardPressApp()));
 
 class CardboardPressApp extends StatelessWidget {
   const CardboardPressApp({super.key});
@@ -21,8 +24,6 @@ class CardboardPressApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF3F6FB0),
       ),
-      // The app now opens onto the tabbed shell. The renderer spike is reachable
-      // from the Card Editor tab until the real editor replaces it.
       home: const AppShell(),
     );
   }

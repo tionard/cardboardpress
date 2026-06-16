@@ -149,3 +149,18 @@ class CardData {
 class CardRefs {
   const CardRefs();
 }
+
+/// A palette entry as the UI/state layer sees it: identity + name + the colour
+/// value. This is the domain shape; the drift row is mapped into this so
+/// features never import database types directly.
+class PaletteSwatch {
+  final String id;
+  final String name;
+  final ColorValue value;
+
+  const PaletteSwatch({
+    required this.id,
+    required this.name,
+    required this.value,
+  });
+}
