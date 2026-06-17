@@ -285,6 +285,7 @@ class CardEntry {
   final TemplateData templateSnapshot;
   final CardContent content;
   final FoilType foil;
+  final String? setId; // null => Unassigned
 
   const CardEntry({
     required this.id,
@@ -292,6 +293,7 @@ class CardEntry {
     required this.templateSnapshot,
     required this.content,
     this.foil = FoilType.none,
+    this.setId,
   });
 
   /// The layout to draw with: the live template if it still exists, else the
@@ -317,5 +319,28 @@ class CardEntry {
         templateSnapshot: templateSnapshot ?? this.templateSnapshot,
         content: content ?? this.content,
         foil: foil ?? this.foil,
+        setId: setId,
       );
+}
+
+/// A set (Collection folder): name + footer-feeding metadata + numbering.
+/// "Unassigned" is not stored — it's the null-setId bucket, always shown first.
+class SetEntry {
+  final String id;
+  final String name;
+  final String abbreviation;
+  final int year;
+  final String owner;
+  final bool numbering;
+  final int position;
+
+  const SetEntry({
+    required this.id,
+    required this.name,
+    this.abbreviation = '',
+    this.year = 2026,
+    this.owner = '',
+    this.numbering = true,
+    this.position = 0,
+  });
 }

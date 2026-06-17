@@ -1217,12 +1217,461 @@ class CardsCompanion extends UpdateCompanion<Card> {
   }
 }
 
+class $SetsTable extends Sets with TableInfo<$SetsTable, CardSet> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _abbreviationMeta = const VerificationMeta(
+    'abbreviation',
+  );
+  @override
+  late final GeneratedColumn<String> abbreviation = GeneratedColumn<String>(
+    'abbreviation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _yearMeta = const VerificationMeta('year');
+  @override
+  late final GeneratedColumn<int> year = GeneratedColumn<int>(
+    'year',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(2026),
+  );
+  static const VerificationMeta _ownerMeta = const VerificationMeta('owner');
+  @override
+  late final GeneratedColumn<String> owner = GeneratedColumn<String>(
+    'owner',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _numberingMeta = const VerificationMeta(
+    'numbering',
+  );
+  @override
+  late final GeneratedColumn<bool> numbering = GeneratedColumn<bool>(
+    'numbering',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("numbering" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    abbreviation,
+    year,
+    owner,
+    numbering,
+    position,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sets';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CardSet> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('abbreviation')) {
+      context.handle(
+        _abbreviationMeta,
+        abbreviation.isAcceptableOrUnknown(
+          data['abbreviation']!,
+          _abbreviationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('year')) {
+      context.handle(
+        _yearMeta,
+        year.isAcceptableOrUnknown(data['year']!, _yearMeta),
+      );
+    }
+    if (data.containsKey('owner')) {
+      context.handle(
+        _ownerMeta,
+        owner.isAcceptableOrUnknown(data['owner']!, _ownerMeta),
+      );
+    }
+    if (data.containsKey('numbering')) {
+      context.handle(
+        _numberingMeta,
+        numbering.isAcceptableOrUnknown(data['numbering']!, _numberingMeta),
+      );
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CardSet map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CardSet(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      abbreviation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}abbreviation'],
+      )!,
+      year: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}year'],
+      )!,
+      owner: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner'],
+      )!,
+      numbering: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}numbering'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+    );
+  }
+
+  @override
+  $SetsTable createAlias(String alias) {
+    return $SetsTable(attachedDatabase, alias);
+  }
+}
+
+class CardSet extends DataClass implements Insertable<CardSet> {
+  final String id;
+  final String name;
+  final String abbreviation;
+  final int year;
+  final String owner;
+  final bool numbering;
+  final int position;
+  const CardSet({
+    required this.id,
+    required this.name,
+    required this.abbreviation,
+    required this.year,
+    required this.owner,
+    required this.numbering,
+    required this.position,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['abbreviation'] = Variable<String>(abbreviation);
+    map['year'] = Variable<int>(year);
+    map['owner'] = Variable<String>(owner);
+    map['numbering'] = Variable<bool>(numbering);
+    map['position'] = Variable<int>(position);
+    return map;
+  }
+
+  SetsCompanion toCompanion(bool nullToAbsent) {
+    return SetsCompanion(
+      id: Value(id),
+      name: Value(name),
+      abbreviation: Value(abbreviation),
+      year: Value(year),
+      owner: Value(owner),
+      numbering: Value(numbering),
+      position: Value(position),
+    );
+  }
+
+  factory CardSet.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CardSet(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      abbreviation: serializer.fromJson<String>(json['abbreviation']),
+      year: serializer.fromJson<int>(json['year']),
+      owner: serializer.fromJson<String>(json['owner']),
+      numbering: serializer.fromJson<bool>(json['numbering']),
+      position: serializer.fromJson<int>(json['position']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'abbreviation': serializer.toJson<String>(abbreviation),
+      'year': serializer.toJson<int>(year),
+      'owner': serializer.toJson<String>(owner),
+      'numbering': serializer.toJson<bool>(numbering),
+      'position': serializer.toJson<int>(position),
+    };
+  }
+
+  CardSet copyWith({
+    String? id,
+    String? name,
+    String? abbreviation,
+    int? year,
+    String? owner,
+    bool? numbering,
+    int? position,
+  }) => CardSet(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    abbreviation: abbreviation ?? this.abbreviation,
+    year: year ?? this.year,
+    owner: owner ?? this.owner,
+    numbering: numbering ?? this.numbering,
+    position: position ?? this.position,
+  );
+  CardSet copyWithCompanion(SetsCompanion data) {
+    return CardSet(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      abbreviation: data.abbreviation.present
+          ? data.abbreviation.value
+          : this.abbreviation,
+      year: data.year.present ? data.year.value : this.year,
+      owner: data.owner.present ? data.owner.value : this.owner,
+      numbering: data.numbering.present ? data.numbering.value : this.numbering,
+      position: data.position.present ? data.position.value : this.position,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CardSet(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('abbreviation: $abbreviation, ')
+          ..write('year: $year, ')
+          ..write('owner: $owner, ')
+          ..write('numbering: $numbering, ')
+          ..write('position: $position')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, abbreviation, year, owner, numbering, position);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CardSet &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.abbreviation == this.abbreviation &&
+          other.year == this.year &&
+          other.owner == this.owner &&
+          other.numbering == this.numbering &&
+          other.position == this.position);
+}
+
+class SetsCompanion extends UpdateCompanion<CardSet> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> abbreviation;
+  final Value<int> year;
+  final Value<String> owner;
+  final Value<bool> numbering;
+  final Value<int> position;
+  final Value<int> rowid;
+  const SetsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.abbreviation = const Value.absent(),
+    this.year = const Value.absent(),
+    this.owner = const Value.absent(),
+    this.numbering = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SetsCompanion.insert({
+    required String id,
+    required String name,
+    this.abbreviation = const Value.absent(),
+    this.year = const Value.absent(),
+    this.owner = const Value.absent(),
+    this.numbering = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name);
+  static Insertable<CardSet> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? abbreviation,
+    Expression<int>? year,
+    Expression<String>? owner,
+    Expression<bool>? numbering,
+    Expression<int>? position,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (abbreviation != null) 'abbreviation': abbreviation,
+      if (year != null) 'year': year,
+      if (owner != null) 'owner': owner,
+      if (numbering != null) 'numbering': numbering,
+      if (position != null) 'position': position,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SetsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? abbreviation,
+    Value<int>? year,
+    Value<String>? owner,
+    Value<bool>? numbering,
+    Value<int>? position,
+    Value<int>? rowid,
+  }) {
+    return SetsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      abbreviation: abbreviation ?? this.abbreviation,
+      year: year ?? this.year,
+      owner: owner ?? this.owner,
+      numbering: numbering ?? this.numbering,
+      position: position ?? this.position,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (abbreviation.present) {
+      map['abbreviation'] = Variable<String>(abbreviation.value);
+    }
+    if (year.present) {
+      map['year'] = Variable<int>(year.value);
+    }
+    if (owner.present) {
+      map['owner'] = Variable<String>(owner.value);
+    }
+    if (numbering.present) {
+      map['numbering'] = Variable<bool>(numbering.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SetsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('abbreviation: $abbreviation, ')
+          ..write('year: $year, ')
+          ..write('owner: $owner, ')
+          ..write('numbering: $numbering, ')
+          ..write('position: $position, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $PaletteColorsTable paletteColors = $PaletteColorsTable(this);
   late final $TemplatesTable templates = $TemplatesTable(this);
   late final $CardsTable cards = $CardsTable(this);
+  late final $SetsTable sets = $SetsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1231,6 +1680,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     paletteColors,
     templates,
     cards,
+    sets,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2117,6 +2567,238 @@ typedef $$CardsTableProcessedTableManager =
       Card,
       PrefetchHooks Function({bool templateId})
     >;
+typedef $$SetsTableCreateCompanionBuilder =
+    SetsCompanion Function({
+      required String id,
+      required String name,
+      Value<String> abbreviation,
+      Value<int> year,
+      Value<String> owner,
+      Value<bool> numbering,
+      Value<int> position,
+      Value<int> rowid,
+    });
+typedef $$SetsTableUpdateCompanionBuilder =
+    SetsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> abbreviation,
+      Value<int> year,
+      Value<String> owner,
+      Value<bool> numbering,
+      Value<int> position,
+      Value<int> rowid,
+    });
+
+class $$SetsTableFilterComposer extends Composer<_$AppDatabase, $SetsTable> {
+  $$SetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get abbreviation => $composableBuilder(
+    column: $table.abbreviation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get owner => $composableBuilder(
+    column: $table.owner,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get numbering => $composableBuilder(
+    column: $table.numbering,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SetsTableOrderingComposer extends Composer<_$AppDatabase, $SetsTable> {
+  $$SetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get abbreviation => $composableBuilder(
+    column: $table.abbreviation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get owner => $composableBuilder(
+    column: $table.owner,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get numbering => $composableBuilder(
+    column: $table.numbering,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SetsTable> {
+  $$SetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get abbreviation => $composableBuilder(
+    column: $table.abbreviation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get year =>
+      $composableBuilder(column: $table.year, builder: (column) => column);
+
+  GeneratedColumn<String> get owner =>
+      $composableBuilder(column: $table.owner, builder: (column) => column);
+
+  GeneratedColumn<bool> get numbering =>
+      $composableBuilder(column: $table.numbering, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+}
+
+class $$SetsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SetsTable,
+          CardSet,
+          $$SetsTableFilterComposer,
+          $$SetsTableOrderingComposer,
+          $$SetsTableAnnotationComposer,
+          $$SetsTableCreateCompanionBuilder,
+          $$SetsTableUpdateCompanionBuilder,
+          (CardSet, BaseReferences<_$AppDatabase, $SetsTable, CardSet>),
+          CardSet,
+          PrefetchHooks Function()
+        > {
+  $$SetsTableTableManager(_$AppDatabase db, $SetsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SetsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> abbreviation = const Value.absent(),
+                Value<int> year = const Value.absent(),
+                Value<String> owner = const Value.absent(),
+                Value<bool> numbering = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SetsCompanion(
+                id: id,
+                name: name,
+                abbreviation: abbreviation,
+                year: year,
+                owner: owner,
+                numbering: numbering,
+                position: position,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<String> abbreviation = const Value.absent(),
+                Value<int> year = const Value.absent(),
+                Value<String> owner = const Value.absent(),
+                Value<bool> numbering = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SetsCompanion.insert(
+                id: id,
+                name: name,
+                abbreviation: abbreviation,
+                year: year,
+                owner: owner,
+                numbering: numbering,
+                position: position,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SetsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SetsTable,
+      CardSet,
+      $$SetsTableFilterComposer,
+      $$SetsTableOrderingComposer,
+      $$SetsTableAnnotationComposer,
+      $$SetsTableCreateCompanionBuilder,
+      $$SetsTableUpdateCompanionBuilder,
+      (CardSet, BaseReferences<_$AppDatabase, $SetsTable, CardSet>),
+      CardSet,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2127,4 +2809,5 @@ class $AppDatabaseManager {
       $$TemplatesTableTableManager(_db, _db.templates);
   $$CardsTableTableManager get cards =>
       $$CardsTableTableManager(_db, _db.cards);
+  $$SetsTableTableManager get sets => $$SetsTableTableManager(_db, _db.sets);
 }

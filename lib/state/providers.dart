@@ -10,6 +10,7 @@ import '../data/image_store.dart';
 import '../data/card_exporter.dart';
 import '../data/card_repository.dart';
 import '../data/palette_repository.dart';
+import '../data/set_repository.dart';
 import '../data/template_repository.dart';
 import '../model/card_model.dart';
 
@@ -75,3 +76,24 @@ final imageStoreProvider = Provider<ImageStore>((ref) => ImageStore());
 
 /// Renders + saves a card as PNG (Card Editor export, Collection export later).
 final cardExporterProvider = Provider<CardExporter>((ref) => CardExporter());
+
+/// Data API for sets.
+final setRepositoryProvider = Provider<SetRepository>(
+  (ref) => SetRepository(ref.watch(databaseProvider)),
+);
+
+/// Live list of persisted sets (Unassigned is the null-setId bucket, not here).
+final setsProvider = StreamProvider<List<SetEntry>>(
+  (ref) => ref.watch(setRepositoryProvider).watch(),
+);
+
+/// The card currently open in the editor (chosen from Collection).
+class CurrentCardId extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? id) => state = id;
+}
+
+final currentCardIdProvider =
+    NotifierProvider<CurrentCardId, String?>(CurrentCardId.new);

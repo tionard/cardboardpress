@@ -28,11 +28,49 @@ class CardRepository {
         ),
       );
 
+  /// Create a new, empty card on [templateId]/[templateSnapshot] in [setId]
+  /// (null => Unassigned). Returns the new card id.
+  Future<String> create({
+    required String? templateId,
+    required TemplateData templateSnapshot,
+    String? setId,
+  }) async {
+    final id = 'card_${DateTime.now().microsecondsSinceEpoch}';
+    await _db.upsertCard(CardsCompanion.insert(
+      id: id,
+      templateId: Value(templateId),
+      templateSnapshot: templateSnapshot,
+      content: const CardContent(),
+      foil: const Value('none'),
+      setId: Value(setId),
+    ));
+    return id;
+  }
+
+  /// Duplicate [e] (into [setId], defaulting to the original's set).
+  Future<String> duplicate(CardEntry e, {String? setId}) async {
+    final id = 'card_${DateTime.now().microsecondsSinceEpoch}';
+    await _db.upsertCard(CardsCompanion.insert(
+      id: id,
+      templateId: Value(e.templateId),
+      templateSnapshot: e.templateSnapshot,
+      content: e.content,
+      foil: Value(foilToName(e.foil)),
+      setId: Value(setId ?? e.setId),
+    ));
+    return id;
+  }
+
+  Future<void> delete(String id) => _db.deleteCard(id);
+
+  Future<void> setSet(String id, String? setId) => _db.updateCardSet(id, setId);
+
   CardEntry _toEntry(Card r) => CardEntry(
         id: r.id,
         templateId: r.templateId,
         templateSnapshot: r.templateSnapshot, // TemplateData (via converter)
         content: r.content, // CardContent (via converter)
         foil: foilFromName(r.foil),
+        setId: r.setId,
       );
 }

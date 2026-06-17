@@ -45,7 +45,9 @@ class CardEditorScreen extends ConsumerWidget {
         if (cards.isEmpty) {
           return const Center(child: Text('No cards yet.'));
         }
-        final card = cards.first;
+        final selectedId = ref.watch(currentCardIdProvider);
+        final card = cards.firstWhere((c) => c.id == selectedId,
+            orElse: () => cards.first);
         return _CardEditorBody(
           key: ValueKey(card.id),
           card: card,

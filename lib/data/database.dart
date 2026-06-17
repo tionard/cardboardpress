@@ -57,12 +57,27 @@ class Cards extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [PaletteColors, Templates, Cards])
+/// A set / Collection folder (spec §3, §4). Unassigned is not stored.
+@DataClassName('CardSet')
+class Sets extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get abbreviation => text().withDefault(const Constant(''))();
+  IntColumn get year => integer().withDefault(const Constant(2026))();
+  TextColumn get owner => text().withDefault(const Constant(''))();
+  BoolColumn get numbering => boolean().withDefault(const Constant(true))();
+  IntColumn get position => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DriftDatabase(tables: [PaletteColors, Templates, Cards, Sets])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -71,6 +86,7 @@ class AppDatabase extends _$AppDatabase {
           await _seedDefaultColors();
           await _seedDefaultTemplates();
           await _seedSampleCards();
+          await _seedDefaultSets();
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
@@ -85,6 +101,10 @@ class AppDatabase extends _$AppDatabase {
             await delete(templates).go();
             await _seedDefaultTemplates();
             await _seedSampleCards();
+          }
+          if (from < 4) {
+            await m.createTable(sets);
+            await _seedDefaultSets();
           }
         },
         beforeOpen: (details) async {
@@ -177,6 +197,13 @@ class AppDatabase extends _$AppDatabase {
   Future<void> upsertCard(CardsCompanion c) =>
       into(cards).insertOnConflictUpdate(c);
 
+  Future<void> updateCardSet(String id, String? setId) =>
+      (update(cards)..where((t) => t.id.equals(id)))
+          .write(CardsCompanion(setId: Value(setId)));
+
+  Future<void> deleteCard(String id) =>
+      (delete(cards)..where((t) => t.id.equals(id))).go();
+
   Future<void> _seedSampleCards() async {
     final thornwood =
         defaultTemplates().firstWhere((t) => t.id == 't_thornwood').data;
@@ -187,6 +214,36 @@ class AppDatabase extends _$AppDatabase {
         templateSnapshot: thornwood,
         content: sampleContent(),
         foil: const Value('holo'),
+        position: const Value(0),
+      ),
+      mode: InsertMode.insertOrIgnore,
+    );
+  }
+
+  // ---- sets ----
+
+  Stream<List<CardSet>> watchSets() =>
+      (select(sets)..orderBy([(t) => OrderingTerm(expression: t.position)]))
+          .watch();
+
+  Future<void> createSet(SetsCompanion c) => into(sets).insert(c);
+
+  Future<void> deleteSet(String id) =>
+      (delete(sets)..where((t) => t.id.equals(id))).go();
+
+  Future<int> maxSetPosition() async {
+    final rows = await select(sets).get();
+    if (rows.isEmpty) return -1;
+    return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
+  }
+
+  Future<void> _seedDefaultSets() async {
+    await into(sets).insert(
+      SetsCompanion.insert(
+        id: 's_core',
+        name: 'Core Set',
+        abbreviation: const Value('CORE'),
+        year: const Value(2026),
         position: const Value(0),
       ),
       mode: InsertMode.insertOrIgnore,
