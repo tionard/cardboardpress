@@ -241,7 +241,27 @@ class _TemplateBodyState extends State<_TemplateBody> {
     _update(_d.copyWith(fields: fields));
   }
 
+  // ---- single-placement rule (spec §3.6) ----
+  //
+  // Every field type is placeable exactly once EXCEPT Stat, which may repeat.
+  // We enforce it where a type is chosen: the Add-field menu and the per-field
+  // type dropdown both grey out a type that's already in use.
+
+  Set<FieldType> get _placedTypes => _d.fields.map((f) => f.type).toSet();
+
+  /// Can a NEW field of [type] be added? Stat always; others only if absent.
+  bool _canAdd(FieldType type) =>
+      type == FieldType.stat || !_placedTypes.contains(type);
+
+  /// Can field [self] be CHANGED to [type]? Always its current type or Stat;
+  /// otherwise only if no OTHER field already uses that type.
+  bool _canChangeTo(FieldType type, FieldSpec self) =>
+      type == self.type ||
+      type == FieldType.stat ||
+      !_d.fields.any((f) => f.id != self.id && f.type == type);
+
   void _addField(FieldType type) {
+    if (!_canAdd(type)) return; // defensive; the menu already disables it
     final id = 'f_${DateTime.now().microsecondsSinceEpoch}';
     final isArt = type == FieldType.art;
     final f = FieldSpec(
@@ -605,7 +625,10 @@ class _TemplateBodyState extends State<_TemplateBody> {
               onSelected: _addField,
               itemBuilder: (_) => [
                 for (final t in FieldType.values)
-                  PopupMenuItem(value: t, child: Text(_typeLabel(t))),
+                  PopupMenuItem(
+                      value: t,
+                      enabled: _canAdd(t),
+                      child: Text(_typeLabel(t))),
               ],
               child: const Chip(
                 avatar: Icon(Icons.add, size: 18),
@@ -654,7 +677,10 @@ class _TemplateBodyState extends State<_TemplateBody> {
                 value: f.type,
                 items: [
                   for (final t in FieldType.values)
-                    DropdownMenuItem(value: t, child: Text(_typeLabel(t))),
+                    DropdownMenuItem(
+                        value: t,
+                        enabled: _canChangeTo(t, f),
+                        child: Text(_typeLabel(t))),
                 ],
                 onChanged: (t) {
                   if (t != null) _changeFieldType(f, t);
