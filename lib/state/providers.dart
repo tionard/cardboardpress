@@ -6,6 +6,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database.dart';
+import '../data/image_store.dart';
 import '../data/card_repository.dart';
 import '../data/palette_repository.dart';
 import '../data/template_repository.dart';
@@ -67,3 +68,6 @@ final cardRepositoryProvider = Provider<CardRepository>(
 final cardsProvider = StreamProvider<List<CardEntry>>(
   (ref) => ref.watch(cardRepositoryProvider).watch(),
 );
+
+/// Disk-backed store for picked art images.
+final imageStoreProvider = Provider<ImageStore>((ref) => ImageStore());

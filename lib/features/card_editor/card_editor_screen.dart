@@ -1,20 +1,20 @@
 // lib/features/card_editor/card_editor_screen.dart
 //
-// Card Editor: preview + a category rail + a settings pane, arranged
-// responsively (side-by-side when wide, stacked when narrow). The "Card"
-// category is the content form — one debounced-autosave input per authorable
-// text field. Other categories are placeholders for upcoming work.
-//
-// Per flutter-conventions.md these are independent panes driven by a width
-// breakpoint, so the eventual phone slide-up dock vs tablet side-by-side is a
-// layout change, not a rewrite.
+// Card Editor: preview + category rail + settings, arranged responsively. The
+// "Card" category is the text content form; "Art" picks/removes the card's
+// artwork. Art images are decoded by this widget and handed to the renderer via
+// CardRefs.images — paintCard stays synchronous and never loads files itself.
 
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/card_repository.dart';
+import '../../data/image_store.dart';
 import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
@@ -32,7 +32,7 @@ class CardEditorScreen extends ConsumerWidget {
           orElse: () => const <TemplateEntry>[],
         );
     final templatesMap = ref.watch(templatesMapProvider);
-    final refs = CardRefs(palette: ref.watch(paletteMapProvider));
+    final palette = ref.watch(paletteMapProvider);
 
     return cardsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -47,15 +47,15 @@ class CardEditorScreen extends ConsumerWidget {
           card: card,
           templates: templates,
           templatesMap: templatesMap,
-          refs: refs,
+          palette: palette,
           repo: ref.read(cardRepositoryProvider),
+          imageStore: ref.read(imageStoreProvider),
         );
       },
     );
   }
 }
 
-// Rail categories (flutter-conventions.md §"Card Editor dock").
 enum _Cat { card, art, color, set, export }
 
 const _catLabels = {
@@ -77,16 +77,18 @@ class _CardEditorBody extends StatefulWidget {
   final CardEntry card;
   final List<TemplateEntry> templates;
   final Map<String, TemplateData> templatesMap;
-  final CardRefs refs;
+  final Map<String, ColorValue> palette;
   final CardRepository repo;
+  final ImageStore imageStore;
 
   const _CardEditorBody({
     super.key,
     required this.card,
     required this.templates,
     required this.templatesMap,
-    required this.refs,
+    required this.palette,
     required this.repo,
+    required this.imageStore,
   });
 
   @override
@@ -96,6 +98,7 @@ class _CardEditorBody extends StatefulWidget {
 class _CardEditorBodyState extends State<_CardEditorBody> {
   late CardEntry _working;
   final Map<String, TextEditingController> _controllers = {};
+  final Map<String, ui.Image> _images = {}; // imageId -> decoded image
   Timer? _saveTimer;
   _Cat _cat = _Cat.card;
 
@@ -103,19 +106,34 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   void initState() {
     super.initState();
     _working = widget.card;
+    _syncArtImages(); // decode any art the card already references
   }
 
   @override
   void dispose() {
     _saveTimer?.cancel();
-    widget.repo.save(_working); // flush latest edit
+    widget.repo.save(_working);
     for (final c in _controllers.values) {
       c.dispose();
     }
     super.dispose();
   }
 
-  // One controller per field id, created on demand and seeded from content.
+  TemplateData get _effective => _working.effectiveTemplate(widget.templatesMap);
+
+  List<FieldSpec> get _editableFields => _effective.fields
+      .where((f) => f.text != null && f.type != FieldType.footer)
+      .toList();
+
+  String? get _artFieldId {
+    for (final f in _effective.fields) {
+      if (f.type == FieldType.art) return f.id;
+    }
+    return null;
+  }
+
+  // ---- text content ----
+
   TextEditingController _controllerFor(FieldSpec f) {
     return _controllers.putIfAbsent(f.id, () {
       final c = TextEditingController(text: _working.content.text[f.id] ?? '');
@@ -126,10 +144,8 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
 
   void _onFieldChanged(String fieldId, String value) {
     if ((_working.content.text[fieldId] ?? '') == value) return;
-    setState(() {
-      _working =
-          _working.copyWith(content: _working.content.withText(fieldId, value));
-    });
+    setState(() => _working =
+        _working.copyWith(content: _working.content.withText(fieldId, value)));
     _scheduleSave();
   }
 
@@ -145,17 +161,59 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     setState(() => _working =
         _working.copyWith(templateId: id, templateSnapshot: snapshot));
     widget.repo.save(_working);
+    _syncArtImages();
   }
 
-  TemplateData get _effective => _working.effectiveTemplate(widget.templatesMap);
+  // ---- art images ----
 
-  // Authorable text fields: text-bearing, excluding the derived Footer.
-  List<FieldSpec> get _editableFields => _effective.fields
-      .where((f) => f.text != null && f.type != FieldType.footer)
-      .toList();
+  Future<ui.Image> _decode(Uint8List bytes) async {
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
+
+  Future<void> _syncArtImages() async {
+    for (final imageId in _working.content.art.values) {
+      if (_images.containsKey(imageId)) continue;
+      final bytes = await widget.imageStore.load(imageId);
+      if (bytes == null) continue;
+      final img = await _decode(bytes);
+      if (!mounted) return;
+      setState(() => _images[imageId] = img);
+    }
+  }
+
+  Future<void> _pickArt(String artFieldId) async {
+    final result =
+        await FilePicker.pickFiles(type: FileType.image, withData: true);
+    if (result == null) return;
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) return;
+    final imageId = await widget.imageStore
+        .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
+    final img = await _decode(bytes);
+    if (!mounted) return;
+    setState(() {
+      _images[imageId] = img;
+      _working = _working.copyWith(
+          content: _working.content.withArt(artFieldId, imageId));
+    });
+    widget.repo.save(_working);
+  }
+
+  void _removeArt(String artFieldId) {
+    setState(() => _working =
+        _working.copyWith(content: _working.content.withArt(artFieldId, null)));
+    widget.repo.save(_working);
+    // (The file is left on disk; orphan cleanup comes with Collection delete.)
+  }
+
+  // ---- layout ----
 
   @override
   Widget build(BuildContext context) {
+    final refs = CardRefs(palette: widget.palette, images: _images);
     final card = composeCard(_effective,
         content: _working.content, foil: _working.foil);
 
@@ -165,8 +223,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
         final preview = Padding(
           padding: const EdgeInsets.all(16),
           child: Center(
-            child: CardPreview(
-                card: card, refs: widget.refs, width: wide ? 300 : 220),
+            child: CardPreview(card: card, refs: refs, width: wide ? 300 : 220),
           ),
         );
 
@@ -176,10 +233,9 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
             children: [
               Expanded(flex: 5, child: preview),
               _Rail(
-                vertical: true,
-                selected: _cat,
-                onSelect: (c) => setState(() => _cat = c),
-              ),
+                  vertical: true,
+                  selected: _cat,
+                  onSelect: (c) => setState(() => _cat = c)),
               Expanded(
                 flex: 4,
                 child: Material(
@@ -195,10 +251,9 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
           children: [
             preview,
             _Rail(
-              vertical: false,
-              selected: _cat,
-              onSelect: (c) => setState(() => _cat = c),
-            ),
+                vertical: false,
+                selected: _cat,
+                onSelect: (c) => setState(() => _cat = c)),
             Expanded(child: _settings()),
           ],
         );
@@ -210,6 +265,8 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     switch (_cat) {
       case _Cat.card:
         return _cardSettings();
+      case _Cat.art:
+        return _artSettings();
       case _Cat.export:
         return _exportSettings();
       default:
@@ -254,8 +311,63 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
         ],
         Text(
           'Each field autosaves as you type and the preview updates live. The '
-          'Footer is omitted — it shows values derived from the set and rarity, '
-          'which it will once those exist.',
+          'Footer is omitted — it shows values derived from the set and rarity.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
+  Widget _artSettings() {
+    final artId = _artFieldId;
+    if (artId == null) {
+      return const Center(child: Text('This template has no Art field.'));
+    }
+    final imageId = _working.content.art[artId];
+    final img = imageId == null ? null : _images[imageId];
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        SizedBox(
+          height: 170,
+          width: double.infinity,
+          child: img != null
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: RawImage(image: img, fit: BoxFit.cover),
+                )
+              : DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: const Center(child: Text('No art yet')),
+                ),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          children: [
+            FilledButton.icon(
+              onPressed: () => _pickArt(artId),
+              icon: const Icon(Icons.upload_outlined),
+              label: Text(imageId == null ? 'Pick image' : 'Replace image'),
+            ),
+            if (imageId != null)
+              OutlinedButton.icon(
+                onPressed: () => _removeArt(artId),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Remove'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'The image is copied into the app and rendered through the same '
+          'paintCard, so the preview and a future export match exactly. '
+          'Zoom/pan and the artist credit come next.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -286,17 +398,13 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
 String _fieldLabel(FieldType t) =>
     t.name[0].toUpperCase() + t.name.substring(1);
 
-// The category rail — vertical (wide) or horizontal (narrow).
 class _Rail extends StatelessWidget {
   final bool vertical;
   final _Cat selected;
   final ValueChanged<_Cat> onSelect;
 
-  const _Rail({
-    required this.vertical,
-    required this.selected,
-    required this.onSelect,
-  });
+  const _Rail(
+      {required this.vertical, required this.selected, required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
@@ -311,23 +419,17 @@ class _Rail extends StatelessWidget {
           onTap: () => onSelect(c),
         ),
     ];
-
     if (vertical) {
       return Container(
         width: 84,
         color: scheme.surfaceContainerHighest,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: tiles,
-        ),
+            mainAxisAlignment: MainAxisAlignment.center, children: tiles),
       );
     }
     return Container(
       color: scheme.surfaceContainerHighest,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: tiles,
-      ),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: tiles),
     );
   }
 }
@@ -339,17 +441,17 @@ class _RailTile extends StatelessWidget {
   final Color accent;
   final VoidCallback onTap;
 
-  const _RailTile({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.accent,
-    required this.onTap,
-  });
+  const _RailTile(
+      {required this.icon,
+      required this.label,
+      required this.selected,
+      required this.accent,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? accent : Theme.of(context).colorScheme.onSurfaceVariant;
+    final color =
+        selected ? accent : Theme.of(context).colorScheme.onSurfaceVariant;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -363,7 +465,8 @@ class _RailTile extends StatelessWidget {
                 style: TextStyle(
                     color: color,
                     fontSize: 11,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+                    fontWeight:
+                        selected ? FontWeight.w600 : FontWeight.w400)),
           ],
         ),
       ),

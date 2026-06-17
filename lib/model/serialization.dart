@@ -155,12 +155,15 @@ TemplateData templateFromJson(String s) =>
 Map<String, dynamic> cardContentToMap(CardContent c) => {
       'v': 1,
       'text': c.text,
+      'art': c.art,
     };
 
 CardContent cardContentFromMap(Map m) {
   final t = (m['text'] as Map?) ?? const {};
+  final a = (m['art'] as Map?) ?? const {};
   return CardContent(
     text: {for (final e in t.entries) e.key.toString(): '${e.value}'},
+    art: {for (final e in a.entries) e.key.toString(): '${e.value}'},
   );
 }
 

@@ -113,6 +113,7 @@ CardData composeCard(
       fields: t.fields,
       foil: foil,
       textContent: content.text,
+      artImageIds: content.art,
     );
 
 /// Convenience used by the spike: Thornwood template + sample content.

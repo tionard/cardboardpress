@@ -15,6 +15,7 @@
 // If you ever find card-drawing logic living somewhere OTHER than here, that's
 // the bug this architecture exists to prevent.
 
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import '../model/card_model.dart';
@@ -77,8 +78,15 @@ void _paintField(
   final rrect = ui.RRect.fromRectAndRadius(rect, ui.Radius.circular(r));
 
   // Art has no background/outline — just its image (a placeholder here).
+  // Art: draw the resolved image (cover-fit, clipped) if present, else a
+  // placeholder. The image is resolved via refs — never loaded here.
   if (field.type == FieldType.art) {
-    _paintArtPlaceholder(canvas, rrect, size);
+    final img = refs.resolveImage(card.artImageIds[field.id]);
+    if (img != null) {
+      _paintArtImage(canvas, rrect, img);
+    } else {
+      _paintArtPlaceholder(canvas, rrect, size);
+    }
     return;
   }
 
@@ -104,7 +112,7 @@ void _paintField(
   }
 
   // 2.3 Content — text, drawn in its resolved colour (single or double).
-  //     (Rules rich-text + inline symbols come later.)
+  //     (Rules rich-text + inline symbols come later.) Keyed by field id.
   if (field.text != null) {
     final s = card.textContent[field.id] ?? '';
     if (s.isNotEmpty) {
@@ -267,6 +275,24 @@ void _paintFoil(
 // ---------------------------------------------------------------------------
 // Art placeholder (temporary — real image picking comes later)
 // ---------------------------------------------------------------------------
+
+void _paintArtImage(ui.Canvas canvas, ui.RRect rrect, ui.Image img) {
+  final dst = rrect.outerRect;
+  // Cover-fit: scale so the image fills dst, centre-crop the overflow.
+  final iw = img.width.toDouble();
+  final ih = img.height.toDouble();
+  final scale = math.max(dst.width / iw, dst.height / ih);
+  final cropW = dst.width / scale;
+  final cropH = dst.height / scale;
+  final src = ui.Rect.fromLTWH(
+      (iw - cropW) / 2, (ih - cropH) / 2, cropW, cropH);
+
+  canvas.save();
+  canvas.clipRRect(rrect);
+  canvas.drawImageRect(
+      img, src, dst, ui.Paint()..filterQuality = ui.FilterQuality.medium);
+  canvas.restore();
+}
 
 void _paintArtPlaceholder(ui.Canvas canvas, ui.RRect rrect, ui.Size size) {
   final rect = rrect.outerRect;

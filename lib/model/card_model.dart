@@ -147,6 +147,7 @@ class CardData {
   final List<FieldSpec> fields;
   final FoilType foil;
   final Map<String, String> textContent; // fieldId -> text
+  final Map<String, String> artImageIds; // fieldId -> image id
 
   const CardData({
     this.widthInches = 2.5,
@@ -157,6 +158,7 @@ class CardData {
     required this.fields,
     this.foil = FoilType.none,
     this.textContent = const {},
+    this.artImageIds = const {},
   });
 }
 
@@ -168,11 +170,14 @@ class CardData {
 /// hands to `paintCard`. It keeps the renderer PURE — `paintCard` asks the
 /// resolver for a value and never sees a dangling reference or touches storage.
 class CardRefs {
-  /// Current palette: colour id -> live value. Built by the UI from the
-  /// palette provider; empty while still loading (snapshots cover that).
+  /// Current palette: colour id -> live value.
   final Map<String, ColorValue> palette;
 
-  const CardRefs({this.palette = const {}});
+  /// Decoded art images: image id -> ui.Image. Pre-decoded by the widget layer
+  /// (paintCard is synchronous, so it never loads/decodes images itself).
+  final Map<String, Image> images;
+
+  const CardRefs({this.palette = const {}, this.images = const {}});
 
   /// Live value if the referenced colour still exists, else the snapshot.
   ColorValue resolveColor(ColorRef ref) {
@@ -183,6 +188,10 @@ class CardRefs {
     }
     return ref.snapshot;
   }
+
+  /// The decoded image for [imageId], or null if absent / not yet loaded.
+  Image? resolveImage(String? imageId) =>
+      imageId == null ? null : images[imageId];
 }
 
 /// A palette entry as the UI/state layer sees it: identity + name + the colour
@@ -239,13 +248,25 @@ class TemplateEntry {
 /// text; art images, artist credit, stat values, etc. join later.
 class CardContent {
   final Map<String, String> text; // fieldId -> text value
+  final Map<String, String> art; // fieldId -> image id
 
-  const CardContent({this.text = const {}});
+  const CardContent({this.text = const {}, this.art = const {}});
 
   CardContent withText(String fieldId, String value) {
     final next = Map<String, String>.from(text);
     next[fieldId] = value;
-    return CardContent(text: next);
+    return CardContent(text: next, art: art);
+  }
+
+  /// Set (or clear, when [imageId] is null) the art image for a field.
+  CardContent withArt(String fieldId, String? imageId) {
+    final next = Map<String, String>.from(art);
+    if (imageId == null) {
+      next.remove(fieldId);
+    } else {
+      next[fieldId] = imageId;
+    }
+    return CardContent(text: text, art: next);
   }
 }
 
