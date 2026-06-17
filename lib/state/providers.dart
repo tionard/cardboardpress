@@ -117,3 +117,18 @@ final raritiesMapProvider = Provider<Map<String, RarityEntry>>((ref) {
     orElse: () => const <String, RarityEntry>{},
   );
 });
+
+/// The visible tab index in the app shell, so screens can navigate the shell
+/// (e.g. Collection opening a card in the Card Editor tab). Order matches
+/// AppShell: 0 Collection · 1 Template · 2 Card · 3 Customize.
+const int kCardEditorTabIndex = 2;
+
+class SelectedTab extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void set(int index) => state = index;
+}
+
+final selectedTabProvider =
+    NotifierProvider<SelectedTab, int>(SelectedTab.new);

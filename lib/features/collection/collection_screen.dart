@@ -14,7 +14,6 @@ import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../widgets/card_preview.dart';
-import '../card_editor/card_editor_screen.dart';
 
 class CollectionScreen extends ConsumerWidget {
   const CollectionScreen({super.key});
@@ -163,7 +162,7 @@ class CollectionScreen extends ConsumerWidget {
       child: Column(
         children: [
           InkWell(
-            onTap: () => _openEditor(context, ref, card.id),
+            onTap: () => _openEditor(ref, card.id),
             onLongPress: () => _cardMenu(context, ref, card),
             child: CardPreview(
                 card: data, refs: CardRefs(palette: palette), width: 92),
@@ -188,11 +187,11 @@ class CollectionScreen extends ConsumerWidget {
     return '';
   }
 
-  void _openEditor(BuildContext context, WidgetRef ref, String cardId) {
+  void _openEditor(WidgetRef ref, String cardId) {
+    // Select the card and switch to the Card Editor tab — a single editor
+    // instance, never a pushed duplicate (which would fight over autosave).
     ref.read(currentCardIdProvider.notifier).set(cardId);
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const _EditCardRoute()),
-    );
+    ref.read(selectedTabProvider.notifier).set(kCardEditorTabIndex);
   }
 
   Future<void> _newCard(
@@ -206,8 +205,7 @@ class CollectionScreen extends ConsumerWidget {
     final id = await ref
         .read(cardRepositoryProvider)
         .create(templateId: t.id, templateSnapshot: t.data, setId: setId);
-    if (!context.mounted) return;
-    _openEditor(context, ref, id);
+    _openEditor(ref, id);
   }
 
   void _cardMenu(BuildContext context, WidgetRef ref, CardEntry card) {
@@ -222,7 +220,7 @@ class CollectionScreen extends ConsumerWidget {
               title: const Text('Edit'),
               onTap: () {
                 Navigator.pop(sheet);
-                _openEditor(context, ref, card.id);
+                _openEditor(ref, card.id);
               },
             ),
             ListTile(
@@ -347,18 +345,4 @@ class _Folder {
       required this.cards});
 
   String? get id => set?.id;
-}
-
-// Full-screen editor pushed from the Collection; the editor reads the selected
-// card from currentCardIdProvider.
-class _EditCardRoute extends StatelessWidget {
-  const _EditCardRoute();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Edit card')),
-      body: const CardEditorScreen(),
-    );
-  }
 }
