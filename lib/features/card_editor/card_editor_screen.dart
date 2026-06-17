@@ -1,9 +1,13 @@
 // lib/features/card_editor/card_editor_screen.dart
 //
-// Edits a REAL persisted card. The Name content autosaves (debounced) and
-// survives restarts; switching the template updates the card's template
-// reference (and its retained snapshot). The preview composes the card's
-// resolved template with its content and resolves palette colours live.
+// Card Editor: preview + a category rail + a settings pane, arranged
+// responsively (side-by-side when wide, stacked when narrow). The "Card"
+// category is the content form — one debounced-autosave input per authorable
+// text field. Other categories are placeholders for upcoming work.
+//
+// Per flutter-conventions.md these are independent panes driven by a width
+// breakpoint, so the eventual phone slide-up dock vs tablet side-by-side is a
+// layout change, not a rewrite.
 
 import 'dart:async';
 
@@ -51,6 +55,24 @@ class CardEditorScreen extends ConsumerWidget {
   }
 }
 
+// Rail categories (flutter-conventions.md §"Card Editor dock").
+enum _Cat { card, art, color, set, export }
+
+const _catLabels = {
+  _Cat.card: 'Card',
+  _Cat.art: 'Art',
+  _Cat.color: 'Color',
+  _Cat.set: 'Set',
+  _Cat.export: 'Export',
+};
+const _catIcons = {
+  _Cat.card: Icons.style_outlined,
+  _Cat.art: Icons.image_outlined,
+  _Cat.color: Icons.palette_outlined,
+  _Cat.set: Icons.folder_outlined,
+  _Cat.export: Icons.ios_share_outlined,
+};
+
 class _CardEditorBody extends StatefulWidget {
   final CardEntry card;
   final List<TemplateEntry> templates;
@@ -73,42 +95,41 @@ class _CardEditorBody extends StatefulWidget {
 
 class _CardEditorBodyState extends State<_CardEditorBody> {
   late CardEntry _working;
-  late final TextEditingController _name;
+  final Map<String, TextEditingController> _controllers = {};
   Timer? _saveTimer;
+  _Cat _cat = _Cat.card;
 
   @override
   void initState() {
     super.initState();
     _working = widget.card;
-    final nameId = _nameFieldId();
-    _name = TextEditingController(
-        text: nameId == null ? '' : (_working.content.text[nameId] ?? ''))
-      ..addListener(_onNameChanged);
   }
 
   @override
   void dispose() {
-    _name.removeListener(_onNameChanged);
     _saveTimer?.cancel();
     widget.repo.save(_working); // flush latest edit
-    _name.dispose();
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  // The id of the Name field in the card's currently resolved template.
-  String? _nameFieldId() {
-    final t = _working.effectiveTemplate(widget.templatesMap);
-    for (final f in t.fields) {
-      if (f.type == FieldType.name) return f.id;
-    }
-    return null;
+  // One controller per field id, created on demand and seeded from content.
+  TextEditingController _controllerFor(FieldSpec f) {
+    return _controllers.putIfAbsent(f.id, () {
+      final c = TextEditingController(text: _working.content.text[f.id] ?? '');
+      c.addListener(() => _onFieldChanged(f.id, c.text));
+      return c;
+    });
   }
 
-  void _onNameChanged() {
-    final nameId = _nameFieldId();
-    if (nameId == null) return;
-    _working = _working.copyWith(
-        content: _working.content.withText(nameId, _name.text));
+  void _onFieldChanged(String fieldId, String value) {
+    if ((_working.content.text[fieldId] ?? '') == value) return;
+    setState(() {
+      _working =
+          _working.copyWith(content: _working.content.withText(fieldId, value));
+    });
     _scheduleSave();
   }
 
@@ -123,77 +144,228 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     final snapshot = widget.templatesMap[id] ?? _working.templateSnapshot;
     setState(() => _working =
         _working.copyWith(templateId: id, templateSnapshot: snapshot));
-    widget.repo.save(_working); // discrete change -> save immediately
+    widget.repo.save(_working);
   }
+
+  TemplateData get _effective => _working.effectiveTemplate(widget.templatesMap);
+
+  // Authorable text fields: text-bearing, excluding the derived Footer.
+  List<FieldSpec> get _editableFields => _effective.fields
+      .where((f) => f.text != null && f.type != FieldType.footer)
+      .toList();
 
   @override
   Widget build(BuildContext context) {
-    final effective = _working.effectiveTemplate(widget.templatesMap);
-    final card = composeCard(
-      effective,
-      content: _working.content,
-      foil: _working.foil,
-    );
-    final nameId = _nameFieldId();
-    final dropdownValue =
-        widget.templates.any((t) => t.id == _working.templateId)
-            ? _working.templateId
-            : null;
+    final card = composeCard(_effective,
+        content: _working.content, foil: _working.foil);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Template: '),
-              DropdownButton<String>(
-                value: dropdownValue,
-                items: [
-                  for (final t in widget.templates)
-                    DropdownMenuItem(value: t.id, child: Text(t.name)),
-                ],
-                onChanged: _changeTemplate,
-              ),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 720;
+        final preview = Padding(
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: CardPreview(
+                card: card, refs: widget.refs, width: wide ? 300 : 220),
           ),
-          const SizedBox(height: 12),
-          CardPreview(card: card, refs: widget.refs, width: 300),
-          const SizedBox(height: 20),
-          if (nameId != null)
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 340),
-              child: TextField(
-                controller: _name,
-                decoration: const InputDecoration(
-                  labelText: 'Card name',
-                  isDense: true,
-                  border: OutlineInputBorder(),
+        );
+
+        if (wide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 5, child: preview),
+              _Rail(
+                vertical: true,
+                selected: _cat,
+                onSelect: (c) => setState(() => _cat = c),
+              ),
+              Expanded(
+                flex: 4,
+                child: Material(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  child: _settings(),
                 ),
               ),
+            ],
+          );
+        }
+
+        return Column(
+          children: [
+            preview,
+            _Rail(
+              vertical: false,
+              selected: _cat,
+              onSelect: (c) => setState(() => _cat = c),
             ),
-          const SizedBox(height: 16),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Text(
-              'This is a real card in the database. Editing the name autosaves; '
-              'restart the app and it persists. Switching the template updates '
-              'the card\'s template reference and keeps a snapshot, so deleting '
-              'a template later would never break this card.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
+            Expanded(child: _settings()),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _settings() {
+    switch (_cat) {
+      case _Cat.card:
+        return _cardSettings();
+      case _Cat.export:
+        return _exportSettings();
+      default:
+        return Center(
+          child: Text('${_catLabels[_cat]} — coming soon',
+              style: Theme.of(context).textTheme.bodyMedium),
+        );
+    }
+  }
+
+  Widget _cardSettings() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            const Text('Template: '),
+            DropdownButton<String>(
+              value: widget.templates.any((t) => t.id == _working.templateId)
+                  ? _working.templateId
+                  : null,
+              items: [
+                for (final t in widget.templates)
+                  DropdownMenuItem(value: t.id, child: Text(t.name)),
+              ],
+              onChanged: _changeTemplate,
+            ),
+          ],
+        ),
+        const Divider(height: 28),
+        for (final f in _editableFields) ...[
+          TextField(
+            controller: _controllerFor(f),
+            maxLines: f.type == FieldType.rules ? 4 : 1,
+            decoration: InputDecoration(
+              labelText: _fieldLabel(f.type),
+              isDense: true,
+              border: const OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
+        ],
+        Text(
+          'Each field autosaves as you type and the preview updates live. The '
+          'Footer is omitted — it shows values derived from the set and rarity, '
+          'which it will once those exist.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
+  Widget _exportSettings() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Export & share — coming soon',
+              style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const SpikeScreen()),
             ),
             icon: const Icon(Icons.compare_outlined),
-            label: const Text('Open preview-vs-PNG spike'),
+            label: const Text('Preview-vs-PNG spike'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+String _fieldLabel(FieldType t) =>
+    t.name[0].toUpperCase() + t.name.substring(1);
+
+// The category rail — vertical (wide) or horizontal (narrow).
+class _Rail extends StatelessWidget {
+  final bool vertical;
+  final _Cat selected;
+  final ValueChanged<_Cat> onSelect;
+
+  const _Rail({
+    required this.vertical,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final tiles = [
+      for (final c in _Cat.values)
+        _RailTile(
+          icon: _catIcons[c]!,
+          label: _catLabels[c]!,
+          selected: c == selected,
+          accent: scheme.primary,
+          onTap: () => onSelect(c),
+        ),
+    ];
+
+    if (vertical) {
+      return Container(
+        width: 84,
+        color: scheme.surfaceContainerHighest,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: tiles,
+        ),
+      );
+    }
+    return Container(
+      color: scheme.surfaceContainerHighest,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: tiles,
+      ),
+    );
+  }
+}
+
+class _RailTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _RailTile({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? accent : Theme.of(context).colorScheme.onSurfaceVariant;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 4),
+            Text(label,
+                style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+          ],
+        ),
       ),
     );
   }
