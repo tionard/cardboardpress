@@ -249,13 +249,14 @@ class TemplateEntry {
 class CardContent {
   final Map<String, String> text; // fieldId -> text value
   final Map<String, String> art; // fieldId -> image id
+  final ColorRef? tint; // optional per-card base-colour override
 
-  const CardContent({this.text = const {}, this.art = const {}});
+  const CardContent({this.text = const {}, this.art = const {}, this.tint});
 
   CardContent withText(String fieldId, String value) {
     final next = Map<String, String>.from(text);
     next[fieldId] = value;
-    return CardContent(text: next, art: art);
+    return CardContent(text: next, art: art, tint: tint);
   }
 
   /// Set (or clear, when [imageId] is null) the art image for a field.
@@ -266,8 +267,13 @@ class CardContent {
     } else {
       next[fieldId] = imageId;
     }
-    return CardContent(text: text, art: next);
+    return CardContent(text: text, art: next, tint: tint);
   }
+
+  /// Set (or clear, when [ref] is null) the card's tint. Clearing falls back to
+  /// the template's base colour.
+  CardContent withTint(ColorRef? ref) =>
+      CardContent(text: text, art: art, tint: ref);
 }
 
 /// A persisted card as the UI/state layer sees it. The template is a reference:

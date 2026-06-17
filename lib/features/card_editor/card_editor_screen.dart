@@ -33,6 +33,10 @@ class CardEditorScreen extends ConsumerWidget {
         );
     final templatesMap = ref.watch(templatesMapProvider);
     final palette = ref.watch(paletteMapProvider);
+    final swatches = ref.watch(paletteProvider).maybeWhen(
+          data: (list) => list,
+          orElse: () => const <PaletteSwatch>[],
+        );
 
     return cardsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -48,6 +52,7 @@ class CardEditorScreen extends ConsumerWidget {
           templates: templates,
           templatesMap: templatesMap,
           palette: palette,
+          swatches: swatches,
           repo: ref.read(cardRepositoryProvider),
           imageStore: ref.read(imageStoreProvider),
           exporter: ref.read(cardExporterProvider),
@@ -79,6 +84,7 @@ class _CardEditorBody extends StatefulWidget {
   final List<TemplateEntry> templates;
   final Map<String, TemplateData> templatesMap;
   final Map<String, ColorValue> palette;
+  final List<PaletteSwatch> swatches;
   final CardRepository repo;
   final ImageStore imageStore;
   final CardExporter exporter;
@@ -89,6 +95,7 @@ class _CardEditorBody extends StatefulWidget {
     required this.templates,
     required this.templatesMap,
     required this.palette,
+    required this.swatches,
     required this.repo,
     required this.imageStore,
     required this.exporter,
@@ -232,6 +239,24 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     }
   }
 
+  void _setTint(PaletteSwatch s) {
+    setState(() => _working = _working.copyWith(
+        content:
+            _working.content.withTint(ColorRef(id: s.id, snapshot: s.value))));
+    widget.repo.save(_working);
+  }
+
+  void _clearTint() {
+    setState(() =>
+        _working = _working.copyWith(content: _working.content.withTint(null)));
+    widget.repo.save(_working);
+  }
+
+  void _setFoil(FoilType f) {
+    setState(() => _working = _working.copyWith(foil: f));
+    widget.repo.save(_working);
+  }
+
   // ---- layout ----
 
   @override
@@ -290,6 +315,8 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
         return _cardSettings();
       case _Cat.art:
         return _artSettings();
+      case _Cat.color:
+        return _colorSettings();
       case _Cat.export:
         return _exportSettings();
       default:
@@ -397,6 +424,59 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     );
   }
 
+  Widget _colorSettings() {
+    final refs = CardRefs(palette: widget.palette);
+    final tintId = _working.content.tint?.id;
+    final defaultBase = refs.resolveColor(_effective.baseColor);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Tint', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _SwatchTile(
+              value: defaultBase,
+              label: 'Default',
+              selected: _working.content.tint == null,
+              onTap: _clearTint,
+            ),
+            for (final s in widget.swatches)
+              _SwatchTile(
+                value: s.value,
+                label: s.name,
+                selected: s.id == tintId,
+                onTap: () => _setTint(s),
+              ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text('Foil', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final f in FoilType.values)
+              ChoiceChip(
+                label: Text(_foilLabel(f)),
+                selected: _working.foil == f,
+                onSelected: (_) => _setFoil(f),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Tint overrides the template\'s base colour for this card; "Default" '
+          'uses the template\'s. Foil draws a sheen over the whole card.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
   Widget _exportSettings() {
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -427,6 +507,78 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
 
 String _fieldLabel(FieldType t) =>
     t.name[0].toUpperCase() + t.name.substring(1);
+
+String _foilLabel(FoilType f) =>
+    f.name[0].toUpperCase() + f.name.substring(1);
+
+// A tappable colour swatch (single or double) with a caption and selection ring.
+class _SwatchTile extends StatelessWidget {
+  final ColorValue value;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SwatchTile({
+    required this.value,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final accent = scheme.primary;
+    final outline = scheme.outlineVariant;
+    final radius = BorderRadius.circular(8);
+
+    final decoration = value.c2 == null
+        ? BoxDecoration(color: value.c1, borderRadius: radius)
+        : BoxDecoration(
+            borderRadius: radius,
+            gradient: LinearGradient(
+              colors: [value.c1, value.c2!],
+              begin: value.orientation == MixOrientation.vertical
+                  ? Alignment.topCenter
+                  : Alignment.centerLeft,
+              end: value.orientation == MixOrientation.vertical
+                  ? Alignment.bottomCenter
+                  : Alignment.centerRight,
+            ),
+          );
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: radius,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: decoration.copyWith(
+              border: Border.all(
+                  color: selected ? accent : outline, width: selected ? 3 : 1),
+            ),
+          ),
+          const SizedBox(height: 3),
+          SizedBox(
+            width: 48,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _Rail extends StatelessWidget {
   final bool vertical;

@@ -108,7 +108,7 @@ CardData composeCard(
       widthInches: t.widthInches,
       heightInches: t.heightInches,
       cornerRadiusFrac: t.cornerRadiusFrac,
-      baseColor: t.baseColor,
+      baseColor: content.tint ?? t.baseColor,
       border: t.border,
       fields: t.fields,
       foil: foil,

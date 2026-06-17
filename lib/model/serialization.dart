@@ -156,6 +156,7 @@ Map<String, dynamic> cardContentToMap(CardContent c) => {
       'v': 1,
       'text': c.text,
       'art': c.art,
+      if (c.tint != null) 'tint': _colorRefToMap(c.tint!),
     };
 
 CardContent cardContentFromMap(Map m) {
@@ -164,6 +165,7 @@ CardContent cardContentFromMap(Map m) {
   return CardContent(
     text: {for (final e in t.entries) e.key.toString(): '${e.value}'},
     art: {for (final e in a.entries) e.key.toString(): '${e.value}'},
+    tint: m['tint'] == null ? null : _colorRefFromMap(m['tint'] as Map),
   );
 }
 
