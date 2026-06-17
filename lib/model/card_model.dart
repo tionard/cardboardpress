@@ -73,6 +73,13 @@ class OutlineSpec {
     this.intensity = 0.4,
     this.thickness = 0.004,
   });
+
+  OutlineSpec copyWith({bool? lighter, double? intensity, double? thickness}) =>
+      OutlineSpec(
+        lighter: lighter ?? this.lighter,
+        intensity: intensity ?? this.intensity,
+        thickness: thickness ?? this.thickness,
+      );
 }
 
 /// Per-field text styling. The text colour REFERENCES the palette (like fills
@@ -94,6 +101,23 @@ class TextStyleSpec {
     required this.colorRef,
     this.colorAlpha = 1.0,
   });
+
+  TextStyleSpec copyWith({
+    double? sizeFrac,
+    bool? bold,
+    bool? italic,
+    TextAlign? align,
+    ColorRef? colorRef,
+    double? colorAlpha,
+  }) =>
+      TextStyleSpec(
+        sizeFrac: sizeFrac ?? this.sizeFrac,
+        bold: bold ?? this.bold,
+        italic: italic ?? this.italic,
+        align: align ?? this.align,
+        colorRef: colorRef ?? this.colorRef,
+        colorAlpha: colorAlpha ?? this.colorAlpha,
+      );
 }
 
 /// One placed region on the card.
@@ -124,6 +148,29 @@ class FieldSpec {
     this.outline,
     this.text,
   });
+
+  FieldSpec copyWith({
+    FieldType? type,
+    Rect? frac,
+    double? cornerRadius,
+    bool? sharp,
+    Object? fill = _sentinel,
+    double? fillAlpha,
+    Object? outline = _sentinel,
+    Object? text = _sentinel,
+  }) =>
+      FieldSpec(
+        id: id,
+        type: type ?? this.type,
+        frac: frac ?? this.frac,
+        cornerRadius: cornerRadius ?? this.cornerRadius,
+        sharp: sharp ?? this.sharp,
+        fill: identical(fill, _sentinel) ? this.fill : fill as ColorRef?,
+        fillAlpha: fillAlpha ?? this.fillAlpha,
+        outline:
+            identical(outline, _sentinel) ? this.outline : outline as OutlineSpec?,
+        text: identical(text, _sentinel) ? this.text : text as TextStyleSpec?,
+      );
 }
 
 /// The card's optional outer border (spec §3.5). White or black ONLY, and it
