@@ -153,6 +153,15 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant _CardEditorBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The live template can change underneath us (e.g. a background image was
+    // added in the Template Editor). Decode any newly-referenced image; the
+    // call is idempotent — already-decoded ids are skipped.
+    _syncArtImages();
+  }
+
   TemplateData get _effective => _working.effectiveTemplate(widget.templatesMap);
 
   // The card's set / rarity, resolved from the live lists.
@@ -234,7 +243,13 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   }
 
   Future<void> _syncArtImages() async {
-    for (final imageId in _working.content.art.values) {
+    // Every image the renderer may need: the card's art plus the template's
+    // optional background (the bg lives on the template, not the card content).
+    final ids = <String>{
+      ..._working.content.art.values,
+      if (_effective.bgImageId != null) _effective.bgImageId!,
+    };
+    for (final imageId in ids) {
       if (_images.containsKey(imageId)) continue;
       final bytes = await widget.imageStore.load(imageId);
       if (bytes == null) continue;
