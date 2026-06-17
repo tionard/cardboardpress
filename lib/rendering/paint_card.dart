@@ -83,7 +83,8 @@ void _paintField(
   if (field.type == FieldType.art) {
     final img = refs.resolveImage(card.artImageIds[field.id]);
     if (img != null) {
-      _paintArtImage(canvas, rrect, img);
+      _paintArtImage(canvas, rrect, img,
+          card.artTransforms[field.id] ?? const ArtTransform());
     } else {
       _paintArtPlaceholder(canvas, rrect, size);
     }
@@ -276,16 +277,28 @@ void _paintFoil(
 // Art placeholder (temporary — real image picking comes later)
 // ---------------------------------------------------------------------------
 
-void _paintArtImage(ui.Canvas canvas, ui.RRect rrect, ui.Image img) {
+void _paintArtImage(
+    ui.Canvas canvas, ui.RRect rrect, ui.Image img, ArtTransform t) {
   final dst = rrect.outerRect;
-  // Cover-fit: scale so the image fills dst, centre-crop the overflow.
   final iw = img.width.toDouble();
   final ih = img.height.toDouble();
+
+  // Cover-fit baseline: the centred crop that fills dst at zoom 1.
   final scale = math.max(dst.width / iw, dst.height / ih);
-  final cropW = dst.width / scale;
-  final cropH = dst.height / scale;
-  final src = ui.Rect.fromLTWH(
-      (iw - cropW) / 2, (ih - cropH) / 2, cropW, cropH);
+  final zoom = t.zoom <= 0 ? 1.0 : t.zoom;
+  final cropW = (dst.width / scale) / zoom; // zoom in => smaller source crop
+  final cropH = (dst.height / scale) / zoom;
+
+  // Pan slides the crop within the leftover image (slack); -1..1 maps edge to
+  // edge, 0 stays centred. Clamped so the crop never leaves the image.
+  final slackX = iw - cropW;
+  final slackY = ih - cropH;
+  final px = t.panX.clamp(-1.0, 1.0);
+  final py = t.panY.clamp(-1.0, 1.0);
+  final left = (slackX / 2) * (1 + px);
+  final top = (slackY / 2) * (1 + py);
+
+  final src = ui.Rect.fromLTWH(left, top, cropW, cropH);
 
   canvas.save();
   canvas.clipRRect(rrect);

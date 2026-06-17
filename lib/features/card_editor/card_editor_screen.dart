@@ -270,6 +270,12 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     // (The file is left on disk; orphan cleanup comes with Collection delete.)
   }
 
+  void _setArtTransform(String fieldId, ArtTransform t) {
+    setState(() => _working = _working.copyWith(
+        content: _working.content.withArtTransform(fieldId, t)));
+    _scheduleSave();
+  }
+
   CardData _compose() {
     final (number, total) = _collectorInfo;
     return composeCard(
@@ -494,6 +500,10 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
               ),
           ],
         ),
+        if (img != null) ...[
+          const SizedBox(height: 8),
+          _artTransformControls(artId),
+        ],
         const SizedBox(height: 16),
         TextField(
           controller: _artist,
@@ -510,6 +520,54 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
           'credit is per-card content shown by the Footer.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+      ],
+    );
+  }
+
+  Widget _artTransformControls(String artId) {
+    final tr = _working.content.artTransforms[artId] ?? const ArtTransform();
+
+    Widget slider(String label, double value, double min, double max,
+            ValueChanged<double> onChanged) =>
+        Row(
+          children: [
+            SizedBox(
+              width: 78,
+              child: Text(label,
+                  style: Theme.of(context).textTheme.bodySmall),
+            ),
+            Expanded(
+              child: Slider(
+                value: value.clamp(min, max),
+                min: min,
+                max: max,
+                onChanged: onChanged,
+              ),
+            ),
+          ],
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('Position', style: Theme.of(context).textTheme.titleSmall),
+            const Spacer(),
+            if (!tr.isIdentity)
+              TextButton(
+                onPressed: () =>
+                    _setArtTransform(artId, const ArtTransform()),
+                child: const Text('Reset'),
+              ),
+          ],
+        ),
+        slider('Zoom', tr.zoom, 1.0, 3.0,
+            (v) => _setArtTransform(artId, tr.copyWith(zoom: v))),
+        slider('Horizontal', tr.panX, -1.0, 1.0,
+            (v) => _setArtTransform(artId, tr.copyWith(panX: v))),
+        slider('Vertical', tr.panY, -1.0, 1.0,
+            (v) => _setArtTransform(artId, tr.copyWith(panY: v))),
       ],
     );
   }

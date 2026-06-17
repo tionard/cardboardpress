@@ -156,6 +156,7 @@ CardData composeCard(
     foil: foil,
     textContent: text,
     artImageIds: content.art,
+    artTransforms: content.artTransforms,
   );
 }
 

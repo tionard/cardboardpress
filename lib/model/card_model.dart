@@ -138,6 +138,25 @@ class BorderSpec {
 /// Everything needed to draw one card: a template's layout merged with this
 /// card's content. [textContent] is keyed by FIELD ID (not type), so multiple
 /// fields of the same type (e.g. several Stats, or custom fields) are distinct.
+/// Per-field art positioning. zoom 1.0 == cover-fit (current behaviour);
+/// panX/panY in -1..1 slide the visible crop within the available slack.
+class ArtTransform {
+  final double zoom;
+  final double panX;
+  final double panY;
+
+  const ArtTransform({this.zoom = 1.0, this.panX = 0.0, this.panY = 0.0});
+
+  ArtTransform copyWith({double? zoom, double? panX, double? panY}) =>
+      ArtTransform(
+        zoom: zoom ?? this.zoom,
+        panX: panX ?? this.panX,
+        panY: panY ?? this.panY,
+      );
+
+  bool get isIdentity => zoom == 1.0 && panX == 0.0 && panY == 0.0;
+}
+
 class CardData {
   final double widthInches;
   final double heightInches;
@@ -148,6 +167,7 @@ class CardData {
   final FoilType foil;
   final Map<String, String> textContent; // fieldId -> text
   final Map<String, String> artImageIds; // fieldId -> image id
+  final Map<String, ArtTransform> artTransforms; // fieldId -> zoom/pan
 
   const CardData({
     this.widthInches = 2.5,
@@ -159,6 +179,7 @@ class CardData {
     this.foil = FoilType.none,
     this.textContent = const {},
     this.artImageIds = const {},
+    this.artTransforms = const {},
   });
 }
 
@@ -249,6 +270,7 @@ class TemplateEntry {
 class CardContent {
   final Map<String, String> text; // fieldId -> text value
   final Map<String, String> art; // fieldId -> image id
+  final Map<String, ArtTransform> artTransforms; // fieldId -> zoom/pan
   final ColorRef? tint; // optional per-card base-colour override
   final String artist; // per-card; rendered by the Footer
   final String? rarityId; // live rarity reference (footer abbreviation)
@@ -256,6 +278,7 @@ class CardContent {
   const CardContent({
     this.text = const {},
     this.art = const {},
+    this.artTransforms = const {},
     this.tint,
     this.artist = '',
     this.rarityId,
@@ -264,6 +287,7 @@ class CardContent {
   CardContent _copy({
     Map<String, String>? text,
     Map<String, String>? art,
+    Map<String, ArtTransform>? artTransforms,
     Object? tint = _sentinel,
     String? artist,
     Object? rarityId = _sentinel,
@@ -271,6 +295,7 @@ class CardContent {
       CardContent(
         text: text ?? this.text,
         art: art ?? this.art,
+        artTransforms: artTransforms ?? this.artTransforms,
         tint: identical(tint, _sentinel) ? this.tint : tint as ColorRef?,
         artist: artist ?? this.artist,
         rarityId:
@@ -283,15 +308,29 @@ class CardContent {
     return _copy(text: next);
   }
 
-  /// Set (or clear, when [imageId] is null) the art image for a field.
+  /// Set (or clear, when [imageId] is null) the art image for a field. Clearing
+  /// also drops any zoom/pan for that field.
   CardContent withArt(String fieldId, String? imageId) {
     final next = Map<String, String>.from(art);
+    final nextT = Map<String, ArtTransform>.from(artTransforms);
     if (imageId == null) {
       next.remove(fieldId);
+      nextT.remove(fieldId);
     } else {
       next[fieldId] = imageId;
     }
-    return _copy(art: next);
+    return _copy(art: next, artTransforms: nextT);
+  }
+
+  /// Set the zoom/pan for a field's art.
+  CardContent withArtTransform(String fieldId, ArtTransform t) {
+    final next = Map<String, ArtTransform>.from(artTransforms);
+    if (t.isIdentity) {
+      next.remove(fieldId);
+    } else {
+      next[fieldId] = t;
+    }
+    return _copy(artTransforms: next);
   }
 
   /// Set (or clear, when [ref] is null) the card's tint.

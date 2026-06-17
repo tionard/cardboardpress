@@ -156,6 +156,11 @@ Map<String, dynamic> cardContentToMap(CardContent c) => {
       'v': 1,
       'text': c.text,
       'art': c.art,
+      if (c.artTransforms.isNotEmpty)
+        'artT': {
+          for (final e in c.artTransforms.entries)
+            e.key: {'z': e.value.zoom, 'x': e.value.panX, 'y': e.value.panY},
+        },
       if (c.tint != null) 'tint': _colorRefToMap(c.tint!),
       if (c.artist.isNotEmpty) 'artist': c.artist,
       if (c.rarityId != null) 'rarityId': c.rarityId,
@@ -164,9 +169,18 @@ Map<String, dynamic> cardContentToMap(CardContent c) => {
 CardContent cardContentFromMap(Map m) {
   final t = (m['text'] as Map?) ?? const {};
   final a = (m['art'] as Map?) ?? const {};
+  final at = (m['artT'] as Map?) ?? const {};
   return CardContent(
     text: {for (final e in t.entries) e.key.toString(): '${e.value}'},
     art: {for (final e in a.entries) e.key.toString(): '${e.value}'},
+    artTransforms: {
+      for (final e in at.entries)
+        e.key.toString(): ArtTransform(
+          zoom: _d((e.value as Map)['z'], 1.0),
+          panX: _d((e.value as Map)['x'], 0.0),
+          panY: _d((e.value as Map)['y'], 0.0),
+        ),
+    },
     tint: m['tint'] == null ? null : _colorRefFromMap(m['tint'] as Map),
     artist: (m['artist'] as String?) ?? '',
     rarityId: m['rarityId'] as String?,
