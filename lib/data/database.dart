@@ -1,12 +1,7 @@
 // lib/data/database.dart
 //
-// The drift database. You declare TABLES as Dart classes; the build_runner
-// generator reads them and writes `database.g.dart` containing the real query
-// code, the row types, and insert helpers (`...Companion`).
-//
-// For a C# dev: this class is your EF Core `DbContext`, the Table classes are
-// your entities, and `schemaVersion` + `migration` are explicit, hand-written
-// migrations (no magic — you control exactly what runs when the schema changes).
+// The drift database (your EF Core DbContext). Table classes are entities;
+// schemaVersion + migration are explicit, hand-written migrations.
 
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
@@ -18,12 +13,11 @@ import 'converters.dart';
 part 'database.g.dart';
 
 /// A reusable palette colour (spec §3.1). Single colour => [c2] is null.
-/// Stored OPAQUE; transparency is applied at the use site, never stored here.
 class PaletteColors extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
-  IntColumn get c1 => integer()(); // ARGB int
-  IntColumn get c2 => integer().nullable()(); // null => single colour
+  IntColumn get c1 => integer()();
+  IntColumn get c2 => integer().nullable()();
   TextColumn get orientation =>
       text().withDefault(const Constant('vertical'))();
   RealColumn get mix => real().withDefault(const Constant(0.3))();
@@ -33,9 +27,7 @@ class PaletteColors extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// A template (spec §3): identity + ordered layout. The whole layout
-/// (dimensions, base colour, border, fields) is stored as one JSON column via
-/// [TemplateSpecConverter] — structured value data, not a relationship.
+/// A template: identity + ordered layout stored as one JSON column.
 class Templates extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
@@ -46,14 +38,31 @@ class Templates extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [PaletteColors, Templates])
+/// A card (spec §3). The template is a reference: [templateId] is a real FK
+/// (nulled if the template is deleted), and [templateSnapshot] retains the last
+/// layout so the card always renders. [content] is the authored per-field data.
+class Cards extends Table {
+  TextColumn get id => text()();
+  TextColumn get templateId => text()
+      .nullable()
+      .references(Templates, #id, onDelete: KeyAction.setNull)();
+  TextColumn get templateSnapshot =>
+      text().map(const TemplateSpecConverter())();
+  TextColumn get content => text().map(const CardContentConverter())();
+  TextColumn get foil => text().withDefault(const Constant('none'))();
+  TextColumn get setId => text().nullable()(); // null => Unassigned
+  IntColumn get position => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DriftDatabase(tables: [PaletteColors, Templates, Cards])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
 
-  // Bumped to 2 when the Templates table was added. Each bump gets an onUpgrade
-  // step; old steps are never edited after release.
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -61,24 +70,35 @@ class AppDatabase extends _$AppDatabase {
           await m.createAll();
           await _seedDefaultColors();
           await _seedDefaultTemplates();
+          await _seedSampleCards();
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
-            // v1 → v2: add the Templates table and seed the defaults. Existing
-            // palette colours are untouched.
             await m.createTable(templates);
             await _seedDefaultTemplates();
           }
+          if (from < 3) {
+            // v?→v3: add Cards. Also re-seed the default templates so their
+            // stored layout includes the new per-field ids (safe: no template
+            // editor exists yet, so only the defaults are present).
+            await m.createTable(cards);
+            await delete(templates).go();
+            await _seedDefaultTemplates();
+            await _seedSampleCards();
+          }
+        },
+        beforeOpen: (details) async {
+          // Enforce the card→template foreign key (SQLite needs this per-conn).
+          await customStatement('PRAGMA foreign_keys = ON');
         },
       );
 
   // ---- palette colours ----
 
-  Stream<List<PaletteColor>> watchColors() {
-    return (select(paletteColors)
-          ..orderBy([(t) => OrderingTerm(expression: t.position)]))
-        .watch();
-  }
+  Stream<List<PaletteColor>> watchColors() =>
+      (select(paletteColors)
+            ..orderBy([(t) => OrderingTerm(expression: t.position)]))
+          .watch();
 
   Future<void> insertColor(PaletteColorsCompanion c) =>
       into(paletteColors).insert(c);
@@ -126,11 +146,10 @@ class AppDatabase extends _$AppDatabase {
 
   // ---- templates ----
 
-  Stream<List<Template>> watchTemplates() {
-    return (select(templates)
-          ..orderBy([(t) => OrderingTerm(expression: t.position)]))
-        .watch();
-  }
+  Stream<List<Template>> watchTemplates() =>
+      (select(templates)
+            ..orderBy([(t) => OrderingTerm(expression: t.position)]))
+          .watch();
 
   Future<void> _seedDefaultTemplates() async {
     final defaults = defaultTemplates();
@@ -147,5 +166,30 @@ class AppDatabase extends _$AppDatabase {
         );
       }
     });
+  }
+
+  // ---- cards ----
+
+  Stream<List<Card>> watchCards() =>
+      (select(cards)..orderBy([(t) => OrderingTerm(expression: t.position)]))
+          .watch();
+
+  Future<void> upsertCard(CardsCompanion c) =>
+      into(cards).insertOnConflictUpdate(c);
+
+  Future<void> _seedSampleCards() async {
+    final thornwood =
+        defaultTemplates().firstWhere((t) => t.id == 't_thornwood').data;
+    await into(cards).insert(
+      CardsCompanion.insert(
+        id: 'card_sample',
+        templateId: const Value('t_thornwood'),
+        templateSnapshot: thornwood,
+        content: sampleContent(),
+        foil: const Value('holo'),
+        position: const Value(0),
+      ),
+      mode: InsertMode.insertOrIgnore,
+    );
   }
 }

@@ -18,3 +18,13 @@ class TemplateSpecConverter extends TypeConverter<TemplateData, String> {
   @override
   String toSql(TemplateData value) => templateToJson(value);
 }
+
+class CardContentConverter extends TypeConverter<CardContent, String> {
+  const CardContentConverter();
+
+  @override
+  CardContent fromSql(String fromDb) => cardContentFromJson(fromDb);
+
+  @override
+  String toSql(CardContent value) => cardContentToJson(value);
+}

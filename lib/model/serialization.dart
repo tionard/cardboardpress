@@ -96,6 +96,7 @@ BorderSpec _borderFromMap(Map m) =>
 
 // ---- FieldSpec ----
 Map<String, dynamic> _fieldToMap(FieldSpec f) => {
+      'id': f.id,
       'type': f.type.name,
       'frac': [f.frac.left, f.frac.top, f.frac.right, f.frac.bottom],
       'cornerRadius': f.cornerRadius,
@@ -109,8 +110,10 @@ Map<String, dynamic> _fieldToMap(FieldSpec f) => {
 FieldSpec _fieldFromMap(Map m) {
   final raw = (m['frac'] as List?) ?? const [0.0, 0.0, 1.0, 1.0];
   final f = raw.map((e) => _d(e, 0.0)).toList();
+  final type = _byName(FieldType.values, m['type'], FieldType.name);
   return FieldSpec(
-    type: _byName(FieldType.values, m['type'], FieldType.name),
+    id: (m['id'] as String?) ?? 'f_${type.name}',
+    type: type,
     frac: Rect.fromLTRB(f[0], f[1], f[2], f[3]),
     cornerRadius: _d(m['cornerRadius'], 0.02),
     sharp: _b(m['sharp'], false),
@@ -147,3 +150,27 @@ String templateToJson(TemplateData t) => jsonEncode(templateToMap(t));
 
 TemplateData templateFromJson(String s) =>
     templateFromMap(jsonDecode(s) as Map<String, dynamic>);
+
+// ---- CardContent ----
+Map<String, dynamic> cardContentToMap(CardContent c) => {
+      'v': 1,
+      'text': c.text,
+    };
+
+CardContent cardContentFromMap(Map m) {
+  final t = (m['text'] as Map?) ?? const {};
+  return CardContent(
+    text: {for (final e in t.entries) e.key.toString(): '${e.value}'},
+  );
+}
+
+String cardContentToJson(CardContent c) => jsonEncode(cardContentToMap(c));
+
+CardContent cardContentFromJson(String s) =>
+    cardContentFromMap(jsonDecode(s) as Map<String, dynamic>);
+
+// ---- FoilType <-> stored string ----
+String foilToName(FoilType f) => f.name;
+
+FoilType foilFromName(Object? name) =>
+    _byName(FoilType.values, name, FoilType.none);

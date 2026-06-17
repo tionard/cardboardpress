@@ -1,12 +1,20 @@
 // lib/model/sample_card.dart
 //
-// Default templates + sample content, and the compose step that turns a
-// TemplateData (layout) plus content into a CardData (the render model that
-// paintCard consumes). The field layout is defined ONCE here and shared.
+// Default templates + sample content, and the compose step that merges a
+// TemplateData (layout) with CardContent into a CardData (the render model that
+// paintCard consumes). The field layout is defined ONCE here and shared; each
+// field carries a stable id, and content is keyed by those ids.
 
 import 'dart:ui';
 
 import 'card_model.dart';
+
+// Stable field ids for the default layout.
+const fNameId = 'f_name';
+const fArtId = 'f_art';
+const fTypeId = 'f_type';
+const fRulesId = 'f_rules';
+const fFooterId = 'f_footer';
 
 // Seeded palette references reused across the default templates.
 const _forestRef = ColorRef(
@@ -26,6 +34,7 @@ const _paperRef =
 // The shared field layout. Only the Name text colour varies between templates.
 List<FieldSpec> _fields({required ColorRef nameTextRef}) => [
       FieldSpec(
+        id: fNameId,
         type: FieldType.name,
         frac: const Rect.fromLTRB(0.06, 0.05, 0.94, 0.15),
         fill: _paperRef,
@@ -34,8 +43,9 @@ List<FieldSpec> _fields({required ColorRef nameTextRef}) => [
         text: TextStyleSpec(sizeFrac: 0.05, bold: true, colorRef: nameTextRef),
       ),
       const FieldSpec(
-          type: FieldType.art, frac: Rect.fromLTRB(0.06, 0.17, 0.94, 0.52)),
+          id: fArtId, type: FieldType.art, frac: Rect.fromLTRB(0.06, 0.17, 0.94, 0.52)),
       const FieldSpec(
+        id: fTypeId,
         type: FieldType.type,
         frac: Rect.fromLTRB(0.06, 0.54, 0.94, 0.62),
         fill: _paperRef,
@@ -43,6 +53,7 @@ List<FieldSpec> _fields({required ColorRef nameTextRef}) => [
         text: TextStyleSpec(sizeFrac: 0.032, bold: true, colorRef: _inkRef),
       ),
       const FieldSpec(
+        id: fRulesId,
         type: FieldType.rules,
         frac: Rect.fromLTRB(0.06, 0.64, 0.94, 0.88),
         fill: _paperRef,
@@ -51,6 +62,7 @@ List<FieldSpec> _fields({required ColorRef nameTextRef}) => [
         text: TextStyleSpec(sizeFrac: 0.03, colorRef: _inkRef),
       ),
       const FieldSpec(
+        id: fFooterId,
         type: FieldType.footer,
         frac: Rect.fromLTRB(0.06, 0.905, 0.94, 0.96),
         text: TextStyleSpec(
@@ -72,24 +84,24 @@ TemplateData _parchment() => TemplateData(
       fields: _fields(nameTextRef: _inkRef), // single ink title, no border
     );
 
-/// The templates seeded into the database on first run / first upgrade.
+/// The templates seeded into the database.
 List<TemplateEntry> defaultTemplates() => [
       TemplateEntry(id: 't_thornwood', name: 'Thornwood', data: _thornwood()),
       TemplateEntry(id: 't_parchment', name: 'Parchment', data: _parchment()),
     ];
 
-/// Placeholder card content until cards become real entities next turn.
-Map<FieldType, String> sampleContent() => const {
-      FieldType.name: 'Thornwood Stag',
-      FieldType.type: 'Creature — Beast',
-      FieldType.rules: 'Vigilance. When this enters, scry 2.',
-      FieldType.footer: '001/120 · TWD · © 26',
-    };
+/// Sample card content, keyed by field id.
+CardContent sampleContent() => const CardContent(text: {
+      fNameId: 'Thornwood Stag',
+      fTypeId: 'Creature — Beast',
+      fRulesId: 'Vigilance. When this enters, scry 2.',
+      fFooterId: '001/120 · TWD · © 26',
+    });
 
 /// Compose a template + content (+ foil) into the render model.
 CardData composeCard(
   TemplateData t, {
-  required Map<FieldType, String> textContent,
+  required CardContent content,
   FoilType foil = FoilType.none,
 }) =>
     CardData(
@@ -100,12 +112,12 @@ CardData composeCard(
       border: t.border,
       fields: t.fields,
       foil: foil,
-      textContent: textContent,
+      textContent: content.text,
     );
 
-/// Convenience used by the spike: the Thornwood template + sample content.
+/// Convenience used by the spike: Thornwood template + sample content.
 CardData sampleCard({bool foil = true, bool border = true}) => composeCard(
       _thornwood(border: border),
-      textContent: sampleContent(),
+      content: sampleContent(),
       foil: foil ? FoilType.holo : FoilType.none,
     );

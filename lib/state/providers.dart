@@ -6,6 +6,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database.dart';
+import '../data/card_repository.dart';
 import '../data/palette_repository.dart';
 import '../data/template_repository.dart';
 import '../model/card_model.dart';
@@ -46,4 +47,23 @@ final templateRepositoryProvider = Provider<TemplateRepository>(
 /// Live list of persisted templates.
 final templatesProvider = StreamProvider<List<TemplateEntry>>(
   (ref) => ref.watch(templateRepositoryProvider).watch(),
+);
+
+/// Templates as an id -> layout map, for resolving a card's template reference.
+final templatesMapProvider = Provider<Map<String, TemplateData>>((ref) {
+  final async = ref.watch(templatesProvider);
+  return async.maybeWhen(
+    data: (list) => {for (final t in list) t.id: t.data},
+    orElse: () => const <String, TemplateData>{},
+  );
+});
+
+/// Data API for cards.
+final cardRepositoryProvider = Provider<CardRepository>(
+  (ref) => CardRepository(ref.watch(databaseProvider)),
+);
+
+/// Live list of persisted cards.
+final cardsProvider = StreamProvider<List<CardEntry>>(
+  (ref) => ref.watch(cardRepositoryProvider).watch(),
 );

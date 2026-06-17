@@ -103,6 +103,7 @@ class TextStyleSpec {
 /// exact same field maths is correct at a 240px-wide preview and at a
 /// 750px-wide print render.
 class FieldSpec {
+  final String id; // stable per-field id (content is keyed by this, not type)
   final FieldType type;
   final Rect frac; // L,T,R,B each in 0..1 of the card
   final double cornerRadius; // fraction of card width
@@ -113,6 +114,7 @@ class FieldSpec {
   final TextStyleSpec? text; // present on text-bearing fields
 
   const FieldSpec({
+    required this.id,
     required this.type,
     required this.frac,
     this.cornerRadius = 0.02,
@@ -133,8 +135,9 @@ class BorderSpec {
   const BorderSpec({this.black = true, this.thickness = 0.02});
 }
 
-/// Everything needed to draw one card. For this first spike, per-field content
-/// is just a simple type→string map; later this becomes a richer CardContent.
+/// Everything needed to draw one card: a template's layout merged with this
+/// card's content. [textContent] is keyed by FIELD ID (not type), so multiple
+/// fields of the same type (e.g. several Stats, or custom fields) are distinct.
 class CardData {
   final double widthInches;
   final double heightInches;
@@ -143,7 +146,7 @@ class CardData {
   final BorderSpec? border;
   final List<FieldSpec> fields;
   final FoilType foil;
-  final Map<FieldType, String> textContent;
+  final Map<String, String> textContent; // fieldId -> text
 
   const CardData({
     this.widthInches = 2.5,
@@ -230,4 +233,62 @@ class TemplateEntry {
     required this.name,
     required this.data,
   });
+}
+
+/// A card's authored content, keyed by field id. Today it's just per-field
+/// text; art images, artist credit, stat values, etc. join later.
+class CardContent {
+  final Map<String, String> text; // fieldId -> text value
+
+  const CardContent({this.text = const {}});
+
+  CardContent withText(String fieldId, String value) {
+    final next = Map<String, String>.from(text);
+    next[fieldId] = value;
+    return CardContent(text: next);
+  }
+}
+
+/// A persisted card as the UI/state layer sees it. The template is a reference:
+/// [templateId] is the live link; [templateSnapshot] is the retained fallback
+/// (spec §1, §8) so deleting a template never breaks the card.
+class CardEntry {
+  final String id;
+  final String? templateId;
+  final TemplateData templateSnapshot;
+  final CardContent content;
+  final FoilType foil;
+
+  const CardEntry({
+    required this.id,
+    required this.templateId,
+    required this.templateSnapshot,
+    required this.content,
+    this.foil = FoilType.none,
+  });
+
+  /// The layout to draw with: the live template if it still exists, else the
+  /// snapshot. (Mirrors ColorRef resolution, at the template level.)
+  TemplateData effectiveTemplate(Map<String, TemplateData> liveTemplates) {
+    final id = templateId;
+    if (id != null) {
+      final live = liveTemplates[id];
+      if (live != null) return live;
+    }
+    return templateSnapshot;
+  }
+
+  CardEntry copyWith({
+    String? templateId,
+    TemplateData? templateSnapshot,
+    CardContent? content,
+    FoilType? foil,
+  }) =>
+      CardEntry(
+        id: id,
+        templateId: templateId ?? this.templateId,
+        templateSnapshot: templateSnapshot ?? this.templateSnapshot,
+        content: content ?? this.content,
+        foil: foil ?? this.foil,
+      );
 }

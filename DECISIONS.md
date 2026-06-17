@@ -5,6 +5,35 @@ made, and their status. Newest at the top.
 
 ---
 
+## 2026-06-16 — Stable per-field ids; custom fields parked
+
+**Status:** Per-field ids — accepted, implementing with cards. Custom fields —
+parked (post-spec).
+
+**Context.** Card content was keyed by `FieldType`. That can't represent the
+spec's own rule that Stat is placeable multiple times (two Stats collide on one
+key), and it blocks a future idea: letting a template hold extra, optional
+generic text/image fields beyond the fixed nine.
+
+**Decision.**
+- Give every `FieldSpec` a stable `id`, and key a card's content by that id
+  (not by type). Implement now, as part of making cards real entities — cheap to
+  include up front, an awkward re-key migration if deferred.
+- Custom (generic) extra fields beyond the fixed nine are **feasible and
+  additive** but **parked**. The renderer already draws any field generically,
+  and the JSON-blob layout + versioned migrations absorb new field kinds without
+  breaking old saves. When built, custom fields are the "dumb" kind — plain
+  text/image with normal styling but none of the special behaviors of the fixed
+  types (Footer derives values, Rules owns rich-text+watermark, Name feeds the
+  export filename, Art is the image pipeline).
+
+**Rationale.** Per-field ids are a prerequisite for both multiple Stats (in
+spec) and custom fields (post-spec), so they belong in the model now. The custom
+-field feature itself is a deliberate departure from "nine fixed types" and a
+product call, not a technical blocker — defer until there's a reason to add it.
+
+---
+
 ## 2026-06-16 — Color usage scoping via per-swatch tags
 
 **Status:** Accepted; implementation deferred.
