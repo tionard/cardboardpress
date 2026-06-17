@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database.dart';
 import '../data/image_store.dart';
+import '../data/card_exporter.dart';
 import '../data/card_repository.dart';
 import '../data/palette_repository.dart';
 import '../data/template_repository.dart';
@@ -71,3 +72,6 @@ final cardsProvider = StreamProvider<List<CardEntry>>(
 
 /// Disk-backed store for picked art images.
 final imageStoreProvider = Provider<ImageStore>((ref) => ImageStore());
+
+/// Renders + saves a card as PNG (Card Editor export, Collection export later).
+final cardExporterProvider = Provider<CardExporter>((ref) => CardExporter());

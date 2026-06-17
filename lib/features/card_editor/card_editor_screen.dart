@@ -13,13 +13,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/card_exporter.dart';
 import '../../data/card_repository.dart';
 import '../../data/image_store.dart';
 import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../widgets/card_preview.dart';
-import '../spike/spike_screen.dart';
 
 class CardEditorScreen extends ConsumerWidget {
   const CardEditorScreen({super.key});
@@ -50,6 +50,7 @@ class CardEditorScreen extends ConsumerWidget {
           palette: palette,
           repo: ref.read(cardRepositoryProvider),
           imageStore: ref.read(imageStoreProvider),
+          exporter: ref.read(cardExporterProvider),
         );
       },
     );
@@ -80,6 +81,7 @@ class _CardEditorBody extends StatefulWidget {
   final Map<String, ColorValue> palette;
   final CardRepository repo;
   final ImageStore imageStore;
+  final CardExporter exporter;
 
   const _CardEditorBody({
     super.key,
@@ -89,6 +91,7 @@ class _CardEditorBody extends StatefulWidget {
     required this.palette,
     required this.repo,
     required this.imageStore,
+    required this.exporter,
   });
 
   @override
@@ -101,6 +104,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   final Map<String, ui.Image> _images = {}; // imageId -> decoded image
   Timer? _saveTimer;
   _Cat _cat = _Cat.card;
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -207,6 +211,25 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
         _working.copyWith(content: _working.content.withArt(artFieldId, null)));
     widget.repo.save(_working);
     // (The file is left on disk; orphan cleanup comes with Collection delete.)
+  }
+
+  Future<void> _exportPng() async {
+    setState(() => _exporting = true);
+    try {
+      final card = composeCard(_effective,
+          content: _working.content, foil: _working.foil);
+      final refs = CardRefs(palette: widget.palette, images: _images);
+      final path = await widget.exporter.exportToFile(card, refs);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(path == null ? 'Export cancelled' : 'Exported to $path')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   // ---- layout ----
@@ -375,22 +398,29 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   }
 
   Widget _exportSettings() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Export & share — coming soon',
-              style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SpikeScreen()),
-            ),
-            icon: const Icon(Icons.compare_outlined),
-            label: const Text('Preview-vs-PNG spike'),
-          ),
-        ],
-      ),
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Export', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Renders this card at 300 dpi (750×1050 px) through the same '
+          'paintCard the preview uses, so the PNG matches exactly — including '
+          'art and colours. You choose where to save it.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: _exporting ? null : _exportPng,
+          icon: _exporting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.download_outlined),
+          label: Text(_exporting ? 'Exporting…' : 'Export PNG…'),
+        ),
+      ],
     );
   }
 }
