@@ -72,12 +72,25 @@ class Sets extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [PaletteColors, Templates, Cards, Sets])
+/// A rarity (spec §3). Minimal for now: name + abbreviation (footer uses the
+/// abbreviation). Colour + snapshot ref arrive with a rarity editor.
+@DataClassName('Rarity')
+class Rarities extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get abbreviation => text().withDefault(const Constant(''))();
+  IntColumn get position => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DriftDatabase(tables: [PaletteColors, Templates, Cards, Sets, Rarities])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -87,6 +100,7 @@ class AppDatabase extends _$AppDatabase {
           await _seedDefaultTemplates();
           await _seedSampleCards();
           await _seedDefaultSets();
+          await _seedDefaultRarities();
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
@@ -105,6 +119,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 4) {
             await m.createTable(sets);
             await _seedDefaultSets();
+          }
+          if (from < 5) {
+            await m.createTable(rarities);
+            await _seedDefaultRarities();
           }
         },
         beforeOpen: (details) async {
@@ -248,5 +266,34 @@ class AppDatabase extends _$AppDatabase {
       ),
       mode: InsertMode.insertOrIgnore,
     );
+  }
+
+  // ---- rarities ----
+
+  Stream<List<Rarity>> watchRarities() =>
+      (select(rarities)..orderBy([(t) => OrderingTerm(expression: t.position)]))
+          .watch();
+
+  Future<void> _seedDefaultRarities() async {
+    const defaults = [
+      ('r_common', 'Common', 'C', 0),
+      ('r_uncommon', 'Uncommon', 'U', 1),
+      ('r_rare', 'Rare', 'R', 2),
+      ('r_token', 'Token', 'T', 3),
+    ];
+    await batch((b) {
+      for (final (id, name, abbr, pos) in defaults) {
+        b.insert(
+          rarities,
+          RaritiesCompanion.insert(
+            id: id,
+            name: name,
+            abbreviation: Value(abbr),
+            position: Value(pos),
+          ),
+          mode: InsertMode.insertOrIgnore,
+        );
+      }
+    });
   }
 }

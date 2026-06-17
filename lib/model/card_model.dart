@@ -250,13 +250,37 @@ class CardContent {
   final Map<String, String> text; // fieldId -> text value
   final Map<String, String> art; // fieldId -> image id
   final ColorRef? tint; // optional per-card base-colour override
+  final String artist; // per-card; rendered by the Footer
+  final String? rarityId; // live rarity reference (footer abbreviation)
 
-  const CardContent({this.text = const {}, this.art = const {}, this.tint});
+  const CardContent({
+    this.text = const {},
+    this.art = const {},
+    this.tint,
+    this.artist = '',
+    this.rarityId,
+  });
+
+  CardContent _copy({
+    Map<String, String>? text,
+    Map<String, String>? art,
+    Object? tint = _sentinel,
+    String? artist,
+    Object? rarityId = _sentinel,
+  }) =>
+      CardContent(
+        text: text ?? this.text,
+        art: art ?? this.art,
+        tint: identical(tint, _sentinel) ? this.tint : tint as ColorRef?,
+        artist: artist ?? this.artist,
+        rarityId:
+            identical(rarityId, _sentinel) ? this.rarityId : rarityId as String?,
+      );
 
   CardContent withText(String fieldId, String value) {
     final next = Map<String, String>.from(text);
     next[fieldId] = value;
-    return CardContent(text: next, art: art, tint: tint);
+    return _copy(text: next);
   }
 
   /// Set (or clear, when [imageId] is null) the art image for a field.
@@ -267,14 +291,19 @@ class CardContent {
     } else {
       next[fieldId] = imageId;
     }
-    return CardContent(text: text, art: next, tint: tint);
+    return _copy(art: next);
   }
 
-  /// Set (or clear, when [ref] is null) the card's tint. Clearing falls back to
-  /// the template's base colour.
-  CardContent withTint(ColorRef? ref) =>
-      CardContent(text: text, art: art, tint: ref);
+  /// Set (or clear, when [ref] is null) the card's tint.
+  CardContent withTint(ColorRef? ref) => _copy(tint: ref);
+
+  CardContent withArtist(String value) => _copy(artist: value);
+
+  /// Set (or clear, when [id] is null) the card's rarity reference.
+  CardContent withRarity(String? id) => _copy(rarityId: id);
 }
+
+const Object _sentinel = Object();
 
 /// A persisted card as the UI/state layer sees it. The template is a reference:
 /// [templateId] is the live link; [templateSnapshot] is the retained fallback
@@ -312,6 +341,7 @@ class CardEntry {
     TemplateData? templateSnapshot,
     CardContent? content,
     FoilType? foil,
+    Object? setId = _sentinel,
   }) =>
       CardEntry(
         id: id,
@@ -319,8 +349,24 @@ class CardEntry {
         templateSnapshot: templateSnapshot ?? this.templateSnapshot,
         content: content ?? this.content,
         foil: foil ?? this.foil,
-        setId: setId,
+        setId: identical(setId, _sentinel) ? this.setId : setId as String?,
       );
+}
+
+/// A rarity (spec §3): name + 1–3-letter abbreviation. (Its palette colour and
+/// snapshot-on-delete ref are added when a rarity editor exists.)
+class RarityEntry {
+  final String id;
+  final String name;
+  final String abbreviation;
+  final int position;
+
+  const RarityEntry({
+    required this.id,
+    required this.name,
+    this.abbreviation = '',
+    this.position = 0,
+  });
 }
 
 /// A set (Collection folder): name + footer-feeding metadata + numbering.

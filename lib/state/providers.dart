@@ -10,6 +10,7 @@ import '../data/image_store.dart';
 import '../data/card_exporter.dart';
 import '../data/card_repository.dart';
 import '../data/palette_repository.dart';
+import '../data/rarity_repository.dart';
 import '../data/set_repository.dart';
 import '../data/template_repository.dart';
 import '../model/card_model.dart';
@@ -97,3 +98,22 @@ class CurrentCardId extends Notifier<String?> {
 
 final currentCardIdProvider =
     NotifierProvider<CurrentCardId, String?>(CurrentCardId.new);
+
+/// Data API for rarities.
+final rarityRepositoryProvider = Provider<RarityRepository>(
+  (ref) => RarityRepository(ref.watch(databaseProvider)),
+);
+
+/// Live list of rarities.
+final raritiesProvider = StreamProvider<List<RarityEntry>>(
+  (ref) => ref.watch(rarityRepositoryProvider).watch(),
+);
+
+/// Rarities as an id -> entry map, for resolving a card's rarity reference.
+final raritiesMapProvider = Provider<Map<String, RarityEntry>>((ref) {
+  final async = ref.watch(raritiesProvider);
+  return async.maybeWhen(
+    data: (list) => {for (final r in list) r.id: r},
+    orElse: () => const <String, RarityEntry>{},
+  );
+});

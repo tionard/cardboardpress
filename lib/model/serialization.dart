@@ -157,6 +157,8 @@ Map<String, dynamic> cardContentToMap(CardContent c) => {
       'text': c.text,
       'art': c.art,
       if (c.tint != null) 'tint': _colorRefToMap(c.tint!),
+      if (c.artist.isNotEmpty) 'artist': c.artist,
+      if (c.rarityId != null) 'rarityId': c.rarityId,
     };
 
 CardContent cardContentFromMap(Map m) {
@@ -166,6 +168,8 @@ CardContent cardContentFromMap(Map m) {
     text: {for (final e in t.entries) e.key.toString(): '${e.value}'},
     art: {for (final e in a.entries) e.key.toString(): '${e.value}'},
     tint: m['tint'] == null ? null : _colorRefFromMap(m['tint'] as Map),
+    artist: (m['artist'] as String?) ?? '',
+    rarityId: m['rarityId'] as String?,
   );
 }
 

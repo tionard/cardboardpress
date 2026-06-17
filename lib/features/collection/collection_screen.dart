@@ -25,6 +25,7 @@ class CollectionScreen extends ConsumerWidget {
     final setsAsync = ref.watch(setsProvider);
     final templatesMap = ref.watch(templatesMapProvider);
     final palette = ref.watch(paletteMapProvider);
+    final raritiesMap = ref.watch(raritiesMapProvider);
 
     return cardsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -36,13 +37,13 @@ class CollectionScreen extends ConsumerWidget {
           // Unassigned first, then each set in order.
           final folders = <_Folder>[
             _Folder(
-                id: null,
+                set: null,
                 title: 'Unassigned',
                 abbr: '',
                 cards: cards.where((c) => c.setId == null).toList()),
             for (final s in sets)
               _Folder(
-                  id: s.id,
+                  set: s,
                   title: s.name,
                   abbr: s.abbreviation,
                   cards: cards.where((c) => c.setId == s.id).toList()),
@@ -71,7 +72,8 @@ class CollectionScreen extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                   children: [
                     for (final f in folders)
-                      _section(context, ref, f, templatesMap, palette),
+                      _section(context, ref, f, templatesMap, palette,
+                          raritiesMap),
                   ],
                 ),
               ),
@@ -88,6 +90,7 @@ class CollectionScreen extends ConsumerWidget {
     _Folder folder,
     Map<String, TemplateData> templatesMap,
     Map<String, ColorValue> palette,
+    Map<String, RarityEntry> raritiesMap,
   ) {
     final heading = folder.abbr.isEmpty
         ? folder.title
@@ -122,8 +125,9 @@ class CollectionScreen extends ConsumerWidget {
             spacing: 12,
             runSpacing: 12,
             children: [
-              for (final card in folder.cards)
-                _thumb(context, ref, card, templatesMap, palette),
+              for (var i = 0; i < folder.cards.length; i++)
+                _thumb(context, ref, folder.cards[i], templatesMap, palette,
+                    folder.set, raritiesMap, i + 1, folder.cards.length),
             ],
           ),
         const Divider(height: 28),
@@ -137,10 +141,21 @@ class CollectionScreen extends ConsumerWidget {
     CardEntry card,
     Map<String, TemplateData> templatesMap,
     Map<String, ColorValue> palette,
+    SetEntry? set,
+    Map<String, RarityEntry> raritiesMap,
+    int number,
+    int total,
   ) {
     final effective = card.effectiveTemplate(templatesMap);
-    final data =
-        composeCard(effective, content: card.content, foil: card.foil);
+    final data = composeCard(
+      effective,
+      content: card.content,
+      foil: card.foil,
+      set: set,
+      rarity: raritiesMap[card.content.rarityId],
+      number: set == null ? null : number,
+      total: set == null ? null : total,
+    );
     final name = _cardName(effective, card);
 
     return SizedBox(
@@ -321,15 +336,17 @@ class CollectionScreen extends ConsumerWidget {
 }
 
 class _Folder {
-  final String? id; // null => Unassigned
+  final SetEntry? set; // null => Unassigned
   final String title;
   final String abbr;
   final List<CardEntry> cards;
   const _Folder(
-      {required this.id,
+      {required this.set,
       required this.title,
       required this.abbr,
       required this.cards});
+
+  String? get id => set?.id;
 }
 
 // Full-screen editor pushed from the Collection; the editor reads the selected

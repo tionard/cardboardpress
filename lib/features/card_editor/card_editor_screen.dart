@@ -37,6 +37,14 @@ class CardEditorScreen extends ConsumerWidget {
           data: (list) => list,
           orElse: () => const <PaletteSwatch>[],
         );
+    final sets = ref.watch(setsProvider).maybeWhen(
+          data: (list) => list,
+          orElse: () => const <SetEntry>[],
+        );
+    final rarities = ref.watch(raritiesProvider).maybeWhen(
+          data: (list) => list,
+          orElse: () => const <RarityEntry>[],
+        );
 
     return cardsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -51,10 +59,13 @@ class CardEditorScreen extends ConsumerWidget {
         return _CardEditorBody(
           key: ValueKey(card.id),
           card: card,
+          allCards: cards,
           templates: templates,
           templatesMap: templatesMap,
           palette: palette,
           swatches: swatches,
+          sets: sets,
+          rarities: rarities,
           repo: ref.read(cardRepositoryProvider),
           imageStore: ref.read(imageStoreProvider),
           exporter: ref.read(cardExporterProvider),
@@ -83,10 +94,13 @@ const _catIcons = {
 
 class _CardEditorBody extends StatefulWidget {
   final CardEntry card;
+  final List<CardEntry> allCards;
   final List<TemplateEntry> templates;
   final Map<String, TemplateData> templatesMap;
   final Map<String, ColorValue> palette;
   final List<PaletteSwatch> swatches;
+  final List<SetEntry> sets;
+  final List<RarityEntry> rarities;
   final CardRepository repo;
   final ImageStore imageStore;
   final CardExporter exporter;
@@ -94,10 +108,13 @@ class _CardEditorBody extends StatefulWidget {
   const _CardEditorBody({
     super.key,
     required this.card,
+    required this.allCards,
     required this.templates,
     required this.templatesMap,
     required this.palette,
     required this.swatches,
+    required this.sets,
+    required this.rarities,
     required this.repo,
     required this.imageStore,
     required this.exporter,
@@ -111,6 +128,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   late CardEntry _working;
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, ui.Image> _images = {}; // imageId -> decoded image
+  late final TextEditingController _artist;
   Timer? _saveTimer;
   _Cat _cat = _Cat.card;
   bool _exporting = false;
@@ -119,6 +137,8 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   void initState() {
     super.initState();
     _working = widget.card;
+    _artist = TextEditingController(text: _working.content.artist)
+      ..addListener(_onArtistChanged);
     _syncArtImages(); // decode any art the card already references
   }
 
@@ -126,6 +146,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   void dispose() {
     _saveTimer?.cancel();
     widget.repo.save(_working);
+    _artist.dispose();
     for (final c in _controllers.values) {
       c.dispose();
     }
@@ -133,6 +154,33 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   }
 
   TemplateData get _effective => _working.effectiveTemplate(widget.templatesMap);
+
+  // The card's set / rarity, resolved from the live lists.
+  SetEntry? get _currentSet {
+    for (final s in widget.sets) {
+      if (s.id == _working.setId) return s;
+    }
+    return null;
+  }
+
+  RarityEntry? get _currentRarity {
+    final id = _working.content.rarityId;
+    if (id == null) return null;
+    for (final r in widget.rarities) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
+
+  // (collectorNumber, total) within the card's set, or (null, null).
+  (int?, int?) get _collectorInfo {
+    final setId = _working.setId;
+    if (setId == null) return (null, null);
+    final inSet = widget.allCards.where((c) => c.setId == setId).toList();
+    final idx = inSet.indexWhere((c) => c.id == _working.id);
+    if (idx < 0) return (null, null);
+    return (idx + 1, inSet.length);
+  }
 
   List<FieldSpec> get _editableFields => _effective.fields
       .where((f) => f.text != null && f.type != FieldType.footer)
@@ -222,11 +270,23 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     // (The file is left on disk; orphan cleanup comes with Collection delete.)
   }
 
+  CardData _compose() {
+    final (number, total) = _collectorInfo;
+    return composeCard(
+      _effective,
+      content: _working.content,
+      foil: _working.foil,
+      set: _currentSet,
+      rarity: _currentRarity,
+      number: number,
+      total: total,
+    );
+  }
+
   Future<void> _exportPng() async {
     setState(() => _exporting = true);
     try {
-      final card = composeCard(_effective,
-          content: _working.content, foil: _working.foil);
+      final card = _compose();
       final refs = CardRefs(palette: widget.palette, images: _images);
       final path = await widget.exporter.exportToFile(card, refs);
       if (!mounted) return;
@@ -259,13 +319,30 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     widget.repo.save(_working);
   }
 
+  void _onArtistChanged() {
+    if (_working.content.artist == _artist.text) return;
+    setState(() => _working =
+        _working.copyWith(content: _working.content.withArtist(_artist.text)));
+    _scheduleSave();
+  }
+
+  void _changeSet(String? setId) {
+    setState(() => _working = _working.copyWith(setId: setId));
+    widget.repo.setSet(_working.id, setId);
+  }
+
+  void _setRarity(String? rarityId) {
+    setState(() => _working =
+        _working.copyWith(content: _working.content.withRarity(rarityId)));
+    widget.repo.save(_working);
+  }
+
   // ---- layout ----
 
   @override
   Widget build(BuildContext context) {
     final refs = CardRefs(palette: widget.palette, images: _images);
-    final card = composeCard(_effective,
-        content: _working.content, foil: _working.foil);
+    final card = _compose();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -319,6 +396,8 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
         return _artSettings();
       case _Cat.color:
         return _colorSettings();
+      case _Cat.set:
+        return _setSettings();
       case _Cat.export:
         return _exportSettings();
       default:
@@ -415,11 +494,77 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
               ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _artist,
+          decoration: const InputDecoration(
+            labelText: 'Artist',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 10),
         Text(
           'The image is copied into the app and rendered through the same '
-          'paintCard, so the preview and a future export match exactly. '
-          'Zoom/pan and the artist credit come next.',
+          'paintCard, so the preview and export match exactly. The artist '
+          'credit is per-card content shown by the Footer.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
+  Widget _setSettings() {
+    final setId = _working.setId;
+    final rarityId = _working.content.rarityId;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Set', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Unassigned'),
+              selected: setId == null,
+              onSelected: (_) => _changeSet(null),
+            ),
+            for (final s in widget.sets)
+              ChoiceChip(
+                label: Text(s.name),
+                selected: setId == s.id,
+                onSelected: (_) => _changeSet(s.id),
+              ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text('Rarity', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('None'),
+              selected: rarityId == null,
+              onSelected: (_) => _setRarity(null),
+            ),
+            for (final r in widget.rarities)
+              ChoiceChip(
+                label: Text(r.abbreviation.isEmpty
+                    ? r.name
+                    : '${r.name} (${r.abbreviation})'),
+                selected: rarityId == r.id,
+                onSelected: (_) => _setRarity(r.id),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Membership and rarity feed the Footer (set abbreviation, collector '
+          'number, copyright, and rarity). The Footer shows derived values, so '
+          'changing these updates it live.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

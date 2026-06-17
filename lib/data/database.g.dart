@@ -1665,6 +1665,314 @@ class SetsCompanion extends UpdateCompanion<CardSet> {
   }
 }
 
+class $RaritiesTable extends Rarities with TableInfo<$RaritiesTable, Rarity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RaritiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _abbreviationMeta = const VerificationMeta(
+    'abbreviation',
+  );
+  @override
+  late final GeneratedColumn<String> abbreviation = GeneratedColumn<String>(
+    'abbreviation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, abbreviation, position];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'rarities';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Rarity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('abbreviation')) {
+      context.handle(
+        _abbreviationMeta,
+        abbreviation.isAcceptableOrUnknown(
+          data['abbreviation']!,
+          _abbreviationMeta,
+        ),
+      );
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Rarity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Rarity(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      abbreviation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}abbreviation'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+    );
+  }
+
+  @override
+  $RaritiesTable createAlias(String alias) {
+    return $RaritiesTable(attachedDatabase, alias);
+  }
+}
+
+class Rarity extends DataClass implements Insertable<Rarity> {
+  final String id;
+  final String name;
+  final String abbreviation;
+  final int position;
+  const Rarity({
+    required this.id,
+    required this.name,
+    required this.abbreviation,
+    required this.position,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['abbreviation'] = Variable<String>(abbreviation);
+    map['position'] = Variable<int>(position);
+    return map;
+  }
+
+  RaritiesCompanion toCompanion(bool nullToAbsent) {
+    return RaritiesCompanion(
+      id: Value(id),
+      name: Value(name),
+      abbreviation: Value(abbreviation),
+      position: Value(position),
+    );
+  }
+
+  factory Rarity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Rarity(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      abbreviation: serializer.fromJson<String>(json['abbreviation']),
+      position: serializer.fromJson<int>(json['position']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'abbreviation': serializer.toJson<String>(abbreviation),
+      'position': serializer.toJson<int>(position),
+    };
+  }
+
+  Rarity copyWith({
+    String? id,
+    String? name,
+    String? abbreviation,
+    int? position,
+  }) => Rarity(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    abbreviation: abbreviation ?? this.abbreviation,
+    position: position ?? this.position,
+  );
+  Rarity copyWithCompanion(RaritiesCompanion data) {
+    return Rarity(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      abbreviation: data.abbreviation.present
+          ? data.abbreviation.value
+          : this.abbreviation,
+      position: data.position.present ? data.position.value : this.position,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Rarity(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('abbreviation: $abbreviation, ')
+          ..write('position: $position')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, abbreviation, position);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Rarity &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.abbreviation == this.abbreviation &&
+          other.position == this.position);
+}
+
+class RaritiesCompanion extends UpdateCompanion<Rarity> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> abbreviation;
+  final Value<int> position;
+  final Value<int> rowid;
+  const RaritiesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.abbreviation = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RaritiesCompanion.insert({
+    required String id,
+    required String name,
+    this.abbreviation = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name);
+  static Insertable<Rarity> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? abbreviation,
+    Expression<int>? position,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (abbreviation != null) 'abbreviation': abbreviation,
+      if (position != null) 'position': position,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RaritiesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? abbreviation,
+    Value<int>? position,
+    Value<int>? rowid,
+  }) {
+    return RaritiesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      abbreviation: abbreviation ?? this.abbreviation,
+      position: position ?? this.position,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (abbreviation.present) {
+      map['abbreviation'] = Variable<String>(abbreviation.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RaritiesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('abbreviation: $abbreviation, ')
+          ..write('position: $position, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1672,6 +1980,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TemplatesTable templates = $TemplatesTable(this);
   late final $CardsTable cards = $CardsTable(this);
   late final $SetsTable sets = $SetsTable(this);
+  late final $RaritiesTable rarities = $RaritiesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1681,6 +1990,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     templates,
     cards,
     sets,
+    rarities,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2799,6 +3109,183 @@ typedef $$SetsTableProcessedTableManager =
       CardSet,
       PrefetchHooks Function()
     >;
+typedef $$RaritiesTableCreateCompanionBuilder =
+    RaritiesCompanion Function({
+      required String id,
+      required String name,
+      Value<String> abbreviation,
+      Value<int> position,
+      Value<int> rowid,
+    });
+typedef $$RaritiesTableUpdateCompanionBuilder =
+    RaritiesCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> abbreviation,
+      Value<int> position,
+      Value<int> rowid,
+    });
+
+class $$RaritiesTableFilterComposer
+    extends Composer<_$AppDatabase, $RaritiesTable> {
+  $$RaritiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get abbreviation => $composableBuilder(
+    column: $table.abbreviation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$RaritiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $RaritiesTable> {
+  $$RaritiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get abbreviation => $composableBuilder(
+    column: $table.abbreviation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RaritiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RaritiesTable> {
+  $$RaritiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get abbreviation => $composableBuilder(
+    column: $table.abbreviation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+}
+
+class $$RaritiesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RaritiesTable,
+          Rarity,
+          $$RaritiesTableFilterComposer,
+          $$RaritiesTableOrderingComposer,
+          $$RaritiesTableAnnotationComposer,
+          $$RaritiesTableCreateCompanionBuilder,
+          $$RaritiesTableUpdateCompanionBuilder,
+          (Rarity, BaseReferences<_$AppDatabase, $RaritiesTable, Rarity>),
+          Rarity,
+          PrefetchHooks Function()
+        > {
+  $$RaritiesTableTableManager(_$AppDatabase db, $RaritiesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RaritiesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RaritiesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RaritiesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> abbreviation = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RaritiesCompanion(
+                id: id,
+                name: name,
+                abbreviation: abbreviation,
+                position: position,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<String> abbreviation = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RaritiesCompanion.insert(
+                id: id,
+                name: name,
+                abbreviation: abbreviation,
+                position: position,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$RaritiesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RaritiesTable,
+      Rarity,
+      $$RaritiesTableFilterComposer,
+      $$RaritiesTableOrderingComposer,
+      $$RaritiesTableAnnotationComposer,
+      $$RaritiesTableCreateCompanionBuilder,
+      $$RaritiesTableUpdateCompanionBuilder,
+      (Rarity, BaseReferences<_$AppDatabase, $RaritiesTable, Rarity>),
+      Rarity,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2810,4 +3297,6 @@ class $AppDatabaseManager {
   $$CardsTableTableManager get cards =>
       $$CardsTableTableManager(_db, _db.cards);
   $$SetsTableTableManager get sets => $$SetsTableTableManager(_db, _db.sets);
+  $$RaritiesTableTableManager get rarities =>
+      $$RaritiesTableTableManager(_db, _db.rarities);
 }

@@ -98,23 +98,66 @@ CardContent sampleContent() => const CardContent(text: {
       fFooterId: '001/120 · TWD · © 26',
     });
 
-/// Compose a template + content (+ foil) into the render model.
+/// Builds the Footer's derived text (spec §3): collector number, set
+/// abbreviation, rarity abbreviation, artist, copyright — joined in a fixed
+/// arrangement for now. Only present parts are shown.
+String deriveFooterText({
+  required String artist,
+  SetEntry? set,
+  RarityEntry? rarity,
+  int? number,
+  int? total,
+}) {
+  final parts = <String>[];
+  if (set != null && set.numbering && number != null && total != null) {
+    parts.add('${number.toString().padLeft(3, '0')}/$total');
+  }
+  if (set != null && set.abbreviation.isNotEmpty) parts.add(set.abbreviation);
+  if (rarity != null && rarity.abbreviation.isNotEmpty) {
+    parts.add(rarity.abbreviation);
+  }
+  if (artist.isNotEmpty) parts.add('Illus. $artist');
+  if (set != null) {
+    parts.add(set.owner.isEmpty ? '© ${set.year}' : '© ${set.year} ${set.owner}');
+  }
+  return parts.join('  ·  ');
+}
+
+/// Compose a template + content (+ foil, + derived footer inputs) into the
+/// render model. Footer fields are filled with derived text, not authored text.
 CardData composeCard(
   TemplateData t, {
   required CardContent content,
   FoilType foil = FoilType.none,
-}) =>
-    CardData(
-      widthInches: t.widthInches,
-      heightInches: t.heightInches,
-      cornerRadiusFrac: t.cornerRadiusFrac,
-      baseColor: content.tint ?? t.baseColor,
-      border: t.border,
-      fields: t.fields,
-      foil: foil,
-      textContent: content.text,
-      artImageIds: content.art,
-    );
+  SetEntry? set,
+  RarityEntry? rarity,
+  int? number,
+  int? total,
+}) {
+  final footer = deriveFooterText(
+    artist: content.artist,
+    set: set,
+    rarity: rarity,
+    number: number,
+    total: total,
+  );
+  final text = Map<String, String>.from(content.text);
+  for (final f in t.fields) {
+    if (f.type == FieldType.footer) text[f.id] = footer;
+  }
+
+  return CardData(
+    widthInches: t.widthInches,
+    heightInches: t.heightInches,
+    cornerRadiusFrac: t.cornerRadiusFrac,
+    baseColor: content.tint ?? t.baseColor,
+    border: t.border,
+    fields: t.fields,
+    foil: foil,
+    textContent: text,
+    artImageIds: content.art,
+  );
+}
 
 /// Convenience used by the spike: Thornwood template + sample content.
 CardData sampleCard({bool foil = true, bool border = true}) => composeCard(
