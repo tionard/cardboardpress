@@ -35,6 +35,17 @@ void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
   // 1. Card base colour (resolved from its palette reference).
   _fillRRect(canvas, cardRRect, refs.resolveColor(card.baseColor), 1.0);
 
+  // 1a. Optional template background image, drawn OVER the base but UNDER the
+  //     tint. Same cover-fit + zoom/pan as card art, clipped to the card's
+  //     rounded shape. Because the tint (next step) layers on top, an opaque
+  //     per-card tint still fully covers the image — tint keeps working over a
+  //     template that uses a background. resolveImage returns null when the id
+  //     is absent or not yet decoded, so the renderer simply skips it.
+  final bgImg = refs.resolveImage(card.bgImageId);
+  if (bgImg != null) {
+    _paintArtImage(canvas, cardRRect, bgImg, card.bgTransform);
+  }
+
   // 1b. Optional per-card tint, layered OVER the base at its own opacity, so a
   //     partial alpha blends toward the base (a real tint, not a full replace).
   final tint = card.tint;

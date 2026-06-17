@@ -217,6 +217,8 @@ class CardData {
   final Map<String, String> textContent; // fieldId -> text
   final Map<String, String> artImageIds; // fieldId -> image id
   final Map<String, ArtTransform> artTransforms; // fieldId -> zoom/pan
+  final String? bgImageId; // template background image, drawn under the tint
+  final ArtTransform bgTransform; // cover-fit zoom/pan for the bg image
 
   const CardData({
     this.widthInches = 2.5,
@@ -231,6 +233,8 @@ class CardData {
     this.textContent = const {},
     this.artImageIds = const {},
     this.artTransforms = const {},
+    this.bgImageId,
+    this.bgTransform = const ArtTransform(),
   });
 }
 
@@ -291,6 +295,8 @@ class TemplateData {
   final ColorRef baseColor;
   final BorderSpec? border;
   final List<FieldSpec> fields;
+  final String? bgImageId; // optional background image, drawn UNDER the tint
+  final ArtTransform bgTransform; // cover-fit zoom/pan for the bg image
 
   const TemplateData({
     this.widthInches = 2.5,
@@ -299,6 +305,8 @@ class TemplateData {
     required this.baseColor,
     this.border,
     required this.fields,
+    this.bgImageId,
+    this.bgTransform = const ArtTransform(),
   });
 
   TemplateData copyWith({
@@ -308,6 +316,8 @@ class TemplateData {
     ColorRef? baseColor,
     Object? border = _sentinel, // pass null to clear the border
     List<FieldSpec>? fields,
+    Object? bgImageId = _sentinel, // pass null to clear the bg image
+    ArtTransform? bgTransform,
   }) =>
       TemplateData(
         widthInches: widthInches ?? this.widthInches,
@@ -316,6 +326,9 @@ class TemplateData {
         baseColor: baseColor ?? this.baseColor,
         border: identical(border, _sentinel) ? this.border : border as BorderSpec?,
         fields: fields ?? this.fields,
+        bgImageId:
+            identical(bgImageId, _sentinel) ? this.bgImageId : bgImageId as String?,
+        bgTransform: bgTransform ?? this.bgTransform,
       );
 }
 

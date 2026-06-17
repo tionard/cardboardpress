@@ -162,6 +162,8 @@ CardData composeCard(
     textContent: text,
     artImageIds: content.art,
     artTransforms: content.artTransforms,
+    bgImageId: t.bgImageId,
+    bgTransform: t.bgTransform,
   );
 }
 

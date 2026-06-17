@@ -133,6 +133,13 @@ Map<String, dynamic> templateToMap(TemplateData t) => {
       'baseColor': _colorRefToMap(t.baseColor),
       if (t.border != null) 'border': _borderToMap(t.border!),
       'fields': t.fields.map(_fieldToMap).toList(),
+      if (t.bgImageId != null) 'bgImage': t.bgImageId,
+      if (!t.bgTransform.isIdentity)
+        'bgT': {
+          'z': t.bgTransform.zoom,
+          'x': t.bgTransform.panX,
+          'y': t.bgTransform.panY,
+        },
     };
 
 TemplateData templateFromMap(Map m) => TemplateData(
@@ -144,6 +151,14 @@ TemplateData templateFromMap(Map m) => TemplateData(
       fields: ((m['fields'] as List?) ?? const [])
           .map((e) => _fieldFromMap(e as Map))
           .toList(),
+      bgImageId: m['bgImage'] as String?,
+      bgTransform: m['bgT'] == null
+          ? const ArtTransform()
+          : ArtTransform(
+              zoom: _d((m['bgT'] as Map)['z'], 1.0),
+              panX: _d((m['bgT'] as Map)['x'], 0.0),
+              panY: _d((m['bgT'] as Map)['y'], 0.0),
+            ),
     );
 
 String templateToJson(TemplateData t) => jsonEncode(templateToMap(t));
