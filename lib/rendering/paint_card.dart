@@ -106,7 +106,7 @@ void _paintField(
   // 2.3 Content — text, drawn in its resolved colour (single or double).
   //     (Rules rich-text + inline symbols come later.)
   if (field.text != null) {
-    final s = card.textContent[field.type] ?? '';
+    final s = card.textContent[field.id] ?? '';
     if (s.isNotEmpty) {
       final textColor = refs.resolveColor(field.text!.colorRef);
       _paintText(canvas, rect, s, field.text!, size, textColor);
