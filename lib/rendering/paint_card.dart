@@ -35,6 +35,13 @@ void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
   // 1. Card base colour (resolved from its palette reference).
   _fillRRect(canvas, cardRRect, refs.resolveColor(card.baseColor), 1.0);
 
+  // 1b. Optional per-card tint, layered OVER the base at its own opacity, so a
+  //     partial alpha blends toward the base (a real tint, not a full replace).
+  final tint = card.tint;
+  if (tint != null) {
+    _fillRRect(canvas, cardRRect, refs.resolveColor(tint), card.tintAlpha);
+  }
+
   // 2. Each field, in order. (Draw order WITHIN a field: bg → outline →
   //    content — handled inside _paintField.)
   for (final field in card.fields) {

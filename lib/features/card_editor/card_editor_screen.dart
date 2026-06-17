@@ -320,6 +320,12 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     widget.repo.save(_working);
   }
 
+  void _setTintAlpha(double a) {
+    setState(() => _working =
+        _working.copyWith(content: _working.content.withTintAlpha(a)));
+    _scheduleSave();
+  }
+
   void _setFoil(FoilType f) {
     setState(() => _working = _working.copyWith(foil: f));
     widget.repo.save(_working);
@@ -658,6 +664,18 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
               ),
           ],
         ),
+        if (_working.content.tint != null) ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            const SizedBox(width: 70, child: Text('Opacity')),
+            Expanded(
+              child: Slider(
+                value: _working.content.tintAlpha.clamp(0.0, 1.0),
+                onChanged: _setTintAlpha,
+              ),
+            ),
+          ]),
+        ],
         const SizedBox(height: 20),
         Text('Foil', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
@@ -674,8 +692,9 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
         ),
         const SizedBox(height: 16),
         Text(
-          'Tint overrides the template\'s base colour for this card; "Default" '
-          'uses the template\'s. Foil draws a sheen over the whole card.',
+          'Tint layers over the template\'s base colour at the opacity you set, '
+          'so a partial value blends the two. "Default" removes it. Foil draws a '
+          'sheen over the whole card.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

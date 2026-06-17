@@ -254,6 +254,16 @@ class _TemplateBodyState extends State<_TemplateBody> {
     setState(() => _selectedFieldId = null);
   }
 
+  void _moveField(String id, int delta) {
+    final fields = [..._d.fields];
+    final i = fields.indexWhere((f) => f.id == id);
+    final j = i + delta;
+    if (i < 0 || j < 0 || j >= fields.length) return;
+    final f = fields.removeAt(i);
+    fields.insert(j, f);
+    _update(_d.copyWith(fields: fields));
+  }
+
   void _changeFieldType(FieldSpec f, FieldType type) {
     var updated = f.copyWith(type: type);
     if (type == FieldType.art) {
@@ -507,6 +517,8 @@ class _TemplateBodyState extends State<_TemplateBody> {
   Widget _fieldEditor(FieldSpec f) {
     final text = f.text;
     final outline = f.outline;
+    final index = _d.fields.indexWhere((x) => x.id == f.id);
+    final last = _d.fields.length - 1;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -527,11 +539,25 @@ class _TemplateBodyState extends State<_TemplateBody> {
               ),
             ),
             IconButton(
+              tooltip: 'Move back (behind)',
+              icon: const Icon(Icons.keyboard_arrow_up),
+              onPressed: index > 0 ? () => _moveField(f.id, -1) : null,
+            ),
+            IconButton(
+              tooltip: 'Move forward (on top)',
+              icon: const Icon(Icons.keyboard_arrow_down),
+              onPressed: index < last ? () => _moveField(f.id, 1) : null,
+            ),
+            IconButton(
               tooltip: 'Remove field',
               icon: const Icon(Icons.delete_outline),
               onPressed: () => _removeField(f.id),
             ),
           ],
+        ),
+        Text(
+          'Layer ${index + 1} of ${last + 1} — later layers draw on top.',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 4),
         Text('Position', style: Theme.of(context).textTheme.labelLarge),

@@ -209,6 +209,8 @@ class CardData {
   final double heightInches;
   final double cornerRadiusFrac; // card corner radius as fraction of width
   final ColorRef baseColor;
+  final ColorRef? tint; // optional per-card tint over the base
+  final double tintAlpha; // 0..1 opacity of the tint
   final BorderSpec? border;
   final List<FieldSpec> fields;
   final FoilType foil;
@@ -221,6 +223,8 @@ class CardData {
     this.heightInches = 3.5,
     this.cornerRadiusFrac = 0.05,
     required this.baseColor,
+    this.tint,
+    this.tintAlpha = 1.0,
     this.border,
     required this.fields,
     this.foil = FoilType.none,
@@ -342,6 +346,7 @@ class CardContent {
   final Map<String, String> art; // fieldId -> image id
   final Map<String, ArtTransform> artTransforms; // fieldId -> zoom/pan
   final ColorRef? tint; // optional per-card base-colour override
+  final double tintAlpha; // 0..1 opacity of the tint over the base
   final String artist; // per-card; rendered by the Footer
   final String? rarityId; // live rarity reference (footer abbreviation)
 
@@ -350,6 +355,7 @@ class CardContent {
     this.art = const {},
     this.artTransforms = const {},
     this.tint,
+    this.tintAlpha = 1.0,
     this.artist = '',
     this.rarityId,
   });
@@ -359,6 +365,7 @@ class CardContent {
     Map<String, String>? art,
     Map<String, ArtTransform>? artTransforms,
     Object? tint = _sentinel,
+    double? tintAlpha,
     String? artist,
     Object? rarityId = _sentinel,
   }) =>
@@ -367,6 +374,7 @@ class CardContent {
         art: art ?? this.art,
         artTransforms: artTransforms ?? this.artTransforms,
         tint: identical(tint, _sentinel) ? this.tint : tint as ColorRef?,
+        tintAlpha: tintAlpha ?? this.tintAlpha,
         artist: artist ?? this.artist,
         rarityId:
             identical(rarityId, _sentinel) ? this.rarityId : rarityId as String?,
@@ -405,6 +413,8 @@ class CardContent {
 
   /// Set (or clear, when [ref] is null) the card's tint.
   CardContent withTint(ColorRef? ref) => _copy(tint: ref);
+
+  CardContent withTintAlpha(double a) => _copy(tintAlpha: a);
 
   CardContent withArtist(String value) => _copy(artist: value);
 
