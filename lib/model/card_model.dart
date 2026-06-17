@@ -249,6 +249,23 @@ class TemplateData {
     this.border,
     required this.fields,
   });
+
+  TemplateData copyWith({
+    double? widthInches,
+    double? heightInches,
+    double? cornerRadiusFrac,
+    ColorRef? baseColor,
+    Object? border = _sentinel, // pass null to clear the border
+    List<FieldSpec>? fields,
+  }) =>
+      TemplateData(
+        widthInches: widthInches ?? this.widthInches,
+        heightInches: heightInches ?? this.heightInches,
+        cornerRadiusFrac: cornerRadiusFrac ?? this.cornerRadiusFrac,
+        baseColor: baseColor ?? this.baseColor,
+        border: identical(border, _sentinel) ? this.border : border as BorderSpec?,
+        fields: fields ?? this.fields,
+      );
 }
 
 /// A persisted template as the UI/state layer sees it: identity + name + the
@@ -263,6 +280,12 @@ class TemplateEntry {
     required this.name,
     required this.data,
   });
+
+  TemplateEntry copyWith({String? name, TemplateData? data}) => TemplateEntry(
+        id: id,
+        name: name ?? this.name,
+        data: data ?? this.data,
+      );
 }
 
 /// A card's authored content, keyed by field id. Today it's just per-field

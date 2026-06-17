@@ -90,6 +90,9 @@ List<TemplateEntry> defaultTemplates() => [
       TemplateEntry(id: 't_parchment', name: 'Parchment', data: _parchment()),
     ];
 
+/// A reasonable default layout for a newly-created template.
+TemplateData starterTemplate() => _parchment();
+
 /// Sample card content, keyed by field id.
 CardContent sampleContent() => const CardContent(text: {
       fNameId: 'Thornwood Stag',

@@ -189,6 +189,21 @@ class AppDatabase extends _$AppDatabase {
             ..orderBy([(t) => OrderingTerm(expression: t.position)]))
           .watch();
 
+  Future<void> insertTemplate(TemplatesCompanion c) =>
+      into(templates).insert(c);
+
+  Future<void> updateTemplateRow(String id, TemplatesCompanion c) =>
+      (update(templates)..where((t) => t.id.equals(id))).write(c);
+
+  Future<void> deleteTemplate(String id) =>
+      (delete(templates)..where((t) => t.id.equals(id))).go();
+
+  Future<int> maxTemplatePosition() async {
+    final rows = await select(templates).get();
+    if (rows.isEmpty) return -1;
+    return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
+  }
+
   Future<void> _seedDefaultTemplates() async {
     final defaults = defaultTemplates();
     await batch((b) {
