@@ -10,10 +10,14 @@
 // fields already persist inside the template's JSON.
 
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/image_store.dart';
 import '../../data/template_repository.dart';
 import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
@@ -125,6 +129,7 @@ class _TemplateEditorScreenState extends ConsumerState<TemplateEditorScreen> {
                       palette: palette,
                       swatches: swatches,
                       repo: repo,
+                      imageStore: ref.read(imageStoreProvider),
                     ),
             ),
           ],
@@ -164,6 +169,7 @@ class _TemplateBody extends StatefulWidget {
   final Map<String, ColorValue> palette;
   final List<PaletteSwatch> swatches;
   final TemplateRepository repo;
+  final ImageStore imageStore;
 
   const _TemplateBody({
     super.key,
@@ -171,6 +177,7 @@ class _TemplateBody extends StatefulWidget {
     required this.palette,
     required this.swatches,
     required this.repo,
+    required this.imageStore,
   });
 
   @override
@@ -180,6 +187,7 @@ class _TemplateBody extends StatefulWidget {
 class _TemplateBodyState extends State<_TemplateBody> {
   late TemplateEntry _working;
   late final TextEditingController _name;
+  final Map<String, ui.Image> _images = {}; // imageId -> decoded bg image
   Timer? _saveTimer;
   _Mode _mode = _Mode.layout;
   String? _selectedFieldId;
@@ -190,6 +198,7 @@ class _TemplateBodyState extends State<_TemplateBody> {
     _working = widget.entry;
     _name = TextEditingController(text: _working.name)
       ..addListener(_onNameChanged);
+    _syncBgImage(); // decode an existing background, if any
   }
 
   @override
@@ -288,6 +297,58 @@ class _TemplateBodyState extends State<_TemplateBody> {
     _updateField(f.copyWith(frac: Rect.fromLTRB(left, top, right, bottom)));
   }
 
+  // ---- background image ----
+  //
+  // The bg image lives on the TEMPLATE (it's layout, not per-card content) and
+  // is decoded here, then handed to the renderer via CardRefs.images — exactly
+  // like the Card Editor decodes card art. paintCard draws it between the base
+  // colour and the tint, so a card's tint still layers over it.
+
+  Future<ui.Image> _decode(Uint8List bytes) async {
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
+
+  Future<void> _syncBgImage() async {
+    final id = _d.bgImageId;
+    if (id == null || _images.containsKey(id)) return;
+    final bytes = await widget.imageStore.load(id);
+    if (bytes == null) return;
+    final img = await _decode(bytes);
+    if (!mounted) return;
+    setState(() => _images[id] = img);
+  }
+
+  Future<void> _pickBgImage() async {
+    final result =
+        await FilePicker.pickFiles(type: FileType.image, withData: true);
+    if (result == null) return;
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) return;
+    final imageId = await widget.imageStore
+        .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
+    final img = await _decode(bytes);
+    if (!mounted) return;
+    setState(() {
+      _images[imageId] = img;
+      // Replacing resets zoom/pan — a fresh image shouldn't inherit the old crop.
+      _working = _working.copyWith(
+          data: _d.copyWith(bgImageId: imageId, bgTransform: const ArtTransform()));
+    });
+    widget.repo.save(_working);
+  }
+
+  void _removeBgImage() {
+    setState(() => _working = _working.copyWith(
+        data: _d.copyWith(bgImageId: null, bgTransform: const ArtTransform())));
+    widget.repo.save(_working);
+    // (The file is left on disk; orphan cleanup comes with Collection delete.)
+  }
+
+  void _setBgTransform(ArtTransform t) => _update(_d.copyWith(bgTransform: t));
+
   @override
   Widget build(BuildContext context) {
     final preview = Padding(
@@ -343,7 +404,7 @@ class _TemplateBodyState extends State<_TemplateBody> {
         children: [
           CardPreview(
               card: card,
-              refs: CardRefs(palette: widget.palette),
+              refs: CardRefs(palette: widget.palette, images: _images),
               width: _previewW),
           if (_mode == _Mode.fields && sel != null)
             Positioned(
@@ -393,6 +454,8 @@ class _TemplateBodyState extends State<_TemplateBody> {
           ],
         ),
         const SizedBox(height: 20),
+        _bgImageSection(),
+        const SizedBox(height: 20),
         Row(children: [
           Text('Border', style: Theme.of(context).textTheme.titleSmall),
           const Spacer(),
@@ -435,6 +498,66 @@ class _TemplateBodyState extends State<_TemplateBody> {
         Text('Card size', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
         _sizeDropdown(),
+      ],
+    );
+  }
+
+  Widget _bgImageSection() {
+    final hasImage = _d.bgImageId != null;
+    final loading = hasImage && !_images.containsKey(_d.bgImageId);
+    final tr = _d.bgTransform;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Text('Background image', style: Theme.of(context).textTheme.titleSmall),
+          const Spacer(),
+          if (hasImage && !tr.isIdentity)
+            TextButton(
+              onPressed: () => _setBgTransform(const ArtTransform()),
+              child: const Text('Reset'),
+            ),
+        ]),
+        const SizedBox(height: 6),
+        if (!hasImage)
+          OutlinedButton.icon(
+            onPressed: _pickBgImage,
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            label: const Text('Add image'),
+          )
+        else ...[
+          Row(children: [
+            OutlinedButton.icon(
+              onPressed: _pickBgImage,
+              icon: const Icon(Icons.image_outlined),
+              label: const Text('Replace'),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: _removeBgImage,
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Remove'),
+            ),
+          ]),
+          if (loading)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('Loading image…',
+                  style: Theme.of(context).textTheme.bodySmall),
+            ),
+          const SizedBox(height: 4),
+          _labeledSlider('Zoom', tr.zoom, 1.0, 3.0,
+              (v) => _setBgTransform(tr.copyWith(zoom: v))),
+          _labeledSlider('Horizontal', tr.panX, -1.0, 1.0,
+              (v) => _setBgTransform(tr.copyWith(panX: v))),
+          _labeledSlider('Vertical', tr.panY, -1.0, 1.0,
+              (v) => _setBgTransform(tr.copyWith(panY: v))),
+          Text(
+            'The image draws above the base colour and below a card\u2019s '
+            'tint, so a tinted card still shows over it.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ],
     );
   }
