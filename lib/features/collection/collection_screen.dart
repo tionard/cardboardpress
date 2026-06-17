@@ -13,7 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
-import '../../widgets/card_preview.dart';
+import '../../widgets/decoded_card_preview.dart';
 
 class CollectionScreen extends ConsumerWidget {
   const CollectionScreen({super.key});
@@ -164,8 +164,11 @@ class CollectionScreen extends ConsumerWidget {
           InkWell(
             onTap: () => _openEditor(ref, card.id),
             onLongPress: () => _cardMenu(context, ref, card),
-            child: CardPreview(
-                card: data, refs: CardRefs(palette: palette), width: 92),
+            child: DecodedCardPreview(
+                card: data,
+                palette: palette,
+                imageStore: ref.read(imageStoreProvider),
+                width: 92),
           ),
           const SizedBox(height: 3),
           Text(
