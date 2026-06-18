@@ -14,6 +14,7 @@ import '../../data/palette_repository.dart';
 import '../../model/card_model.dart';
 import '../../state/providers.dart';
 import 'rarity_manager.dart';
+import 'symbol_manager.dart';
 import 'text_symbol_manager.dart';
 
 class CustomizationScreen extends ConsumerStatefulWidget {
@@ -51,6 +52,7 @@ class _CustomizationScreenState extends ConsumerState<CustomizationScreen> {
             child: switch (_subTab) {
               0 => _buildColors(),
               1 => const RarityManager(),
+              2 => const SymbolManager(),
               3 => const TextSymbolManager(),
               _ => Center(
                   child: Text(

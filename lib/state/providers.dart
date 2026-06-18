@@ -12,6 +12,7 @@ import '../data/card_repository.dart';
 import '../data/palette_repository.dart';
 import '../data/rarity_repository.dart';
 import '../data/set_repository.dart';
+import '../data/symbol_repository.dart';
 import '../data/template_repository.dart';
 import '../data/text_symbol_repository.dart';
 import '../model/card_model.dart';
@@ -136,6 +137,26 @@ final textSymbolMapProvider = Provider<Map<String, String>>((ref) {
   return async.maybeWhen(
     data: (list) => {for (final s in list) s.tag.toLowerCase(): s.imageId},
     orElse: () => const <String, String>{},
+  );
+});
+
+/// Data API for standalone symbols (spec §3.3: set symbol / watermark library).
+final symbolRepositoryProvider = Provider<SymbolRepository>(
+  (ref) => SymbolRepository(ref.watch(databaseProvider)),
+);
+
+/// Live list of standalone symbols (for the Customization "Symbols" tab).
+final symbolsProvider = StreamProvider<List<SymbolEntry>>(
+  (ref) => ref.watch(symbolRepositoryProvider).watch(),
+);
+
+/// Standalone symbols as an id -> entry map, for resolving a set's chosen
+/// symbol or a watermark reference once those render sites exist.
+final symbolsMapProvider = Provider<Map<String, SymbolEntry>>((ref) {
+  final async = ref.watch(symbolsProvider);
+  return async.maybeWhen(
+    data: (list) => {for (final s in list) s.id: s},
+    orElse: () => const <String, SymbolEntry>{},
   );
 });
 

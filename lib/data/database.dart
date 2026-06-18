@@ -98,13 +98,29 @@ class TextSymbols extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// A standalone symbol (spec §3.3): a graphic used ONLY as a set symbol or a
+/// watermark. Not inline, not composable — just a name + image. Any colour tint
+/// is applied at the render site, never stored here. Managed in Customization →
+/// Symbols. (Data class is named SymbolRow to avoid clashing with dart:core's
+/// Symbol type, the same trick Sets uses with CardSet.)
+@DataClassName('SymbolRow')
+class Symbols extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get imageId => text()();
+  IntColumn get position => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DriftDatabase(
-    tables: [PaletteColors, Templates, Cards, Sets, Rarities, TextSymbols])
+    tables: [PaletteColors, Templates, Cards, Sets, Rarities, TextSymbols, Symbols])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -143,6 +159,12 @@ class AppDatabase extends _$AppDatabase {
           if (from < 6) {
             await m.createTable(textSymbols);
             // Rows + glyph images are seeded at startup, not here.
+          }
+          if (from < 7) {
+            // v6→v7: add standalone Symbols (set symbol / watermark library).
+            // Starts empty; any image-backed defaults would seed at startup
+            // (like text symbols), never inside a migration.
+            await m.createTable(symbols);
           }
         },
         beforeOpen: (details) async {
@@ -367,6 +389,27 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> maxTextSymbolPosition() async {
     final rows = await select(textSymbols).get();
+    if (rows.isEmpty) return -1;
+    return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
+  }
+
+  // ---- standalone symbols ----
+
+  Stream<List<SymbolRow>> watchSymbols() => (select(symbols)
+        ..orderBy([(t) => OrderingTerm(expression: t.position)]))
+      .watch();
+
+  Future<void> insertSymbol(SymbolsCompanion c) =>
+      into(symbols).insert(c, mode: InsertMode.insertOrIgnore);
+
+  Future<void> updateSymbolRow(String id, SymbolsCompanion c) =>
+      (update(symbols)..where((t) => t.id.equals(id))).write(c);
+
+  Future<void> deleteSymbol(String id) =>
+      (delete(symbols)..where((t) => t.id.equals(id))).go();
+
+  Future<int> maxSymbolPosition() async {
+    final rows = await select(symbols).get();
     if (rows.isEmpty) return -1;
     return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
   }

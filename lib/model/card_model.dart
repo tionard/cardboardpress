@@ -537,6 +537,24 @@ class TextSymbolEntry {
   });
 }
 
+/// A standalone symbol (spec §3.3): a graphic used only as a set symbol or a
+/// watermark — not inline, not composable. Just a name + image; any colour tint
+/// (rarity colour for a set symbol, palette colour for a watermark) is applied
+/// at the render site, never stored here.
+class SymbolEntry {
+  final String id;
+  final String name;
+  final String imageId;
+  final int position;
+
+  const SymbolEntry({
+    required this.id,
+    required this.name,
+    required this.imageId,
+    this.position = 0,
+  });
+}
+
 /// A set (Collection folder): name + footer-feeding metadata + numbering.
 /// "Unassigned" is not stored — it's the null-setId bucket, always shown first.
 class SetEntry {
