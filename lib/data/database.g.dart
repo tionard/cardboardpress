@@ -1973,6 +1973,312 @@ class RaritiesCompanion extends UpdateCompanion<Rarity> {
   }
 }
 
+class $TextSymbolsTable extends TextSymbols
+    with TableInfo<$TextSymbolsTable, TextSymbol> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TextSymbolsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tagMeta = const VerificationMeta('tag');
+  @override
+  late final GeneratedColumn<String> tag = GeneratedColumn<String>(
+    'tag',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _imageIdMeta = const VerificationMeta(
+    'imageId',
+  );
+  @override
+  late final GeneratedColumn<String> imageId = GeneratedColumn<String>(
+    'image_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, tag, imageId, position];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'text_symbols';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TextSymbol> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('tag')) {
+      context.handle(
+        _tagMeta,
+        tag.isAcceptableOrUnknown(data['tag']!, _tagMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tagMeta);
+    }
+    if (data.containsKey('image_id')) {
+      context.handle(
+        _imageIdMeta,
+        imageId.isAcceptableOrUnknown(data['image_id']!, _imageIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_imageIdMeta);
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TextSymbol map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TextSymbol(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      tag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tag'],
+      )!,
+      imageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_id'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+    );
+  }
+
+  @override
+  $TextSymbolsTable createAlias(String alias) {
+    return $TextSymbolsTable(attachedDatabase, alias);
+  }
+}
+
+class TextSymbol extends DataClass implements Insertable<TextSymbol> {
+  final String id;
+  final String tag;
+  final String imageId;
+  final int position;
+  const TextSymbol({
+    required this.id,
+    required this.tag,
+    required this.imageId,
+    required this.position,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['tag'] = Variable<String>(tag);
+    map['image_id'] = Variable<String>(imageId);
+    map['position'] = Variable<int>(position);
+    return map;
+  }
+
+  TextSymbolsCompanion toCompanion(bool nullToAbsent) {
+    return TextSymbolsCompanion(
+      id: Value(id),
+      tag: Value(tag),
+      imageId: Value(imageId),
+      position: Value(position),
+    );
+  }
+
+  factory TextSymbol.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TextSymbol(
+      id: serializer.fromJson<String>(json['id']),
+      tag: serializer.fromJson<String>(json['tag']),
+      imageId: serializer.fromJson<String>(json['imageId']),
+      position: serializer.fromJson<int>(json['position']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'tag': serializer.toJson<String>(tag),
+      'imageId': serializer.toJson<String>(imageId),
+      'position': serializer.toJson<int>(position),
+    };
+  }
+
+  TextSymbol copyWith({
+    String? id,
+    String? tag,
+    String? imageId,
+    int? position,
+  }) => TextSymbol(
+    id: id ?? this.id,
+    tag: tag ?? this.tag,
+    imageId: imageId ?? this.imageId,
+    position: position ?? this.position,
+  );
+  TextSymbol copyWithCompanion(TextSymbolsCompanion data) {
+    return TextSymbol(
+      id: data.id.present ? data.id.value : this.id,
+      tag: data.tag.present ? data.tag.value : this.tag,
+      imageId: data.imageId.present ? data.imageId.value : this.imageId,
+      position: data.position.present ? data.position.value : this.position,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TextSymbol(')
+          ..write('id: $id, ')
+          ..write('tag: $tag, ')
+          ..write('imageId: $imageId, ')
+          ..write('position: $position')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, tag, imageId, position);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TextSymbol &&
+          other.id == this.id &&
+          other.tag == this.tag &&
+          other.imageId == this.imageId &&
+          other.position == this.position);
+}
+
+class TextSymbolsCompanion extends UpdateCompanion<TextSymbol> {
+  final Value<String> id;
+  final Value<String> tag;
+  final Value<String> imageId;
+  final Value<int> position;
+  final Value<int> rowid;
+  const TextSymbolsCompanion({
+    this.id = const Value.absent(),
+    this.tag = const Value.absent(),
+    this.imageId = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TextSymbolsCompanion.insert({
+    required String id,
+    required String tag,
+    required String imageId,
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       tag = Value(tag),
+       imageId = Value(imageId);
+  static Insertable<TextSymbol> custom({
+    Expression<String>? id,
+    Expression<String>? tag,
+    Expression<String>? imageId,
+    Expression<int>? position,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (tag != null) 'tag': tag,
+      if (imageId != null) 'image_id': imageId,
+      if (position != null) 'position': position,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TextSymbolsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? tag,
+    Value<String>? imageId,
+    Value<int>? position,
+    Value<int>? rowid,
+  }) {
+    return TextSymbolsCompanion(
+      id: id ?? this.id,
+      tag: tag ?? this.tag,
+      imageId: imageId ?? this.imageId,
+      position: position ?? this.position,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (tag.present) {
+      map['tag'] = Variable<String>(tag.value);
+    }
+    if (imageId.present) {
+      map['image_id'] = Variable<String>(imageId.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TextSymbolsCompanion(')
+          ..write('id: $id, ')
+          ..write('tag: $tag, ')
+          ..write('imageId: $imageId, ')
+          ..write('position: $position, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1981,6 +2287,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CardsTable cards = $CardsTable(this);
   late final $SetsTable sets = $SetsTable(this);
   late final $RaritiesTable rarities = $RaritiesTable(this);
+  late final $TextSymbolsTable textSymbols = $TextSymbolsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1991,6 +2298,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     cards,
     sets,
     rarities,
+    textSymbols,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -3286,6 +3594,187 @@ typedef $$RaritiesTableProcessedTableManager =
       Rarity,
       PrefetchHooks Function()
     >;
+typedef $$TextSymbolsTableCreateCompanionBuilder =
+    TextSymbolsCompanion Function({
+      required String id,
+      required String tag,
+      required String imageId,
+      Value<int> position,
+      Value<int> rowid,
+    });
+typedef $$TextSymbolsTableUpdateCompanionBuilder =
+    TextSymbolsCompanion Function({
+      Value<String> id,
+      Value<String> tag,
+      Value<String> imageId,
+      Value<int> position,
+      Value<int> rowid,
+    });
+
+class $$TextSymbolsTableFilterComposer
+    extends Composer<_$AppDatabase, $TextSymbolsTable> {
+  $$TextSymbolsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tag => $composableBuilder(
+    column: $table.tag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imageId => $composableBuilder(
+    column: $table.imageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TextSymbolsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TextSymbolsTable> {
+  $$TextSymbolsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tag => $composableBuilder(
+    column: $table.tag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get imageId => $composableBuilder(
+    column: $table.imageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TextSymbolsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TextSymbolsTable> {
+  $$TextSymbolsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get tag =>
+      $composableBuilder(column: $table.tag, builder: (column) => column);
+
+  GeneratedColumn<String> get imageId =>
+      $composableBuilder(column: $table.imageId, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+}
+
+class $$TextSymbolsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TextSymbolsTable,
+          TextSymbol,
+          $$TextSymbolsTableFilterComposer,
+          $$TextSymbolsTableOrderingComposer,
+          $$TextSymbolsTableAnnotationComposer,
+          $$TextSymbolsTableCreateCompanionBuilder,
+          $$TextSymbolsTableUpdateCompanionBuilder,
+          (
+            TextSymbol,
+            BaseReferences<_$AppDatabase, $TextSymbolsTable, TextSymbol>,
+          ),
+          TextSymbol,
+          PrefetchHooks Function()
+        > {
+  $$TextSymbolsTableTableManager(_$AppDatabase db, $TextSymbolsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TextSymbolsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TextSymbolsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TextSymbolsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> tag = const Value.absent(),
+                Value<String> imageId = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TextSymbolsCompanion(
+                id: id,
+                tag: tag,
+                imageId: imageId,
+                position: position,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String tag,
+                required String imageId,
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TextSymbolsCompanion.insert(
+                id: id,
+                tag: tag,
+                imageId: imageId,
+                position: position,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TextSymbolsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TextSymbolsTable,
+      TextSymbol,
+      $$TextSymbolsTableFilterComposer,
+      $$TextSymbolsTableOrderingComposer,
+      $$TextSymbolsTableAnnotationComposer,
+      $$TextSymbolsTableCreateCompanionBuilder,
+      $$TextSymbolsTableUpdateCompanionBuilder,
+      (
+        TextSymbol,
+        BaseReferences<_$AppDatabase, $TextSymbolsTable, TextSymbol>,
+      ),
+      TextSymbol,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3299,4 +3788,6 @@ class $AppDatabaseManager {
   $$SetsTableTableManager get sets => $$SetsTableTableManager(_db, _db.sets);
   $$RaritiesTableTableManager get rarities =>
       $$RaritiesTableTableManager(_db, _db.rarities);
+  $$TextSymbolsTableTableManager get textSymbols =>
+      $$TextSymbolsTableTableManager(_db, _db.textSymbols);
 }

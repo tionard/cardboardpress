@@ -7,10 +7,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app_shell.dart';
+import 'data/symbol_seeder.dart';
+import 'state/providers.dart';
 
-// ProviderScope is the root that holds all Riverpod provider state. Every app
-// using Riverpod wraps its root widget in exactly one of these.
-void main() => runApp(const ProviderScope(child: CardboardPressApp()));
+// ProviderScope is the root that holds all Riverpod provider state. We build the
+// container ourselves so startup work (seeding default text-symbol images) runs
+// against the SAME database + image store the app then uses.
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final container = ProviderContainer();
+  await seedDefaultTextSymbols(
+    container.read(databaseProvider),
+    container.read(imageStoreProvider),
+  );
+  runApp(UncontrolledProviderScope(
+    container: container,
+    child: const CardboardPressApp(),
+  ));
+}
 
 class CardboardPressApp extends StatelessWidget {
   const CardboardPressApp({super.key});

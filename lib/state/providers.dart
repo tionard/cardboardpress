@@ -13,6 +13,7 @@ import '../data/palette_repository.dart';
 import '../data/rarity_repository.dart';
 import '../data/set_repository.dart';
 import '../data/template_repository.dart';
+import '../data/text_symbol_repository.dart';
 import '../model/card_model.dart';
 
 /// The single database instance, disposed when no longer needed.
@@ -115,6 +116,26 @@ final raritiesMapProvider = Provider<Map<String, RarityEntry>>((ref) {
   return async.maybeWhen(
     data: (list) => {for (final r in list) r.id: r},
     orElse: () => const <String, RarityEntry>{},
+  );
+});
+
+/// Data API for inline text symbols (spec §3.2).
+final textSymbolRepositoryProvider = Provider<TextSymbolRepository>(
+  (ref) => TextSymbolRepository(ref.watch(databaseProvider)),
+);
+
+/// Live list of text symbols (for the Customization "Text" tab).
+final textSymbolsProvider = StreamProvider<List<TextSymbolEntry>>(
+  (ref) => ref.watch(textSymbolRepositoryProvider).watch(),
+);
+
+/// tag (lower-cased) -> imageId, for compose/renderer to resolve {TAG}s. Empty
+/// while loading. Tags are matched case-insensitively.
+final textSymbolMapProvider = Provider<Map<String, String>>((ref) {
+  final async = ref.watch(textSymbolsProvider);
+  return async.maybeWhen(
+    data: (list) => {for (final s in list) s.tag.toLowerCase(): s.imageId},
+    orElse: () => const <String, String>{},
   );
 });
 

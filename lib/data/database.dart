@@ -85,12 +85,25 @@ class Rarities extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [PaletteColors, Templates, Cards, Sets, Rarities])
+/// An inline text symbol (spec §3.2): a {tag} mapped to a glyph image stored in
+/// the ImageStore. Managed in Customization; referenced from Cost/Rules content.
+class TextSymbols extends Table {
+  TextColumn get id => text()();
+  TextColumn get tag => text()();
+  TextColumn get imageId => text()();
+  IntColumn get position => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DriftDatabase(
+    tables: [PaletteColors, Templates, Cards, Sets, Rarities, TextSymbols])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -101,6 +114,8 @@ class AppDatabase extends _$AppDatabase {
           await _seedSampleCards();
           await _seedDefaultSets();
           await _seedDefaultRarities();
+          // Default text symbols are image-backed, so they're seeded at startup
+          // (see seedDefaultTextSymbols) rather than here in the DB layer.
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
@@ -123,6 +138,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 5) {
             await m.createTable(rarities);
             await _seedDefaultRarities();
+          }
+          if (from < 6) {
+            await m.createTable(textSymbols);
+            // Rows + glyph images are seeded at startup, not here.
           }
         },
         beforeOpen: (details) async {
@@ -310,5 +329,29 @@ class AppDatabase extends _$AppDatabase {
         );
       }
     });
+  }
+
+  // ---- text symbols ----
+
+  Stream<List<TextSymbol>> watchTextSymbols() => (select(textSymbols)
+        ..orderBy([(t) => OrderingTerm(expression: t.position)]))
+      .watch();
+
+  Future<int> countTextSymbols() async =>
+      (await select(textSymbols).get()).length;
+
+  Future<void> insertTextSymbol(TextSymbolsCompanion c) =>
+      into(textSymbols).insert(c, mode: InsertMode.insertOrIgnore);
+
+  Future<void> updateTextSymbolRow(String id, TextSymbolsCompanion c) =>
+      (update(textSymbols)..where((t) => t.id.equals(id))).write(c);
+
+  Future<void> deleteTextSymbol(String id) =>
+      (delete(textSymbols)..where((t) => t.id.equals(id))).go();
+
+  Future<int> maxTextSymbolPosition() async {
+    final rows = await select(textSymbols).get();
+    if (rows.isEmpty) return -1;
+    return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
   }
 }

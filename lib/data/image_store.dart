@@ -18,12 +18,13 @@ class ImageStore {
     return dir;
   }
 
-  /// Write [bytes] and return the generated image id (filename).
-  Future<String> save(Uint8List bytes, {String ext = 'png'}) async {
-    final id = 'img_${DateTime.now().microsecondsSinceEpoch}.$ext';
-    final file = File(p.join((await _dir()).path, id));
+  /// Write [bytes] and return the image id (filename). Pass [id] to use a
+  /// stable filename (e.g. for seeded defaults); otherwise one is generated.
+  Future<String> save(Uint8List bytes, {String ext = 'png', String? id}) async {
+    final name = id ?? 'img_${DateTime.now().microsecondsSinceEpoch}.$ext';
+    final file = File(p.join((await _dir()).path, name));
     await file.writeAsBytes(bytes, flush: true);
-    return id;
+    return name;
   }
 
   Future<Uint8List?> load(String id) async {

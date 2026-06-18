@@ -497,6 +497,22 @@ class RarityEntry {
   });
 }
 
+/// An inline text symbol (spec §3.2): a `{tag}` that renders as a glyph image.
+/// Tags are matched case-insensitively; [imageId] points into the ImageStore.
+class TextSymbolEntry {
+  final String id;
+  final String tag;
+  final String imageId;
+  final int position;
+
+  const TextSymbolEntry({
+    required this.id,
+    required this.tag,
+    required this.imageId,
+    this.position = 0,
+  });
+}
+
 /// A set (Collection folder): name + footer-feeding metadata + numbering.
 /// "Unassigned" is not stored — it's the null-setId bucket, always shown first.
 class SetEntry {
