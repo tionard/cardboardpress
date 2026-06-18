@@ -551,6 +551,8 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     Widget slider(String label, double value, double min, double max,
         ValueChanged<double> onChanged) {
       final shown = value.clamp(min, max);
+      final step = (max - min) <= 0.15 ? 0.005 : 0.05;
+      final divisions = ((max - min) / step).round().clamp(1, 1000);
       return Row(
         children: [
           SizedBox(
@@ -562,6 +564,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
               value: shown,
               min: min,
               max: max,
+              divisions: divisions,
               onChanged: onChanged,
             ),
           ),
@@ -695,6 +698,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
             Expanded(
               child: Slider(
                 value: _working.content.tintAlpha.clamp(0.0, 1.0),
+                divisions: 20,
                 onChanged: _setTintAlpha,
               ),
             ),

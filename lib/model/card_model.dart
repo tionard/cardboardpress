@@ -130,8 +130,7 @@ class FieldSpec {
   final String id; // stable per-field id (content is keyed by this, not type)
   final FieldType type;
   final Rect frac; // L,T,R,B each in 0..1 of the card
-  final double cornerRadius; // fraction of card width
-  final bool sharp; // sharp corners override cornerRadius
+  final double cornerRadius; // fraction of card width (0 = square corners)
   final ColorRef? fill; // background fill reference (null for Art)
   final double fillAlpha; // use-site opacity for the fill, 0..1
   final OutlineSpec? outline; // optional
@@ -142,7 +141,6 @@ class FieldSpec {
     required this.type,
     required this.frac,
     this.cornerRadius = 0.02,
-    this.sharp = false,
     this.fill,
     this.fillAlpha = 1.0,
     this.outline,
@@ -153,7 +151,6 @@ class FieldSpec {
     FieldType? type,
     Rect? frac,
     double? cornerRadius,
-    bool? sharp,
     Object? fill = _sentinel,
     double? fillAlpha,
     Object? outline = _sentinel,
@@ -164,7 +161,6 @@ class FieldSpec {
         type: type ?? this.type,
         frac: frac ?? this.frac,
         cornerRadius: cornerRadius ?? this.cornerRadius,
-        sharp: sharp ?? this.sharp,
         fill: identical(fill, _sentinel) ? this.fill : fill as ColorRef?,
         fillAlpha: fillAlpha ?? this.fillAlpha,
         outline:

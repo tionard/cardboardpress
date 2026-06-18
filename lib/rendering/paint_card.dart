@@ -92,7 +92,7 @@ void _paintField(
     field.frac.right * size.width,
     field.frac.bottom * size.height,
   );
-  final r = field.sharp ? 0.0 : field.cornerRadius * size.width;
+  final r = field.cornerRadius * size.width; // 0 => square corners
   final rrect = ui.RRect.fromRectAndRadius(rect, ui.Radius.circular(r));
 
   // Art has no background/outline — just its image (a placeholder here).

@@ -100,7 +100,6 @@ Map<String, dynamic> _fieldToMap(FieldSpec f) => {
       'type': f.type.name,
       'frac': [f.frac.left, f.frac.top, f.frac.right, f.frac.bottom],
       'cornerRadius': f.cornerRadius,
-      'sharp': f.sharp,
       if (f.fill != null) 'fill': _colorRefToMap(f.fill!),
       'fillAlpha': f.fillAlpha,
       if (f.outline != null) 'outline': _outlineToMap(f.outline!),
@@ -111,12 +110,14 @@ FieldSpec _fieldFromMap(Map m) {
   final raw = (m['frac'] as List?) ?? const [0.0, 0.0, 1.0, 1.0];
   final f = raw.map((e) => _d(e, 0.0)).toList();
   final type = _byName(FieldType.values, m['type'], FieldType.name);
+  // Legacy: 'sharp' used to force square corners regardless of cornerRadius.
+  // It's gone now — fold it into cornerRadius so old square fields stay square.
+  final cornerRadius = _b(m['sharp'], false) ? 0.0 : _d(m['cornerRadius'], 0.02);
   return FieldSpec(
     id: (m['id'] as String?) ?? 'f_${type.name}',
     type: type,
     frac: Rect.fromLTRB(f[0], f[1], f[2], f[3]),
-    cornerRadius: _d(m['cornerRadius'], 0.02),
-    sharp: _b(m['sharp'], false),
+    cornerRadius: cornerRadius,
     fill: m['fill'] == null ? null : _colorRefFromMap(m['fill'] as Map),
     fillAlpha: _d(m['fillAlpha'], 1.0),
     outline: m['outline'] == null ? null : _outlineFromMap(m['outline'] as Map),

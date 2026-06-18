@@ -555,6 +555,7 @@ class _TemplateBodyState extends State<_TemplateBody> {
               value: _d.cornerRadiusFrac.clamp(0.0, 0.12),
               min: 0.0,
               max: 0.12,
+              divisions: 24,
               onChanged: (v) => _update(_d.copyWith(cornerRadiusFrac: v)),
             ),
           ),
@@ -780,22 +781,17 @@ class _TemplateBodyState extends State<_TemplateBody> {
         ),
         const SizedBox(height: 4),
         Text('Position', style: Theme.of(context).textTheme.labelLarge),
-        _labeledSlider('Left', f.frac.left, 0, 1, (v) => _setFrac(f, l: v)),
-        _labeledSlider('Top', f.frac.top, 0, 1, (v) => _setFrac(f, t: v)),
-        _labeledSlider('Right', f.frac.right, 0, 1, (v) => _setFrac(f, r: v)),
-        _labeledSlider('Bottom', f.frac.bottom, 0, 1, (v) => _setFrac(f, b: v)),
+        _labeledSlider('Left', f.frac.left, 0, 1, (v) => _setFrac(f, l: v),
+            step: 0.01),
+        _labeledSlider('Top', f.frac.top, 0, 1, (v) => _setFrac(f, t: v),
+            step: 0.01),
+        _labeledSlider('Right', f.frac.right, 0, 1, (v) => _setFrac(f, r: v),
+            step: 0.01),
+        _labeledSlider('Bottom', f.frac.bottom, 0, 1, (v) => _setFrac(f, b: v),
+            step: 0.01),
         const SizedBox(height: 8),
-        Row(children: [
-          Expanded(
-            child: _labeledSlider('Corner', f.cornerRadius, 0, 0.1,
-                (v) => _updateField(f.copyWith(cornerRadius: v))),
-          ),
-          const Text('Sharp'),
-          Switch(
-            value: f.sharp,
-            onChanged: (v) => _updateField(f.copyWith(sharp: v)),
-          ),
-        ]),
+        _labeledSlider('Corner', f.cornerRadius, 0, 0.1,
+            (v) => _updateField(f.copyWith(cornerRadius: v))),
         const SizedBox(height: 12),
         Text('Fill', style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 6),
@@ -881,14 +877,24 @@ class _TemplateBodyState extends State<_TemplateBody> {
       max <= 0.2 ? v.toStringAsFixed(3) : v.toStringAsFixed(2);
 
   Widget _labeledSlider(String label, double value, double min, double max,
-      ValueChanged<double> onChanged) {
+      ValueChanged<double> onChanged,
+      {double? step}) {
     final shown = value.clamp(min, max);
+    // Snap to discrete steps. Fine ranges step by 0.005, coarser ones by 0.05,
+    // unless the caller overrides (e.g. position uses clean 1% steps).
+    final s = step ?? ((max - min) <= 0.15 ? 0.005 : 0.05);
+    final divisions = ((max - min) / s).round().clamp(1, 1000);
     return Row(children: [
       SizedBox(
           width: 80,
           child: Text(label, style: Theme.of(context).textTheme.bodySmall)),
       Expanded(
-        child: Slider(value: shown, min: min, max: max, onChanged: onChanged),
+        child: Slider(
+            value: shown,
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: onChanged),
       ),
       SizedBox(
         width: 40,
