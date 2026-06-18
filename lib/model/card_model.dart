@@ -243,7 +243,7 @@ class CardData {
   Set<String> imageIdsToDecode() {
     final ids = <String>{
       ...artImageIds.values,
-      if (bgImageId != null) bgImageId!,
+      ?bgImageId,
     };
     for (final f in fields) {
       if (f.type != FieldType.cost) continue; // Rules joins with rich text
@@ -565,6 +565,7 @@ class SetEntry {
   final String owner;
   final bool numbering;
   final int position;
+  final String? symbolId; // chosen standalone symbol (set symbol); null => none
 
   const SetEntry({
     required this.id,
@@ -574,5 +575,6 @@ class SetEntry {
     this.owner = '',
     this.numbering = true,
     this.position = 0,
+    this.symbolId,
   });
 }

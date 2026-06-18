@@ -21,6 +21,7 @@ class SetRepository {
             owner: r.owner,
             numbering: r.numbering,
             position: r.position,
+            symbolId: r.symbolId,
           ))
       .toList());
 
@@ -35,6 +36,10 @@ class SetRepository {
     ));
     return id;
   }
+
+  /// Choose (or clear, when [symbolId] is null) this set's set symbol.
+  Future<void> setSymbol(String id, String? symbolId) =>
+      _db.updateSet(id, SetsCompanion(symbolId: Value(symbolId)));
 
   Future<void> delete(String id) => _db.deleteSet(id);
 }

@@ -1299,6 +1299,17 @@ class $SetsTable extends Sets with TableInfo<$SetsTable, CardSet> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _symbolIdMeta = const VerificationMeta(
+    'symbolId',
+  );
+  @override
+  late final GeneratedColumn<String> symbolId = GeneratedColumn<String>(
+    'symbol_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1308,6 +1319,7 @@ class $SetsTable extends Sets with TableInfo<$SetsTable, CardSet> {
     owner,
     numbering,
     position,
+    symbolId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1367,6 +1379,12 @@ class $SetsTable extends Sets with TableInfo<$SetsTable, CardSet> {
         position.isAcceptableOrUnknown(data['position']!, _positionMeta),
       );
     }
+    if (data.containsKey('symbol_id')) {
+      context.handle(
+        _symbolIdMeta,
+        symbolId.isAcceptableOrUnknown(data['symbol_id']!, _symbolIdMeta),
+      );
+    }
     return context;
   }
 
@@ -1404,6 +1422,10 @@ class $SetsTable extends Sets with TableInfo<$SetsTable, CardSet> {
         DriftSqlType.int,
         data['${effectivePrefix}position'],
       )!,
+      symbolId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}symbol_id'],
+      ),
     );
   }
 
@@ -1421,6 +1443,7 @@ class CardSet extends DataClass implements Insertable<CardSet> {
   final String owner;
   final bool numbering;
   final int position;
+  final String? symbolId;
   const CardSet({
     required this.id,
     required this.name,
@@ -1429,6 +1452,7 @@ class CardSet extends DataClass implements Insertable<CardSet> {
     required this.owner,
     required this.numbering,
     required this.position,
+    this.symbolId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1440,6 +1464,9 @@ class CardSet extends DataClass implements Insertable<CardSet> {
     map['owner'] = Variable<String>(owner);
     map['numbering'] = Variable<bool>(numbering);
     map['position'] = Variable<int>(position);
+    if (!nullToAbsent || symbolId != null) {
+      map['symbol_id'] = Variable<String>(symbolId);
+    }
     return map;
   }
 
@@ -1452,6 +1479,9 @@ class CardSet extends DataClass implements Insertable<CardSet> {
       owner: Value(owner),
       numbering: Value(numbering),
       position: Value(position),
+      symbolId: symbolId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(symbolId),
     );
   }
 
@@ -1468,6 +1498,7 @@ class CardSet extends DataClass implements Insertable<CardSet> {
       owner: serializer.fromJson<String>(json['owner']),
       numbering: serializer.fromJson<bool>(json['numbering']),
       position: serializer.fromJson<int>(json['position']),
+      symbolId: serializer.fromJson<String?>(json['symbolId']),
     );
   }
   @override
@@ -1481,6 +1512,7 @@ class CardSet extends DataClass implements Insertable<CardSet> {
       'owner': serializer.toJson<String>(owner),
       'numbering': serializer.toJson<bool>(numbering),
       'position': serializer.toJson<int>(position),
+      'symbolId': serializer.toJson<String?>(symbolId),
     };
   }
 
@@ -1492,6 +1524,7 @@ class CardSet extends DataClass implements Insertable<CardSet> {
     String? owner,
     bool? numbering,
     int? position,
+    Value<String?> symbolId = const Value.absent(),
   }) => CardSet(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -1500,6 +1533,7 @@ class CardSet extends DataClass implements Insertable<CardSet> {
     owner: owner ?? this.owner,
     numbering: numbering ?? this.numbering,
     position: position ?? this.position,
+    symbolId: symbolId.present ? symbolId.value : this.symbolId,
   );
   CardSet copyWithCompanion(SetsCompanion data) {
     return CardSet(
@@ -1512,6 +1546,7 @@ class CardSet extends DataClass implements Insertable<CardSet> {
       owner: data.owner.present ? data.owner.value : this.owner,
       numbering: data.numbering.present ? data.numbering.value : this.numbering,
       position: data.position.present ? data.position.value : this.position,
+      symbolId: data.symbolId.present ? data.symbolId.value : this.symbolId,
     );
   }
 
@@ -1524,14 +1559,23 @@ class CardSet extends DataClass implements Insertable<CardSet> {
           ..write('year: $year, ')
           ..write('owner: $owner, ')
           ..write('numbering: $numbering, ')
-          ..write('position: $position')
+          ..write('position: $position, ')
+          ..write('symbolId: $symbolId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, abbreviation, year, owner, numbering, position);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    abbreviation,
+    year,
+    owner,
+    numbering,
+    position,
+    symbolId,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1542,7 +1586,8 @@ class CardSet extends DataClass implements Insertable<CardSet> {
           other.year == this.year &&
           other.owner == this.owner &&
           other.numbering == this.numbering &&
-          other.position == this.position);
+          other.position == this.position &&
+          other.symbolId == this.symbolId);
 }
 
 class SetsCompanion extends UpdateCompanion<CardSet> {
@@ -1553,6 +1598,7 @@ class SetsCompanion extends UpdateCompanion<CardSet> {
   final Value<String> owner;
   final Value<bool> numbering;
   final Value<int> position;
+  final Value<String?> symbolId;
   final Value<int> rowid;
   const SetsCompanion({
     this.id = const Value.absent(),
@@ -1562,6 +1608,7 @@ class SetsCompanion extends UpdateCompanion<CardSet> {
     this.owner = const Value.absent(),
     this.numbering = const Value.absent(),
     this.position = const Value.absent(),
+    this.symbolId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SetsCompanion.insert({
@@ -1572,6 +1619,7 @@ class SetsCompanion extends UpdateCompanion<CardSet> {
     this.owner = const Value.absent(),
     this.numbering = const Value.absent(),
     this.position = const Value.absent(),
+    this.symbolId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -1583,6 +1631,7 @@ class SetsCompanion extends UpdateCompanion<CardSet> {
     Expression<String>? owner,
     Expression<bool>? numbering,
     Expression<int>? position,
+    Expression<String>? symbolId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1593,6 +1642,7 @@ class SetsCompanion extends UpdateCompanion<CardSet> {
       if (owner != null) 'owner': owner,
       if (numbering != null) 'numbering': numbering,
       if (position != null) 'position': position,
+      if (symbolId != null) 'symbol_id': symbolId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1605,6 +1655,7 @@ class SetsCompanion extends UpdateCompanion<CardSet> {
     Value<String>? owner,
     Value<bool>? numbering,
     Value<int>? position,
+    Value<String?>? symbolId,
     Value<int>? rowid,
   }) {
     return SetsCompanion(
@@ -1615,6 +1666,7 @@ class SetsCompanion extends UpdateCompanion<CardSet> {
       owner: owner ?? this.owner,
       numbering: numbering ?? this.numbering,
       position: position ?? this.position,
+      symbolId: symbolId ?? this.symbolId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1643,6 +1695,9 @@ class SetsCompanion extends UpdateCompanion<CardSet> {
     if (position.present) {
       map['position'] = Variable<int>(position.value);
     }
+    if (symbolId.present) {
+      map['symbol_id'] = Variable<String>(symbolId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1659,6 +1714,7 @@ class SetsCompanion extends UpdateCompanion<CardSet> {
           ..write('owner: $owner, ')
           ..write('numbering: $numbering, ')
           ..write('position: $position, ')
+          ..write('symbolId: $symbolId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3501,6 +3557,7 @@ typedef $$SetsTableCreateCompanionBuilder =
       Value<String> owner,
       Value<bool> numbering,
       Value<int> position,
+      Value<String?> symbolId,
       Value<int> rowid,
     });
 typedef $$SetsTableUpdateCompanionBuilder =
@@ -3512,6 +3569,7 @@ typedef $$SetsTableUpdateCompanionBuilder =
       Value<String> owner,
       Value<bool> numbering,
       Value<int> position,
+      Value<String?> symbolId,
       Value<int> rowid,
     });
 
@@ -3555,6 +3613,11 @@ class $$SetsTableFilterComposer extends Composer<_$AppDatabase, $SetsTable> {
 
   ColumnFilters<int> get position => $composableBuilder(
     column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get symbolId => $composableBuilder(
+    column: $table.symbolId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3601,6 +3664,11 @@ class $$SetsTableOrderingComposer extends Composer<_$AppDatabase, $SetsTable> {
     column: $table.position,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get symbolId => $composableBuilder(
+    column: $table.symbolId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SetsTableAnnotationComposer
@@ -3634,6 +3702,9 @@ class $$SetsTableAnnotationComposer
 
   GeneratedColumn<int> get position =>
       $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<String> get symbolId =>
+      $composableBuilder(column: $table.symbolId, builder: (column) => column);
 }
 
 class $$SetsTableTableManager
@@ -3671,6 +3742,7 @@ class $$SetsTableTableManager
                 Value<String> owner = const Value.absent(),
                 Value<bool> numbering = const Value.absent(),
                 Value<int> position = const Value.absent(),
+                Value<String?> symbolId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SetsCompanion(
                 id: id,
@@ -3680,6 +3752,7 @@ class $$SetsTableTableManager
                 owner: owner,
                 numbering: numbering,
                 position: position,
+                symbolId: symbolId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3691,6 +3764,7 @@ class $$SetsTableTableManager
                 Value<String> owner = const Value.absent(),
                 Value<bool> numbering = const Value.absent(),
                 Value<int> position = const Value.absent(),
+                Value<String?> symbolId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SetsCompanion.insert(
                 id: id,
@@ -3700,6 +3774,7 @@ class $$SetsTableTableManager
                 owner: owner,
                 numbering: numbering,
                 position: position,
+                symbolId: symbolId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

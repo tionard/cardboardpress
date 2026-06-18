@@ -67,6 +67,7 @@ class Sets extends Table {
   TextColumn get owner => text().withDefault(const Constant(''))();
   BoolColumn get numbering => boolean().withDefault(const Constant(true))();
   IntColumn get position => integer().withDefault(const Constant(0))();
+  TextColumn get symbolId => text().nullable()(); // chosen set symbol; null => none
 
   @override
   Set<Column> get primaryKey => {id};
@@ -120,7 +121,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -165,6 +166,11 @@ class AppDatabase extends _$AppDatabase {
             // Starts empty; any image-backed defaults would seed at startup
             // (like text symbols), never inside a migration.
             await m.createTable(symbols);
+          }
+          if (from < 8) {
+            // v7→v8: a Set can now point at one of those symbols (its set
+            // symbol). Existing sets default to none (null).
+            await m.addColumn(sets, sets.symbolId);
           }
         },
         beforeOpen: (details) async {
@@ -302,6 +308,9 @@ class AppDatabase extends _$AppDatabase {
           .watch();
 
   Future<void> createSet(SetsCompanion c) => into(sets).insert(c);
+
+  Future<void> updateSet(String id, SetsCompanion c) =>
+      (update(sets)..where((t) => t.id.equals(id))).write(c);
 
   Future<void> deleteSet(String id) =>
       (delete(sets)..where((t) => t.id.equals(id))).go();

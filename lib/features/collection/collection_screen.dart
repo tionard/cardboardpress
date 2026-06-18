@@ -7,6 +7,8 @@
 // This is Collection v1 — the structure and CRUD. Polish (Large/Grid toggle,
 // density slider, search, multi-select, drag-reorder, footer numbering) follows.
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,6 +16,7 @@ import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../widgets/decoded_card_preview.dart';
+import '../customization/symbol_picker.dart';
 
 class CollectionScreen extends ConsumerWidget {
   const CollectionScreen({super.key});
@@ -25,6 +28,7 @@ class CollectionScreen extends ConsumerWidget {
     final templatesMap = ref.watch(templatesMapProvider);
     final palette = ref.watch(paletteMapProvider);
     final raritiesMap = ref.watch(raritiesMapProvider);
+    final symbolsMap = ref.watch(symbolsMapProvider);
 
     return cardsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -72,7 +76,7 @@ class CollectionScreen extends ConsumerWidget {
                   children: [
                     for (final f in folders)
                       _section(context, ref, f, templatesMap, palette,
-                          raritiesMap),
+                          raritiesMap, symbolsMap),
                   ],
                 ),
               ),
@@ -90,10 +94,16 @@ class CollectionScreen extends ConsumerWidget {
     Map<String, TemplateData> templatesMap,
     Map<String, ColorValue> palette,
     Map<String, RarityEntry> raritiesMap,
+    Map<String, SymbolEntry> symbolsMap,
   ) {
     final heading = folder.abbr.isEmpty
         ? folder.title
         : '${folder.title} · ${folder.abbr}';
+
+    // The set's chosen symbol, if it still resolves (it may have been deleted).
+    final set = folder.set;
+    final chosenSymbol =
+        set?.symbolId == null ? null : symbolsMap[set!.symbolId];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,7 +114,17 @@ class CollectionScreen extends ConsumerWidget {
             const SizedBox(width: 8),
             Text('${folder.cards.length}',
                 style: Theme.of(context).textTheme.bodySmall),
+            if (chosenSymbol != null) ...[
+              const SizedBox(width: 8),
+              _SetSymbolThumb(imageId: chosenSymbol.imageId, size: 20),
+            ],
             const Spacer(),
+            if (set != null)
+              TextButton.icon(
+                onPressed: () => _chooseSetSymbol(context, ref, set),
+                icon: const Icon(Icons.star_border, size: 18),
+                label: Text(chosenSymbol == null ? 'Symbol' : 'Change symbol'),
+              ),
             TextButton.icon(
               onPressed: () => _newCard(context, ref, folder.id),
               icon: const Icon(Icons.add, size: 18),
@@ -293,6 +313,13 @@ class CollectionScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _chooseSetSymbol(
+      BuildContext context, WidgetRef ref, SetEntry set) async {
+    final choice = await pickSymbol(context, ref, currentId: set.symbolId);
+    if (choice == null) return; // cancelled
+    await ref.read(setRepositoryProvider).setSymbol(set.id, choice.id);
+  }
+
   Future<void> _newSet(BuildContext context, WidgetRef ref) async {
     final nameCtl = TextEditingController();
     final abbrCtl = TextEditingController();
@@ -349,4 +376,53 @@ class _Folder {
       required this.cards});
 
   String? get id => set?.id;
+}
+
+/// Small thumbnail of a set's chosen symbol, shown in the folder header as a
+/// confirmation that the symbol is assigned. Loads its bytes from the
+/// ImageStore once. (It doesn't render on the card yet — that's Stage 2:
+/// template placement + paintCard.)
+class _SetSymbolThumb extends ConsumerStatefulWidget {
+  final String imageId;
+  final double size;
+  const _SetSymbolThumb({required this.imageId, required this.size});
+
+  @override
+  ConsumerState<_SetSymbolThumb> createState() => _SetSymbolThumbState();
+}
+
+class _SetSymbolThumbState extends ConsumerState<_SetSymbolThumb> {
+  static final Map<String, Uint8List> _cache = {};
+  Uint8List? _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SetSymbolThumb old) {
+    super.didUpdateWidget(old);
+    if (old.imageId != widget.imageId) _load();
+  }
+
+  Future<void> _load() async {
+    final cached = _cache[widget.imageId];
+    if (cached != null) {
+      setState(() => _bytes = cached);
+      return;
+    }
+    final bytes = await ref.read(imageStoreProvider).load(widget.imageId);
+    if (!mounted || bytes == null) return;
+    _cache[widget.imageId] = bytes;
+    setState(() => _bytes = bytes);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_bytes == null) return SizedBox(width: widget.size, height: widget.size);
+    return Image.memory(_bytes!,
+        width: widget.size, height: widget.size, fit: BoxFit.contain);
+  }
 }
