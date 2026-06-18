@@ -60,6 +60,22 @@ void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
     _paintField(canvas, size, field, card, refs);
   }
 
+  // 2c. Set symbol — a template-placed graphic (its rect / size / opacity are
+  //     template layout). Drawn over the fields, under the foil. Untinted for
+  //     now; the rarity-colour tint is the next step. Contain-fit + centred so
+  //     the symbol's aspect ratio is preserved at any placement size.
+  final ssp = card.setSymbolPlacement;
+  final ssImg = refs.resolveImage(card.setSymbolImageId);
+  if (ssp != null && ssp.enabled && ssImg != null) {
+    final dst = ui.Rect.fromLTRB(
+      ssp.frac.left * size.width,
+      ssp.frac.top * size.height,
+      ssp.frac.right * size.width,
+      ssp.frac.bottom * size.height,
+    );
+    _paintSetSymbol(canvas, ssImg, dst, ssp.alpha);
+  }
+
   // 3. Foil overlay, over the card content (but below the border).
   _paintFoil(canvas, cardRect, cardRRect, card.foil);
 
@@ -450,6 +466,22 @@ void _drawNumberText(ui.Canvas canvas, ui.Rect box, String number,
 }
 
 /// Draws [img] centred inside [dst], preserving aspect ratio (letterboxed).
+/// Draws the set symbol contain-fit into [dst] at [alpha] opacity. At full
+/// opacity it draws directly; otherwise it goes through a layer so the whole
+/// symbol fades uniformly (rather than per-pixel double-blending).
+void _paintSetSymbol(
+    ui.Canvas canvas, ui.Image img, ui.Rect dst, double alpha) {
+  final a = alpha.clamp(0.0, 1.0);
+  if (a >= 1.0) {
+    _drawImageContain(canvas, img, dst);
+    return;
+  }
+  if (a <= 0.0) return;
+  canvas.saveLayer(dst, ui.Paint()..color = ui.Color.fromRGBO(0, 0, 0, a));
+  _drawImageContain(canvas, img, dst);
+  canvas.restore();
+}
+
 void _drawImageContain(ui.Canvas canvas, ui.Image img, ui.Rect dst) {
   final iw = img.width.toDouble();
   final ih = img.height.toDouble();

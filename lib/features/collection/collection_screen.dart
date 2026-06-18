@@ -146,7 +146,7 @@ class CollectionScreen extends ConsumerWidget {
             children: [
               for (var i = 0; i < folder.cards.length; i++)
                 _thumb(context, ref, folder.cards[i], templatesMap, palette,
-                    folder.set, raritiesMap, i + 1, folder.cards.length),
+                    folder.set, raritiesMap, symbolsMap, i + 1, folder.cards.length),
             ],
           ),
         const Divider(height: 28),
@@ -162,6 +162,7 @@ class CollectionScreen extends ConsumerWidget {
     Map<String, ColorValue> palette,
     SetEntry? set,
     Map<String, RarityEntry> raritiesMap,
+    Map<String, SymbolEntry> symbolsMap,
     int number,
     int total,
   ) {
@@ -175,6 +176,7 @@ class CollectionScreen extends ConsumerWidget {
       number: set == null ? null : number,
       total: set == null ? null : total,
       symbolImageIds: ref.read(textSymbolMapProvider),
+      symbolsById: symbolsMap,
     );
     final name = _cardName(effective, card);
 

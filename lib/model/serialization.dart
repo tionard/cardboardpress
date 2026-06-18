@@ -141,6 +141,17 @@ Map<String, dynamic> templateToMap(TemplateData t) => {
           'x': t.bgTransform.panX,
           'y': t.bgTransform.panY,
         },
+      if (!t.setSymbol.isDefault)
+        'setSym': {
+          'on': t.setSymbol.enabled,
+          'f': [
+            t.setSymbol.frac.left,
+            t.setSymbol.frac.top,
+            t.setSymbol.frac.right,
+            t.setSymbol.frac.bottom,
+          ],
+          'a': t.setSymbol.alpha,
+        },
     };
 
 TemplateData templateFromMap(Map m) => TemplateData(
@@ -160,7 +171,22 @@ TemplateData templateFromMap(Map m) => TemplateData(
               panX: _d((m['bgT'] as Map)['x'], 0.0),
               panY: _d((m['bgT'] as Map)['y'], 0.0),
             ),
+      setSymbol: _setSymbolFromMap(m['setSym'] as Map?),
     );
+
+SetSymbolPlacement _setSymbolFromMap(Map? m) {
+  if (m == null) return const SetSymbolPlacement();
+  final raw = (m['f'] as List?) ?? const [];
+  final f = raw.map((e) => _d(e, 0.0)).toList();
+  final frac = f.length == 4
+      ? Rect.fromLTRB(f[0], f[1], f[2], f[3])
+      : SetSymbolPlacement.defaultFrac;
+  return SetSymbolPlacement(
+    enabled: _b(m['on'], false),
+    frac: frac,
+    alpha: _d(m['a'], 1.0),
+  );
+}
 
 String templateToJson(TemplateData t) => jsonEncode(templateToMap(t));
 

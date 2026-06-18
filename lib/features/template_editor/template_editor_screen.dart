@@ -482,6 +482,32 @@ class _TemplateBodyState extends State<_TemplateBody> {
                 ),
               ),
             ),
+          // Set-symbol placement guide (the symbol itself only renders on real
+          // cards, where the set has chosen one — here we just show the zone).
+          if (_d.setSymbol.enabled)
+            Positioned(
+              left: _d.setSymbol.frac.left * _previewW,
+              top: _d.setSymbol.frac.top * h,
+              width: _d.setSymbol.frac.width * _previewW,
+              height: _d.setSymbol.frac.height * h,
+              child: IgnorePointer(
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                        color: Theme.of(context).colorScheme.tertiary,
+                        width: 1.5),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .tertiary
+                        .withValues(alpha: 0.12),
+                  ),
+                  child: Icon(Icons.star_border,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.tertiary),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -516,6 +542,8 @@ class _TemplateBodyState extends State<_TemplateBody> {
         ),
         const SizedBox(height: 20),
         _bgImageSection(),
+        const SizedBox(height: 20),
+        _setSymbolSection(),
         const SizedBox(height: 20),
         Row(children: [
           Text('Border', style: Theme.of(context).textTheme.titleSmall),
@@ -637,6 +665,59 @@ class _TemplateBodyState extends State<_TemplateBody> {
             'tint, so a tinted card still shows over it.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
+        ],
+      ],
+    );
+  }
+
+  // ---- set symbol placement ----
+
+  void _setSymFrac({double? l, double? t, double? r, double? b}) {
+    const min = 0.03;
+    final p = _d.setSymbol;
+    var left = l ?? p.frac.left;
+    var top = t ?? p.frac.top;
+    var right = r ?? p.frac.right;
+    var bottom = b ?? p.frac.bottom;
+    if (l != null) left = left.clamp(0.0, right - min);
+    if (r != null) right = right.clamp(left + min, 1.0);
+    if (t != null) top = top.clamp(0.0, bottom - min);
+    if (b != null) bottom = bottom.clamp(top + min, 1.0);
+    _update(_d.copyWith(
+        setSymbol: p.copyWith(frac: Rect.fromLTRB(left, top, right, bottom))));
+  }
+
+  Widget _setSymbolSection() {
+    final p = _d.setSymbol;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Text('Set symbol', style: Theme.of(context).textTheme.titleSmall),
+          const Spacer(),
+          Switch(
+            value: p.enabled,
+            onChanged: (on) =>
+                _update(_d.copyWith(setSymbol: p.copyWith(enabled: on))),
+          ),
+        ]),
+        Text(
+          'Where a set\u2019s chosen symbol draws on cards using this template. '
+          'The symbol itself is picked per set in Collection.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        if (p.enabled) ...[
+          const SizedBox(height: 4),
+          _labeledSlider('Left', p.frac.left, 0, 1, (v) => _setSymFrac(l: v),
+              step: 0.01),
+          _labeledSlider('Top', p.frac.top, 0, 1, (v) => _setSymFrac(t: v),
+              step: 0.01),
+          _labeledSlider('Right', p.frac.right, 0, 1, (v) => _setSymFrac(r: v),
+              step: 0.01),
+          _labeledSlider('Bottom', p.frac.bottom, 0, 1, (v) => _setSymFrac(b: v),
+              step: 0.01),
+          _labeledSlider('Opacity', p.alpha, 0, 1,
+              (v) => _update(_d.copyWith(setSymbol: p.copyWith(alpha: v)))),
         ],
       ],
     );

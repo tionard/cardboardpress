@@ -67,6 +67,7 @@ class CardEditorScreen extends ConsumerWidget {
           sets: sets,
           rarities: rarities,
           symbolMap: ref.watch(textSymbolMapProvider),
+          symbolsById: ref.watch(symbolsMapProvider),
           repo: ref.read(cardRepositoryProvider),
           imageStore: ref.read(imageStoreProvider),
           exporter: ref.read(cardExporterProvider),
@@ -103,6 +104,7 @@ class _CardEditorBody extends StatefulWidget {
   final List<SetEntry> sets;
   final List<RarityEntry> rarities;
   final Map<String, String> symbolMap; // text-symbol tag (lower) -> imageId
+  final Map<String, SymbolEntry> symbolsById; // standalone symbol id -> entry
   final CardRepository repo;
   final ImageStore imageStore;
   final CardExporter exporter;
@@ -118,6 +120,7 @@ class _CardEditorBody extends StatefulWidget {
     required this.sets,
     required this.rarities,
     required this.symbolMap,
+    required this.symbolsById,
     required this.repo,
     required this.imageStore,
     required this.exporter,
@@ -302,6 +305,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
       number: number,
       total: total,
       symbolImageIds: widget.symbolMap,
+      symbolsById: widget.symbolsById,
     );
   }
 

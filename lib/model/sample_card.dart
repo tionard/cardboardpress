@@ -137,6 +137,7 @@ CardData composeCard(
   int? number,
   int? total,
   Map<String, String> symbolImageIds = const {},
+  Map<String, SymbolEntry> symbolsById = const {},
 }) {
   final footer = deriveFooterText(
     artist: content.artist,
@@ -149,6 +150,11 @@ CardData composeCard(
   for (final f in t.fields) {
     if (f.type == FieldType.footer) text[f.id] = footer;
   }
+
+  // Resolve the set's chosen set symbol to its image id (null if the set has
+  // none, or the symbol was deleted — the renderer then simply skips it).
+  final setSymbolImageId =
+      (set?.symbolId == null) ? null : symbolsById[set!.symbolId]?.imageId;
 
   return CardData(
     widthInches: t.widthInches,
@@ -166,6 +172,8 @@ CardData composeCard(
     bgImageId: t.bgImageId,
     bgTransform: t.bgTransform,
     symbolImageIds: symbolImageIds,
+    setSymbolImageId: setSymbolImageId,
+    setSymbolPlacement: t.setSymbol,
   );
 }
 

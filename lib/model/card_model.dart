@@ -202,6 +202,35 @@ class ArtTransform {
   bool get isIdentity => zoom == 1.0 && panX == 0.0 && panY == 0.0;
 }
 
+/// Where a set symbol draws on a card. Placement is **template layout** (per
+/// Tio's call): a fraction-of-card rect, an opacity, and an on/off. Transparency
+/// lives here — it's a property of the placement, not of the rarity. The symbol
+/// itself comes from the card's set (set.symbolId); this just says where/how big/
+/// how faint it sits, identically at preview and export resolution.
+class SetSymbolPlacement {
+  final bool enabled;
+  final Rect frac; // LTRB in 0..1 of the card
+  final double alpha; // 0..1 opacity
+
+  static const Rect defaultFrac = Rect.fromLTRB(0.80, 0.55, 0.93, 0.625);
+
+  const SetSymbolPlacement({
+    this.enabled = false,
+    this.frac = defaultFrac,
+    this.alpha = 1.0,
+  });
+
+  SetSymbolPlacement copyWith({bool? enabled, Rect? frac, double? alpha}) =>
+      SetSymbolPlacement(
+        enabled: enabled ?? this.enabled,
+        frac: frac ?? this.frac,
+        alpha: alpha ?? this.alpha,
+      );
+
+  /// True for a fresh, untouched placement — lets serialization skip writing it.
+  bool get isDefault => !enabled && frac == defaultFrac && alpha == 1.0;
+}
+
 class CardData {
   final double widthInches;
   final double heightInches;
@@ -218,6 +247,8 @@ class CardData {
   final String? bgImageId; // template background image, drawn under the tint
   final ArtTransform bgTransform; // cover-fit zoom/pan for the bg image
   final Map<String, String> symbolImageIds; // text-symbol tag (lower) -> imageId
+  final String? setSymbolImageId; // resolved set-symbol image (from the set)
+  final SetSymbolPlacement? setSymbolPlacement; // where/how it draws (template)
 
   const CardData({
     this.widthInches = 2.5,
@@ -235,6 +266,8 @@ class CardData {
     this.bgImageId,
     this.bgTransform = const ArtTransform(),
     this.symbolImageIds = const {},
+    this.setSymbolImageId,
+    this.setSymbolPlacement,
   });
 
   /// Every image id the renderer needs decoded: card art, the template
@@ -243,7 +276,8 @@ class CardData {
   Set<String> imageIdsToDecode() {
     final ids = <String>{
       ...artImageIds.values,
-      ?bgImageId,
+      if (bgImageId != null) bgImageId!,
+      if (setSymbolImageId != null) setSymbolImageId!,
     };
     for (final f in fields) {
       if (f.type != FieldType.cost) continue; // Rules joins with rich text
@@ -317,6 +351,7 @@ class TemplateData {
   final List<FieldSpec> fields;
   final String? bgImageId; // optional background image, drawn UNDER the tint
   final ArtTransform bgTransform; // cover-fit zoom/pan for the bg image
+  final SetSymbolPlacement setSymbol; // where the set symbol draws (layout)
 
   const TemplateData({
     this.widthInches = 2.5,
@@ -327,6 +362,7 @@ class TemplateData {
     required this.fields,
     this.bgImageId,
     this.bgTransform = const ArtTransform(),
+    this.setSymbol = const SetSymbolPlacement(),
   });
 
   TemplateData copyWith({
@@ -338,6 +374,7 @@ class TemplateData {
     List<FieldSpec>? fields,
     Object? bgImageId = _sentinel, // pass null to clear the bg image
     ArtTransform? bgTransform,
+    SetSymbolPlacement? setSymbol,
   }) =>
       TemplateData(
         widthInches: widthInches ?? this.widthInches,
@@ -349,6 +386,7 @@ class TemplateData {
         bgImageId:
             identical(bgImageId, _sentinel) ? this.bgImageId : bgImageId as String?,
         bgTransform: bgTransform ?? this.bgTransform,
+        setSymbol: setSymbol ?? this.setSymbol,
       );
 }
 
