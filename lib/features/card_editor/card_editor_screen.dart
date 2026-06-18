@@ -549,24 +549,33 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     final tr = _working.content.artTransforms[artId] ?? const ArtTransform();
 
     Widget slider(String label, double value, double min, double max,
-            ValueChanged<double> onChanged) =>
-        Row(
-          children: [
-            SizedBox(
-              width: 78,
-              child: Text(label,
-                  style: Theme.of(context).textTheme.bodySmall),
+        ValueChanged<double> onChanged) {
+      final shown = value.clamp(min, max);
+      return Row(
+        children: [
+          SizedBox(
+            width: 78,
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ),
+          Expanded(
+            child: Slider(
+              value: shown,
+              min: min,
+              max: max,
+              onChanged: onChanged,
             ),
-            Expanded(
-              child: Slider(
-                value: value.clamp(min, max),
-                min: min,
-                max: max,
-                onChanged: onChanged,
-              ),
+          ),
+          SizedBox(
+            width: 40,
+            child: Text(
+              shown.toStringAsFixed(2),
+              textAlign: TextAlign.end,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-          ],
-        );
+          ),
+        ],
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -687,6 +696,14 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
               child: Slider(
                 value: _working.content.tintAlpha.clamp(0.0, 1.0),
                 onChanged: _setTintAlpha,
+              ),
+            ),
+            SizedBox(
+              width: 40,
+              child: Text(
+                _working.content.tintAlpha.clamp(0.0, 1.0).toStringAsFixed(2),
+                textAlign: TextAlign.end,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
           ]),

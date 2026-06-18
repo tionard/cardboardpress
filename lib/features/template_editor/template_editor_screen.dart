@@ -187,6 +187,9 @@ class _TemplateBody extends StatefulWidget {
 class _TemplateBodyState extends State<_TemplateBody> {
   late TemplateEntry _working;
   late final TextEditingController _name;
+  late final TextEditingController _widthCtl;
+  late final TextEditingController _heightCtl;
+  bool _syncingDims = false; // guards programmatic dim-field updates
   final Map<String, ui.Image> _images = {}; // imageId -> decoded bg image
   Timer? _saveTimer;
   _Mode _mode = _Mode.layout;
@@ -198,6 +201,10 @@ class _TemplateBodyState extends State<_TemplateBody> {
     _working = widget.entry;
     _name = TextEditingController(text: _working.name)
       ..addListener(_onNameChanged);
+    _widthCtl = TextEditingController(text: _fmtInches(_d.widthInches))
+      ..addListener(_onDimsChanged);
+    _heightCtl = TextEditingController(text: _fmtInches(_d.heightInches))
+      ..addListener(_onDimsChanged);
     _syncBgImage(); // decode an existing background, if any
   }
 
@@ -206,6 +213,8 @@ class _TemplateBodyState extends State<_TemplateBody> {
     _saveTimer?.cancel();
     widget.repo.save(_working);
     _name.dispose();
+    _widthCtl.dispose();
+    _heightCtl.dispose();
     super.dispose();
   }
 
@@ -233,6 +242,38 @@ class _TemplateBodyState extends State<_TemplateBody> {
   void _update(TemplateData data) {
     setState(() => _working = _working.copyWith(data: data));
     _scheduleSave();
+  }
+
+  // ---- custom dimensions ----
+  //
+  // Width/height are entered directly in inches; the preset dropdown is a
+  // shortcut that fills these fields. Inches are the authored unit — print
+  // pixels are derived at export (300 dpi), so dimensions stay resolution
+  // independent like everything else.
+
+  String _fmtInches(double v) =>
+      v.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+
+  void _onDimsChanged() {
+    if (_syncingDims) return; // programmatic fill from a preset; ignore
+    final w = double.tryParse(_widthCtl.text.trim());
+    final h = double.tryParse(_heightCtl.text.trim());
+    if (w == null || h == null) return; // mid-edit / invalid: wait
+    final cw = w.clamp(0.5, 12.0);
+    final ch = h.clamp(0.5, 12.0);
+    if ((cw - _d.widthInches).abs() < 0.0001 &&
+        (ch - _d.heightInches).abs() < 0.0001) {
+      return;
+    }
+    _update(_d.copyWith(widthInches: cw, heightInches: ch));
+  }
+
+  void _setDims(double w, double h) {
+    _syncingDims = true;
+    _widthCtl.text = _fmtInches(w);
+    _heightCtl.text = _fmtInches(h);
+    _syncingDims = false;
+    _update(_d.copyWith(widthInches: w, heightInches: h));
   }
 
   void _updateField(FieldSpec updated) {
@@ -508,16 +549,34 @@ class _TemplateBodyState extends State<_TemplateBody> {
         ],
         const SizedBox(height: 16),
         Text('Corner radius', style: Theme.of(context).textTheme.titleSmall),
-        Slider(
-          value: _d.cornerRadiusFrac.clamp(0.0, 0.12),
-          min: 0.0,
-          max: 0.12,
-          onChanged: (v) => _update(_d.copyWith(cornerRadiusFrac: v)),
-        ),
+        Row(children: [
+          Expanded(
+            child: Slider(
+              value: _d.cornerRadiusFrac.clamp(0.0, 0.12),
+              min: 0.0,
+              max: 0.12,
+              onChanged: (v) => _update(_d.copyWith(cornerRadiusFrac: v)),
+            ),
+          ),
+          SizedBox(
+            width: 40,
+            child: Text(
+              _fmtSlider(_d.cornerRadiusFrac.clamp(0.0, 0.12), 0.12),
+              textAlign: TextAlign.end,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ]),
         const SizedBox(height: 8),
         Text('Card size', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
         _sizeDropdown(),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _dimField('Width', _widthCtl)),
+          const SizedBox(width: 12),
+          Expanded(child: _dimField('Height', _heightCtl)),
+        ]),
       ],
     );
   }
@@ -605,10 +664,21 @@ class _TemplateBodyState extends State<_TemplateBody> {
       onChanged: (k) {
         if (k == null || k == 'Custom') return;
         final (w, h) = _sizePresets[k]!;
-        _update(_d.copyWith(widthInches: w, heightInches: h));
+        _setDims(w, h);
       },
     );
   }
+
+  Widget _dimField(String label, TextEditingController ctl) => TextField(
+        controller: ctl,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: label,
+          isDense: true,
+          border: const OutlineInputBorder(),
+          suffixText: 'in',
+        ),
+      );
 
   // ---- Fields pane ----
 
@@ -736,6 +806,9 @@ class _TemplateBodyState extends State<_TemplateBody> {
                 () => _updateField(
                     f.copyWith(fill: ColorRef(id: s.id, snapshot: s.value)))),
         ]),
+        if (f.fill != null)
+          _labeledSlider('Opacity', f.fillAlpha, 0, 1,
+              (v) => _updateField(f.copyWith(fillAlpha: v))),
         const SizedBox(height: 12),
         Row(children: [
           Text('Outline', style: Theme.of(context).textTheme.labelLarge),
@@ -792,6 +865,9 @@ class _TemplateBodyState extends State<_TemplateBody> {
                       text: text.copyWith(
                           colorRef: ColorRef(id: s.id, snapshot: s.value))))),
           ]),
+          _labeledSlider('Opacity', text.colorAlpha, 0, 1,
+              (v) => _updateField(
+                  f.copyWith(text: text.copyWith(colorAlpha: v)))),
         ],
       ],
     );
@@ -799,20 +875,31 @@ class _TemplateBodyState extends State<_TemplateBody> {
 
   // ---- shared bits ----
 
+  // Fine controls (small ranges like sizes/thicknesses) read better with more
+  // precision than coarse 0..1/0..3 sliders.
+  String _fmtSlider(double v, double max) =>
+      max <= 0.2 ? v.toStringAsFixed(3) : v.toStringAsFixed(2);
+
   Widget _labeledSlider(String label, double value, double min, double max,
-          ValueChanged<double> onChanged) =>
-      Row(children: [
-        SizedBox(
-            width: 80,
-            child: Text(label, style: Theme.of(context).textTheme.bodySmall)),
-        Expanded(
-          child: Slider(
-              value: value.clamp(min, max),
-              min: min,
-              max: max,
-              onChanged: onChanged),
+      ValueChanged<double> onChanged) {
+    final shown = value.clamp(min, max);
+    return Row(children: [
+      SizedBox(
+          width: 80,
+          child: Text(label, style: Theme.of(context).textTheme.bodySmall)),
+      Expanded(
+        child: Slider(value: shown, min: min, max: max, onChanged: onChanged),
+      ),
+      SizedBox(
+        width: 40,
+        child: Text(
+          _fmtSlider(shown, max),
+          textAlign: TextAlign.end,
+          style: Theme.of(context).textTheme.bodySmall,
         ),
-      ]);
+      ),
+    ]);
+  }
 
   Widget _swatch(ColorValue v, bool selected, VoidCallback onTap) {
     final scheme = Theme.of(context).colorScheme;
