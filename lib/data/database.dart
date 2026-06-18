@@ -72,8 +72,9 @@ class Sets extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// A rarity (spec §3). Minimal for now: name + abbreviation (footer uses the
-/// abbreviation). Colour + snapshot ref arrive with a rarity editor.
+/// A rarity (spec §3). Name + abbreviation (the footer uses the abbreviation),
+/// fully editable in Customization → Rarities. Palette colour + transparency +
+/// snapshot ref arrive alongside the set-symbol tint (its only render site).
 @DataClassName('Rarity')
 class Rarities extends Table {
   TextColumn get id => text()();
@@ -307,6 +308,21 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<Rarity>> watchRarities() =>
       (select(rarities)..orderBy([(t) => OrderingTerm(expression: t.position)]))
           .watch();
+
+  Future<void> insertRarity(RaritiesCompanion c) =>
+      into(rarities).insert(c, mode: InsertMode.insertOrIgnore);
+
+  Future<void> updateRarityRow(String id, RaritiesCompanion c) =>
+      (update(rarities)..where((t) => t.id.equals(id))).write(c);
+
+  Future<void> deleteRarity(String id) =>
+      (delete(rarities)..where((t) => t.id.equals(id))).go();
+
+  Future<int> maxRarityPosition() async {
+    final rows = await select(rarities).get();
+    if (rows.isEmpty) return -1;
+    return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
+  }
 
   Future<void> _seedDefaultRarities() async {
     const defaults = [
