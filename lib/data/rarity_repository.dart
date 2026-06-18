@@ -5,14 +5,19 @@
 // (Rarity / RaritiesCompanion) to the domain type (RarityEntry) and exposes the
 // live list plus add / edit / delete / reorder for the Customization UI.
 //
-// Today a rarity is just name + 1–3-letter abbreviation (the footer renders the
-// abbreviation). Its palette colour + transparency join later, alongside the
-// set-symbol tint that is the colour's only render site.
+// A rarity is name + 1–3-letter abbreviation (the footer renders the
+// abbreviation) + an optional palette colour. That colour is the rarity's only
+// render job: it tints the set symbol on every card of that rarity. The colour
+// is stored as a serialized ColorRef in a single text column.
 
 import 'package:drift/drift.dart' show Value;
 
 import '../model/card_model.dart';
+import '../model/serialization.dart';
 import 'database.dart';
+
+/// Distinguishes "leave the colour as-is" from "clear the colour" in [update].
+const Object _keepColor = Object();
 
 class RarityRepository {
   final AppDatabase _db;
@@ -25,11 +30,13 @@ class RarityRepository {
             name: r.name,
             abbreviation: r.abbreviation,
             position: r.position,
+            color: r.color == null ? null : colorRefFromJson(r.color!),
           ))
       .toList());
 
   /// Append a new rarity at the end of the list.
-  Future<void> add({required String name, String abbreviation = ''}) async {
+  Future<void> add(
+      {required String name, String abbreviation = '', ColorRef? color}) async {
     final pos = await _db.maxRarityPosition() + 1;
     final clean = name.trim();
     await _db.insertRarity(RaritiesCompanion.insert(
@@ -37,17 +44,28 @@ class RarityRepository {
       name: clean.isEmpty ? 'New Rarity' : clean,
       abbreviation: Value(normalizeAbbreviation(abbreviation)),
       position: Value(pos),
+      color: Value(color == null ? null : colorRefToJson(color)),
     ));
   }
 
-  /// Persist edits to an existing rarity. Pass only the fields that changed;
-  /// position is preserved unless you set it (see [swap]).
+  /// Persist edits to an existing rarity. Pass only what changed. For [color],
+  /// leave it off to keep the current value, pass a ColorRef to set it, or pass
+  /// null to clear it.
   Future<void> update(
     String id, {
     String? name,
     String? abbreviation,
+    Object? color = _keepColor,
   }) {
     final n = name?.trim();
+    final Value<String?> colorValue;
+    if (identical(color, _keepColor)) {
+      colorValue = const Value.absent();
+    } else if (color == null) {
+      colorValue = const Value(null);
+    } else {
+      colorValue = Value(colorRefToJson(color as ColorRef));
+    }
     return _db.updateRarityRow(
       id,
       RaritiesCompanion(
@@ -55,6 +73,7 @@ class RarityRepository {
         abbreviation: (abbreviation == null)
             ? const Value.absent()
             : Value(normalizeAbbreviation(abbreviation)),
+        color: colorValue,
       ),
     );
   }

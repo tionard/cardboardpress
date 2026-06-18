@@ -61,9 +61,10 @@ void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
   }
 
   // 2c. Set symbol — a template-placed graphic (its rect / size / opacity are
-  //     template layout). Drawn over the fields, under the foil. Untinted for
-  //     now; the rarity-colour tint is the next step. Contain-fit + centred so
-  //     the symbol's aspect ratio is preserved at any placement size.
+  //     template layout; its image comes from the card's set). Drawn over the
+  //     fields, under the foil. If the card's rarity carries a colour, the
+  //     symbol is tinted by it (silhouette fill); otherwise it draws as-is.
+  //     Contain-fit + centred so the aspect ratio holds at any placement size.
   final ssp = card.setSymbolPlacement;
   final ssImg = refs.resolveImage(card.setSymbolImageId);
   if (ssp != null && ssp.enabled && ssImg != null) {
@@ -73,7 +74,14 @@ void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
       ssp.frac.right * size.width,
       ssp.frac.bottom * size.height,
     );
-    _paintSetSymbol(canvas, ssImg, dst, ssp.alpha);
+    final tint = card.setSymbolTint;
+    if (tint != null) {
+      // Tinted: the symbol becomes a silhouette filled with the rarity colour
+      // (single or double), the image acting as an alpha mask.
+      _paintSetSymbolTinted(canvas, ssImg, dst, refs.resolveColor(tint), ssp.alpha);
+    } else {
+      _paintSetSymbol(canvas, ssImg, dst, ssp.alpha);
+    }
   }
 
   // 3. Foil overlay, over the card content (but below the border).
@@ -482,19 +490,58 @@ void _paintSetSymbol(
   canvas.restore();
 }
 
-void _drawImageContain(ui.Canvas canvas, ui.Image img, ui.Rect dst) {
+/// Draws the set symbol as a silhouette filled with [cv] (the rarity colour:
+/// single → solid, double → split gradient), the image acting as an alpha mask.
+/// This is the "double colour clipped to a symbol's shape" recipe (rendering.md):
+/// fill the symbol's box, then keep the fill only where the glyph has alpha via
+/// BlendMode.dstIn. [alpha] is baked into the fill so the whole thing fades.
+void _paintSetSymbolTinted(
+    ui.Canvas canvas, ui.Image img, ui.Rect dst, ColorValue cv, double alpha) {
+  final box = _containRect(img, dst);
+  if (box == null) return;
+  final a = alpha.clamp(0.0, 1.0);
+  if (a <= 0.0) return;
+
+  canvas.saveLayer(box, ui.Paint());
+  final fill = ui.Paint();
+  final shader = _doubleShader(cv, box, a);
+  if (shader != null) {
+    fill.shader = shader;
+  } else {
+    fill.color = cv.c1.withValues(alpha: a);
+  }
+  canvas.drawRect(box, fill);
+  canvas.drawImageRect(
+    img,
+    ui.Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+    box,
+    ui.Paint()
+      ..blendMode = ui.BlendMode.dstIn
+      ..filterQuality = ui.FilterQuality.medium,
+  );
+  canvas.restore();
+}
+
+/// The centred, aspect-preserving rect for [img] fitted inside [dst]
+/// (contain-fit). Null when the image has no pixels.
+ui.Rect? _containRect(ui.Image img, ui.Rect dst) {
   final iw = img.width.toDouble();
   final ih = img.height.toDouble();
-  if (iw <= 0 || ih <= 0) return;
+  if (iw <= 0 || ih <= 0) return null;
   final scale = math.min(dst.width / iw, dst.height / ih);
   final w = iw * scale;
   final h = ih * scale;
-  final left = dst.left + (dst.width - w) / 2;
-  final top = dst.top + (dst.height - h) / 2;
+  return ui.Rect.fromLTWH(
+      dst.left + (dst.width - w) / 2, dst.top + (dst.height - h) / 2, w, h);
+}
+
+void _drawImageContain(ui.Canvas canvas, ui.Image img, ui.Rect dst) {
+  final box = _containRect(img, dst);
+  if (box == null) return;
   canvas.drawImageRect(
     img,
-    ui.Rect.fromLTWH(0, 0, iw, ih),
-    ui.Rect.fromLTWH(left, top, w, h),
+    ui.Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+    box,
     ui.Paint()..filterQuality = ui.FilterQuality.medium,
   );
 }

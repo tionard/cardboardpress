@@ -249,6 +249,7 @@ class CardData {
   final Map<String, String> symbolImageIds; // text-symbol tag (lower) -> imageId
   final String? setSymbolImageId; // resolved set-symbol image (from the set)
   final SetSymbolPlacement? setSymbolPlacement; // where/how it draws (template)
+  final ColorRef? setSymbolTint; // rarity colour tinting the set symbol; null => none
 
   const CardData({
     this.widthInches = 2.5,
@@ -268,6 +269,7 @@ class CardData {
     this.symbolImageIds = const {},
     this.setSymbolImageId,
     this.setSymbolPlacement,
+    this.setSymbolTint,
   });
 
   /// Every image id the renderer needs decoded: card art, the template
@@ -550,12 +552,14 @@ class RarityEntry {
   final String name;
   final String abbreviation;
   final int position;
+  final ColorRef? color; // tints the set symbol (single or double); null => none
 
   const RarityEntry({
     required this.id,
     required this.name,
     this.abbreviation = '',
     this.position = 0,
+    this.color,
   });
 }
 

@@ -82,6 +82,7 @@ class Rarities extends Table {
   TextColumn get name => text()();
   TextColumn get abbreviation => text().withDefault(const Constant(''))();
   IntColumn get position => integer().withDefault(const Constant(0))();
+  TextColumn get color => text().nullable()(); // serialized ColorRef; null => none
 
   @override
   Set<Column> get primaryKey => {id};
@@ -121,7 +122,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -171,6 +172,11 @@ class AppDatabase extends _$AppDatabase {
             // v7→v8: a Set can now point at one of those symbols (its set
             // symbol). Existing sets default to none (null).
             await m.addColumn(sets, sets.symbolId);
+          }
+          if (from < 9) {
+            // v8→v9: a rarity can carry a palette colour that tints the set
+            // symbol. Existing rarities default to none (null).
+            await m.addColumn(rarities, rarities.color);
           }
         },
         beforeOpen: (details) async {

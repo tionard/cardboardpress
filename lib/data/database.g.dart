@@ -1768,8 +1768,23 @@ class $RaritiesTable extends Rarities with TableInfo<$RaritiesTable, Rarity> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
   @override
-  List<GeneratedColumn> get $columns => [id, name, abbreviation, position];
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    abbreviation,
+    position,
+    color,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1810,6 +1825,12 @@ class $RaritiesTable extends Rarities with TableInfo<$RaritiesTable, Rarity> {
         position.isAcceptableOrUnknown(data['position']!, _positionMeta),
       );
     }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
     return context;
   }
 
@@ -1835,6 +1856,10 @@ class $RaritiesTable extends Rarities with TableInfo<$RaritiesTable, Rarity> {
         DriftSqlType.int,
         data['${effectivePrefix}position'],
       )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      ),
     );
   }
 
@@ -1849,11 +1874,13 @@ class Rarity extends DataClass implements Insertable<Rarity> {
   final String name;
   final String abbreviation;
   final int position;
+  final String? color;
   const Rarity({
     required this.id,
     required this.name,
     required this.abbreviation,
     required this.position,
+    this.color,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1862,6 +1889,9 @@ class Rarity extends DataClass implements Insertable<Rarity> {
     map['name'] = Variable<String>(name);
     map['abbreviation'] = Variable<String>(abbreviation);
     map['position'] = Variable<int>(position);
+    if (!nullToAbsent || color != null) {
+      map['color'] = Variable<String>(color);
+    }
     return map;
   }
 
@@ -1871,6 +1901,9 @@ class Rarity extends DataClass implements Insertable<Rarity> {
       name: Value(name),
       abbreviation: Value(abbreviation),
       position: Value(position),
+      color: color == null && nullToAbsent
+          ? const Value.absent()
+          : Value(color),
     );
   }
 
@@ -1884,6 +1917,7 @@ class Rarity extends DataClass implements Insertable<Rarity> {
       name: serializer.fromJson<String>(json['name']),
       abbreviation: serializer.fromJson<String>(json['abbreviation']),
       position: serializer.fromJson<int>(json['position']),
+      color: serializer.fromJson<String?>(json['color']),
     );
   }
   @override
@@ -1894,6 +1928,7 @@ class Rarity extends DataClass implements Insertable<Rarity> {
       'name': serializer.toJson<String>(name),
       'abbreviation': serializer.toJson<String>(abbreviation),
       'position': serializer.toJson<int>(position),
+      'color': serializer.toJson<String?>(color),
     };
   }
 
@@ -1902,11 +1937,13 @@ class Rarity extends DataClass implements Insertable<Rarity> {
     String? name,
     String? abbreviation,
     int? position,
+    Value<String?> color = const Value.absent(),
   }) => Rarity(
     id: id ?? this.id,
     name: name ?? this.name,
     abbreviation: abbreviation ?? this.abbreviation,
     position: position ?? this.position,
+    color: color.present ? color.value : this.color,
   );
   Rarity copyWithCompanion(RaritiesCompanion data) {
     return Rarity(
@@ -1916,6 +1953,7 @@ class Rarity extends DataClass implements Insertable<Rarity> {
           ? data.abbreviation.value
           : this.abbreviation,
       position: data.position.present ? data.position.value : this.position,
+      color: data.color.present ? data.color.value : this.color,
     );
   }
 
@@ -1925,13 +1963,14 @@ class Rarity extends DataClass implements Insertable<Rarity> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('abbreviation: $abbreviation, ')
-          ..write('position: $position')
+          ..write('position: $position, ')
+          ..write('color: $color')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, abbreviation, position);
+  int get hashCode => Object.hash(id, name, abbreviation, position, color);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1939,7 +1978,8 @@ class Rarity extends DataClass implements Insertable<Rarity> {
           other.id == this.id &&
           other.name == this.name &&
           other.abbreviation == this.abbreviation &&
-          other.position == this.position);
+          other.position == this.position &&
+          other.color == this.color);
 }
 
 class RaritiesCompanion extends UpdateCompanion<Rarity> {
@@ -1947,12 +1987,14 @@ class RaritiesCompanion extends UpdateCompanion<Rarity> {
   final Value<String> name;
   final Value<String> abbreviation;
   final Value<int> position;
+  final Value<String?> color;
   final Value<int> rowid;
   const RaritiesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.abbreviation = const Value.absent(),
     this.position = const Value.absent(),
+    this.color = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RaritiesCompanion.insert({
@@ -1960,6 +2002,7 @@ class RaritiesCompanion extends UpdateCompanion<Rarity> {
     required String name,
     this.abbreviation = const Value.absent(),
     this.position = const Value.absent(),
+    this.color = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -1968,6 +2011,7 @@ class RaritiesCompanion extends UpdateCompanion<Rarity> {
     Expression<String>? name,
     Expression<String>? abbreviation,
     Expression<int>? position,
+    Expression<String>? color,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1975,6 +2019,7 @@ class RaritiesCompanion extends UpdateCompanion<Rarity> {
       if (name != null) 'name': name,
       if (abbreviation != null) 'abbreviation': abbreviation,
       if (position != null) 'position': position,
+      if (color != null) 'color': color,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1984,6 +2029,7 @@ class RaritiesCompanion extends UpdateCompanion<Rarity> {
     Value<String>? name,
     Value<String>? abbreviation,
     Value<int>? position,
+    Value<String?>? color,
     Value<int>? rowid,
   }) {
     return RaritiesCompanion(
@@ -1991,6 +2037,7 @@ class RaritiesCompanion extends UpdateCompanion<Rarity> {
       name: name ?? this.name,
       abbreviation: abbreviation ?? this.abbreviation,
       position: position ?? this.position,
+      color: color ?? this.color,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2010,6 +2057,9 @@ class RaritiesCompanion extends UpdateCompanion<Rarity> {
     if (position.present) {
       map['position'] = Variable<int>(position.value);
     }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2023,6 +2073,7 @@ class RaritiesCompanion extends UpdateCompanion<Rarity> {
           ..write('name: $name, ')
           ..write('abbreviation: $abbreviation, ')
           ..write('position: $position, ')
+          ..write('color: $color, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3805,6 +3856,7 @@ typedef $$RaritiesTableCreateCompanionBuilder =
       required String name,
       Value<String> abbreviation,
       Value<int> position,
+      Value<String?> color,
       Value<int> rowid,
     });
 typedef $$RaritiesTableUpdateCompanionBuilder =
@@ -3813,6 +3865,7 @@ typedef $$RaritiesTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String> abbreviation,
       Value<int> position,
+      Value<String?> color,
       Value<int> rowid,
     });
 
@@ -3842,6 +3895,11 @@ class $$RaritiesTableFilterComposer
 
   ColumnFilters<int> get position => $composableBuilder(
     column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3874,6 +3932,11 @@ class $$RaritiesTableOrderingComposer
     column: $table.position,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$RaritiesTableAnnotationComposer
@@ -3898,6 +3961,9 @@ class $$RaritiesTableAnnotationComposer
 
   GeneratedColumn<int> get position =>
       $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
 }
 
 class $$RaritiesTableTableManager
@@ -3932,12 +3998,14 @@ class $$RaritiesTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String> abbreviation = const Value.absent(),
                 Value<int> position = const Value.absent(),
+                Value<String?> color = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RaritiesCompanion(
                 id: id,
                 name: name,
                 abbreviation: abbreviation,
                 position: position,
+                color: color,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3946,12 +4014,14 @@ class $$RaritiesTableTableManager
                 required String name,
                 Value<String> abbreviation = const Value.absent(),
                 Value<int> position = const Value.absent(),
+                Value<String?> color = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RaritiesCompanion.insert(
                 id: id,
                 name: name,
                 abbreviation: abbreviation,
                 position: position,
+                color: color,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

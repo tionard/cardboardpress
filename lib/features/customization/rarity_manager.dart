@@ -6,12 +6,10 @@
 //     const RarityManager()
 //
 // It binds to raritiesProvider / rarityRepositoryProvider, so no extra wiring
-// is needed. Add, edit (name + 1–3-letter abbreviation), reorder, and delete.
-// The footer renders a card's rarity *abbreviation*, so edits show up there and
-// everywhere the rarity is used the moment drift re-emits.
-//
-// (A rarity's palette colour + transparency aren't authored here yet — they
-// only render as the set-symbol tint, which doesn't exist as a feature yet.)
+// is needed. Add, edit (name + 1–3-letter abbreviation + colour), reorder, and
+// delete. The footer renders a card's rarity *abbreviation*; the rarity's colour
+// tints that card's set symbol. Edits show up live everywhere the rarity is used
+// the moment drift re-emits.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -52,9 +50,10 @@ class RarityManager extends ConsumerWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'A rarity has a name and a 1–3-letter abbreviation. The footer shows '
-            'the abbreviation of the card\'s chosen rarity. Order sets the rank '
-            '(top = lowest), e.g. Common · Uncommon · Rare.',
+            'A rarity has a name, a 1–3-letter abbreviation (shown in the '
+            'footer), and a colour that tints the set symbol on cards of that '
+            'rarity. Order sets the rank (top = lowest), e.g. Common · Uncommon '
+            '· Rare.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
@@ -90,65 +89,101 @@ class RarityManager extends ConsumerWidget {
       BuildContext context, WidgetRef ref, RarityEntry? existing) async {
     final nameCtl = TextEditingController(text: existing?.name ?? '');
     final abbrCtl = TextEditingController(text: existing?.abbreviation ?? '');
+    final swatches = ref.read(paletteProvider).value ?? const <PaletteSwatch>[];
+    var color = existing?.color; // ColorRef? — current selection
 
     final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(existing == null ? 'Add rarity' : 'Edit rarity'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtl,
-              autofocus: existing == null,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                hintText: 'e.g. Rare',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: abbrCtl,
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp('[A-Za-z]')),
-                LengthLimitingTextInputFormatter(3),
-                _UpperCaseFormatter(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: Text(existing == null ? 'Add rarity' : 'Edit rarity'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameCtl,
+                  autofocus: existing == null,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    hintText: 'e.g. Rare',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: abbrCtl,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp('[A-Za-z]')),
+                    LengthLimitingTextInputFormatter(3),
+                    _UpperCaseFormatter(),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Abbreviation',
+                    hintText: 'e.g. R',
+                    helperText: '1–3 letters; shown in the footer',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('Colour (tints the set symbol)',
+                    style: Theme.of(ctx).textTheme.bodySmall),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _ColorChoice(
+                      value: null,
+                      selected: color == null,
+                      onTap: () => setLocal(() => color = null),
+                    ),
+                    for (final s in swatches)
+                      _ColorChoice(
+                        value: s.value,
+                        selected: color?.id == s.id,
+                        onTap: () => setLocal(() =>
+                            color = ColorRef(id: s.id, snapshot: s.value)),
+                      ),
+                  ],
+                ),
+                if (swatches.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text('Add palette colours in the Colors tab first.',
+                        style: Theme.of(ctx).textTheme.bodySmall),
+                  ),
               ],
-              decoration: const InputDecoration(
-                labelText: 'Abbreviation',
-                hintText: 'e.g. R',
-                helperText: '1–3 letters; shown in the footer',
-                border: OutlineInputBorder(),
-              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (nameCtl.text.trim().isEmpty) return;
+                Navigator.pop(ctx, true);
+              },
+              child: Text(existing == null ? 'Add' : 'Save'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (nameCtl.text.trim().isEmpty) return;
-              Navigator.pop(ctx, true);
-            },
-            child: Text(existing == null ? 'Add' : 'Save'),
-          ),
-        ],
       ),
     );
 
     if (saved == true) {
       final repo = ref.read(rarityRepositoryProvider);
       if (existing == null) {
-        await repo.add(name: nameCtl.text, abbreviation: abbrCtl.text);
+        await repo.add(
+            name: nameCtl.text, abbreviation: abbrCtl.text, color: color);
       } else {
         await repo.update(existing.id,
-            name: nameCtl.text, abbreviation: abbrCtl.text);
+            name: nameCtl.text, abbreviation: abbrCtl.text, color: color);
       }
     }
     nameCtl.dispose();
@@ -215,6 +250,8 @@ class _RarityRow extends StatelessWidget {
         child: Row(
           children: [
             _AbbrBadge(text: rarity.abbreviation),
+            const SizedBox(width: 10),
+            _ColorBox(value: rarity.color?.snapshot, size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -294,5 +331,82 @@ class _UpperCaseFormatter extends TextInputFormatter {
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
     return newValue.copyWith(text: newValue.text.toUpperCase());
+  }
+}
+
+/// A small colour preview. Single → solid; double → a two-stop gradient along
+/// its orientation; null → an outlined box with a slash (no colour).
+class _ColorBox extends StatelessWidget {
+  final ColorValue? value;
+  final double size;
+  const _ColorBox({required this.value, this.size = 22});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final v = value;
+    if (v == null) {
+      return Container(
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: scheme.outlineVariant),
+        ),
+        child: Icon(Icons.block, size: size * 0.6, color: scheme.outline),
+      );
+    }
+    final gradient = v.isDouble
+        ? LinearGradient(
+            begin: v.orientation == MixOrientation.vertical
+                ? Alignment.topCenter
+                : Alignment.centerLeft,
+            end: v.orientation == MixOrientation.vertical
+                ? Alignment.bottomCenter
+                : Alignment.centerRight,
+            colors: [v.c1, v.c2!],
+          )
+        : null;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: gradient == null ? v.c1 : null,
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+    );
+  }
+}
+
+/// A tappable colour option in the edit dialog (a [_ColorBox] with a selection
+/// ring). [value] null is the "no colour" choice.
+class _ColorChoice extends StatelessWidget {
+  final ColorValue? value;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ColorChoice(
+      {required this.value, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? scheme.primary : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: _ColorBox(value: value, size: 28),
+      ),
+    );
   }
 }

@@ -58,6 +58,13 @@ ColorRef _colorRefFromMap(Map m) => ColorRef(
       snapshot: _colorValueFromMap((m['snapshot'] as Map?) ?? const {}),
     );
 
+/// Public ColorRef <-> JSON string, for columns that store a single colour
+/// reference (e.g. a rarity's tint colour).
+String colorRefToJson(ColorRef r) => jsonEncode(_colorRefToMap(r));
+
+ColorRef colorRefFromJson(String s) =>
+    _colorRefFromMap(jsonDecode(s) as Map<String, dynamic>);
+
 // ---- OutlineSpec ----
 Map<String, dynamic> _outlineToMap(OutlineSpec o) =>
     {'lighter': o.lighter, 'intensity': o.intensity, 'thickness': o.thickness};

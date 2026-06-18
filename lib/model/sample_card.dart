@@ -174,6 +174,7 @@ CardData composeCard(
     symbolImageIds: symbolImageIds,
     setSymbolImageId: setSymbolImageId,
     setSymbolPlacement: t.setSymbol,
+    setSymbolTint: rarity?.color,
   );
 }
 
