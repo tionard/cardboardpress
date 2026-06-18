@@ -66,6 +66,7 @@ class CardEditorScreen extends ConsumerWidget {
           swatches: swatches,
           sets: sets,
           rarities: rarities,
+          symbolMap: ref.watch(textSymbolMapProvider),
           repo: ref.read(cardRepositoryProvider),
           imageStore: ref.read(imageStoreProvider),
           exporter: ref.read(cardExporterProvider),
@@ -101,6 +102,7 @@ class _CardEditorBody extends StatefulWidget {
   final List<PaletteSwatch> swatches;
   final List<SetEntry> sets;
   final List<RarityEntry> rarities;
+  final Map<String, String> symbolMap; // text-symbol tag (lower) -> imageId
   final CardRepository repo;
   final ImageStore imageStore;
   final CardExporter exporter;
@@ -115,6 +117,7 @@ class _CardEditorBody extends StatefulWidget {
     required this.swatches,
     required this.sets,
     required this.rarities,
+    required this.symbolMap,
     required this.repo,
     required this.imageStore,
     required this.exporter,
@@ -243,12 +246,9 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   }
 
   Future<void> _syncArtImages() async {
-    // Every image the renderer may need: the card's art plus the template's
-    // optional background (the bg lives on the template, not the card content).
-    final ids = <String>{
-      ..._working.content.art.values,
-      if (_effective.bgImageId != null) _effective.bgImageId!,
-    };
+    // Decode everything the composed card references — art, template bg, and
+    // any {tag} symbol glyphs used in the Cost field.
+    final ids = _compose().imageIdsToDecode();
     for (final imageId in ids) {
       if (_images.containsKey(imageId)) continue;
       final bytes = await widget.imageStore.load(imageId);
@@ -301,6 +301,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
       rarity: _currentRarity,
       number: number,
       total: total,
+      symbolImageIds: widget.symbolMap,
     );
   }
 

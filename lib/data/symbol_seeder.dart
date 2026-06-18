@@ -30,7 +30,6 @@ const _defaults = <_Pip>[
   _Pip('G', 'G', 0xFF6FAE6F, 0xFFFFFFFF), // green
   _Pip('B', 'B', 0xFF4F8FD6, 0xFFFFFFFF), // blue
   _Pip('Y', 'Y', 0xFFE0A33A, 0xFF2C2B27), // amber
-  _Pip('1', '1', 0xFFBEB9AD, 0xFF2C2B27), // generic numeric
 ];
 
 /// Renders + inserts the default text symbols if none exist yet.

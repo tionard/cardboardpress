@@ -19,6 +19,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import '../model/card_model.dart';
+import '../model/markup.dart';
 
 /// Draws one card into [canvas], filling a card of [size].
 void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
@@ -131,8 +132,18 @@ void _paintField(
   }
 
   // 2.3 Content — text, drawn in its resolved colour (single or double).
-  //     (Rules rich-text + inline symbols come later.) Keyed by field id.
-  if (field.text != null) {
+  //     Cost renders inline text + {tag} symbols; other text fields are plain.
+  //     (Rules rich-text joins the inline path with bold/italic/size later.)
+  //     Keyed by field id.
+  if (field.type == FieldType.cost) {
+    final s = card.textContent[field.id] ?? '';
+    final ts = field.text;
+    if (s.isNotEmpty && ts != null) {
+      final color = refs.resolveColor(ts.colorRef);
+      _paintInline(canvas, rect, tokenizeInline(s), ts, size, color, card, refs,
+          maxLines: 1);
+    }
+  } else if (field.text != null) {
     final s = card.textContent[field.id] ?? '';
     if (s.isNotEmpty) {
       final textColor = refs.resolveColor(field.text!.colorRef);
@@ -251,6 +262,209 @@ void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
     ..layout(ui.ParagraphConstraints(width: rect.width));
 
   canvas.drawParagraph(paragraph, ui.Offset(rect.left, clampedTop));
+}
+
+// ---------------------------------------------------------------------------
+// Inline content: text + {tag} symbols (Cost now; rich text extends this)
+// ---------------------------------------------------------------------------
+
+/// Lays out a sequence of text + symbol [tokens] in [rect] and paints it,
+/// vertically centred. Symbols become inline placeholders sized to the line
+/// height, then their decoded glyph images are drawn into the placeholder
+/// boxes. Uses ParagraphBuilder.addPlaceholder so text and symbols share one
+/// layout pass — identical at preview and export resolution.
+void _paintInline(
+  ui.Canvas canvas,
+  ui.Rect rect,
+  List<InlineToken> tokens,
+  TextStyleSpec ts,
+  ui.Size size,
+  ColorValue color,
+  CardData card,
+  CardRefs refs, {
+  int maxLines = 1,
+}) {
+  final fontSize = ts.sizeFrac * size.height;
+  final weight = ts.bold ? ui.FontWeight.bold : ui.FontWeight.normal;
+  final slant = ts.italic ? ui.FontStyle.italic : ui.FontStyle.normal;
+
+  final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
+    textAlign: ts.align,
+    fontWeight: weight,
+    fontStyle: slant,
+    fontSize: fontSize,
+    maxLines: maxLines,
+    ellipsis: '…',
+  ))
+    ..pushStyle(ui.TextStyle(
+      color: color.c1.withValues(alpha: ts.colorAlpha),
+      fontWeight: weight,
+      fontStyle: slant,
+      fontSize: fontSize,
+    ));
+
+  // Collect a symbol spec per placeholder, in the order placeholders are added,
+  // so we can match each placeholder box to its symbol after layout.
+  final specs = <SymbolSpec>[];
+  final side = fontSize; // square glyph, roughly one line tall
+  for (final tk in tokens) {
+    if (tk is TextRun) {
+      builder.addText(tk.text);
+    } else if (tk is SymbolRun) {
+      specs.add(tk.spec);
+      builder.addPlaceholder(
+        side,
+        side,
+        ui.PlaceholderAlignment.middle,
+        baseline: ui.TextBaseline.alphabetic,
+      );
+    }
+  }
+
+  final paragraph = builder.build()
+    ..layout(ui.ParagraphConstraints(width: rect.width));
+
+  final top = rect.top + (rect.height - paragraph.height) / 2;
+  final clampedTop = top < rect.top ? rect.top : top;
+  final origin = ui.Offset(rect.left, clampedTop);
+  canvas.drawParagraph(paragraph, origin);
+
+  final boxes = paragraph.getBoxesForPlaceholders();
+  for (var i = 0; i < boxes.length && i < specs.length; i++) {
+    final b = boxes[i];
+    _drawSymbol(
+      canvas,
+      ui.Rect.fromLTRB(origin.dx + b.left, origin.dy + b.top,
+          origin.dx + b.right, origin.dy + b.bottom),
+      specs[i],
+      card,
+      refs,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Symbol drawing (atoms, numeric pips, splits, overlays)
+// ---------------------------------------------------------------------------
+
+const _numPipBg = ui.Color(0xFFBEB9AD); // generic numeric pip background
+const _numPipFg = ui.Color(0xFF2C2B27); // numeric pip text
+
+/// Draws a (possibly composite) symbol into [box].
+void _drawSymbol(ui.Canvas canvas, ui.Rect box, SymbolSpec spec, CardData card,
+    CardRefs refs) {
+  switch (spec) {
+    case AtomSymbol(:final token):
+      final img = refs.resolveImage(card.symbolImageIds[token]);
+      if (img != null) {
+        _drawImageContain(canvas, img, box);
+      } else if (_isAllDigits(token)) {
+        _drawNumberPip(canvas, box, token); // any number -> grey pip
+      }
+    // unknown non-numeric atom with no image -> leave the gap blank
+
+    case SplitSymbol(:final a, :final b):
+      // Anti-diagonal split: top-left = a, bottom-right = b. Each half draws
+      // its sub-symbol at full size, clipped to its triangle.
+      final tl = ui.Path()
+        ..moveTo(box.left, box.top)
+        ..lineTo(box.right, box.top)
+        ..lineTo(box.left, box.bottom)
+        ..close();
+      final br = ui.Path()
+        ..moveTo(box.right, box.top)
+        ..lineTo(box.right, box.bottom)
+        ..lineTo(box.left, box.bottom)
+        ..close();
+      canvas.save();
+      canvas.clipPath(tl);
+      _drawSymbol(canvas, box, a, card, refs);
+      canvas.restore();
+      canvas.save();
+      canvas.clipPath(br);
+      _drawSymbol(canvas, box, b, card, refs);
+      canvas.restore();
+      canvas.drawLine(
+        box.topRight,
+        box.bottomLeft,
+        ui.Paint()
+          ..color = const ui.Color(0x33000000)
+          ..strokeWidth = box.width * 0.04
+          ..style = ui.PaintingStyle.stroke,
+      );
+
+    case OverlaySymbol(:final number, :final base):
+      _drawSymbol(canvas, box, base, card, refs);
+      _drawNumberText(canvas, box, number, const ui.Color(0xFFFFFFFF),
+          withShadow: true);
+  }
+}
+
+bool _isAllDigits(String s) =>
+    s.isNotEmpty && s.codeUnits.every((c) => c >= 0x30 && c <= 0x39);
+
+/// A grey pip with [number] centred inside it (the generic numeric symbol).
+void _drawNumberPip(ui.Canvas canvas, ui.Rect box, String number) {
+  final r = math.min(box.width, box.height) / 2;
+  canvas.drawCircle(
+    box.center,
+    r,
+    ui.Paint()
+      ..color = _numPipBg
+      ..isAntiAlias = true,
+  );
+  _drawNumberText(canvas, box, number, _numPipFg);
+}
+
+/// Draws [number] centred in [box], shrinking to fit multi-digit values.
+void _drawNumberText(ui.Canvas canvas, ui.Rect box, String number,
+    ui.Color color,
+    {bool withShadow = false}) {
+  final inner = box.width * 0.74; // keep digits inside the circle
+  var fontSize = box.height * 0.62;
+
+  ui.Paragraph build(double fs) => (ui.ParagraphBuilder(ui.ParagraphStyle(
+        textAlign: ui.TextAlign.center,
+        fontSize: fs,
+        fontWeight: ui.FontWeight.bold,
+      ))
+        ..pushStyle(ui.TextStyle(
+          color: color,
+          fontSize: fs,
+          fontWeight: ui.FontWeight.bold,
+          shadows: withShadow
+              ? const [ui.Shadow(color: ui.Color(0xCC000000), blurRadius: 2)]
+              : null,
+        ))
+        ..addText(number))
+      .build()
+    ..layout(ui.ParagraphConstraints(width: box.width));
+
+  var paragraph = build(fontSize);
+  if (paragraph.longestLine > inner && paragraph.longestLine > 0) {
+    fontSize *= inner / paragraph.longestLine;
+    paragraph = build(fontSize);
+  }
+  final topY = box.top + (box.height - paragraph.height) / 2;
+  canvas.drawParagraph(paragraph, ui.Offset(box.left, topY));
+}
+
+/// Draws [img] centred inside [dst], preserving aspect ratio (letterboxed).
+void _drawImageContain(ui.Canvas canvas, ui.Image img, ui.Rect dst) {
+  final iw = img.width.toDouble();
+  final ih = img.height.toDouble();
+  if (iw <= 0 || ih <= 0) return;
+  final scale = math.min(dst.width / iw, dst.height / ih);
+  final w = iw * scale;
+  final h = ih * scale;
+  final left = dst.left + (dst.width - w) / 2;
+  final top = dst.top + (dst.height - h) / 2;
+  canvas.drawImageRect(
+    img,
+    ui.Rect.fromLTWH(0, 0, iw, ih),
+    ui.Rect.fromLTWH(left, top, w, h),
+    ui.Paint()..filterQuality = ui.FilterQuality.medium,
+  );
 }
 
 // ---------------------------------------------------------------------------

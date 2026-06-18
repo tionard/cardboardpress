@@ -136,6 +136,7 @@ CardData composeCard(
   RarityEntry? rarity,
   int? number,
   int? total,
+  Map<String, String> symbolImageIds = const {},
 }) {
   final footer = deriveFooterText(
     artist: content.artist,
@@ -164,6 +165,7 @@ CardData composeCard(
     artTransforms: content.artTransforms,
     bgImageId: t.bgImageId,
     bgTransform: t.bgTransform,
+    symbolImageIds: symbolImageIds,
   );
 }
 

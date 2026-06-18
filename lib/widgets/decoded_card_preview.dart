@@ -63,12 +63,8 @@ class _DecodedCardPreviewState extends State<DecodedCardPreview> {
     _sync(); // cheap: ids already resolved are skipped
   }
 
-  // Every image the renderer may need for this card.
-  Iterable<String> get _neededIds sync* {
-    yield* widget.card.artImageIds.values;
-    final bg = widget.card.bgImageId;
-    if (bg != null) yield bg;
-  }
+  // Every image the renderer may need for this card (art, background, symbols).
+  Iterable<String> get _neededIds => widget.card.imageIdsToDecode();
 
   Future<void> _sync() async {
     for (final id in _neededIds) {

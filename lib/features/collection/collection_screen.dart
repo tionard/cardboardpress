@@ -154,6 +154,7 @@ class CollectionScreen extends ConsumerWidget {
       rarity: raritiesMap[card.content.rarityId],
       number: set == null ? null : number,
       total: set == null ? null : total,
+      symbolImageIds: ref.read(textSymbolMapProvider),
     );
     final name = _cardName(effective, card);
 

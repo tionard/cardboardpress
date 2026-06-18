@@ -10,6 +10,8 @@
 
 import 'dart:ui';
 
+import 'markup.dart';
+
 /// How the two colours of a *double* colour are split across an area.
 enum MixOrientation { vertical, horizontal }
 
@@ -215,6 +217,7 @@ class CardData {
   final Map<String, ArtTransform> artTransforms; // fieldId -> zoom/pan
   final String? bgImageId; // template background image, drawn under the tint
   final ArtTransform bgTransform; // cover-fit zoom/pan for the bg image
+  final Map<String, String> symbolImageIds; // text-symbol tag (lower) -> imageId
 
   const CardData({
     this.widthInches = 2.5,
@@ -231,7 +234,28 @@ class CardData {
     this.artTransforms = const {},
     this.bgImageId,
     this.bgTransform = const ArtTransform(),
+    this.symbolImageIds = const {},
   });
+
+  /// Every image id the renderer needs decoded: card art, the template
+  /// background, and the glyphs for any {tag} used in symbol-bearing fields.
+  /// Render sites decode these into [CardRefs.images] before painting.
+  Set<String> imageIdsToDecode() {
+    final ids = <String>{
+      ...artImageIds.values,
+      if (bgImageId != null) bgImageId!,
+    };
+    for (final f in fields) {
+      if (f.type != FieldType.cost) continue; // Rules joins with rich text
+      final content = textContent[f.id];
+      if (content == null) continue;
+      for (final tag in referencedTags(content)) {
+        final id = symbolImageIds[tag];
+        if (id != null) ids.add(id);
+      }
+    }
+    return ids;
+  }
 }
 
 /// Resolves references (palette colours today; template, rarity, symbols later)
