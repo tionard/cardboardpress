@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/palette_repository.dart';
 import '../../model/card_model.dart';
 import '../../state/providers.dart';
+import 'text_symbol_manager.dart';
 
 class CustomizationScreen extends ConsumerStatefulWidget {
   const CustomizationScreen({super.key});
@@ -46,11 +47,13 @@ class _CustomizationScreenState extends ConsumerState<CustomizationScreen> {
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: _subTab == 0
-                ? _buildColors()
-                : Center(
-                    child: Text(
-                        '${_subTabNames[_subTab]} — coming in a later session')),
+            child: switch (_subTab) {
+              0 => _buildColors(),
+              3 => const TextSymbolManager(),
+              _ => Center(
+                  child: Text(
+                      '${_subTabNames[_subTab]} — coming in a later session')),
+            },
           ),
         ],
       ),
