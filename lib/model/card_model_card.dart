@@ -52,8 +52,8 @@ class CardData {
   Set<String> imageIdsToDecode() {
     final ids = <String>{
       ...artImageIds.values,
-      if (bgImageId != null) bgImageId!,
-      if (setSymbolImageId != null) setSymbolImageId!,
+      ?bgImageId,
+      ?setSymbolImageId,
       ...watermarkImageIds.values,
     };
     for (final f in fields) {
