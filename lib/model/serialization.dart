@@ -81,8 +81,11 @@ Map<String, dynamic> _textToMap(TextStyleSpec t) => {
       'bold': t.bold,
       'italic': t.italic,
       'align': t.align.name,
+      'vAlign': t.vAlign.name,
       'colorRef': _colorRefToMap(t.colorRef),
       'colorAlpha': t.colorAlpha,
+      'fit': t.fit.name,
+      'padX': t.padX,
     };
 
 TextStyleSpec _textFromMap(Map m) => TextStyleSpec(
@@ -90,8 +93,11 @@ TextStyleSpec _textFromMap(Map m) => TextStyleSpec(
       bold: _b(m['bold'], false),
       italic: _b(m['italic'], false),
       align: _byName(TextAlign.values, m['align'], TextAlign.left),
+      vAlign: _byName(VAlign.values, m['vAlign'], VAlign.top),
       colorRef: _colorRefFromMap((m['colorRef'] as Map?) ?? const {}),
       colorAlpha: _d(m['colorAlpha'], 1.0),
+      fit: _byName(TextFit.values, m['fit'], TextFit.fixed),
+      padX: _d(m['padX'], 0.04),
     );
 
 // ---- BorderSpec ----

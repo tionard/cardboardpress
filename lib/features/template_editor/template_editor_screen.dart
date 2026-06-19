@@ -47,6 +47,17 @@ const _paperRef =
 const _inkRef =
     ColorRef(id: 'c_ink', snapshot: ColorValue.single(Color(0xFF2C2B27)));
 
+/// Default text style for a freshly created/changed field. Multi-line types
+/// (rules, flavor) default to shrink-to-fit so long text stays inside the box.
+TextStyleSpec _defaultTextFor(FieldType type) {
+  final multiline = type == FieldType.rules || type == FieldType.flavor;
+  return TextStyleSpec(
+    sizeFrac: 0.035,
+    colorRef: _inkRef,
+    fit: multiline ? TextFit.shrink : TextFit.fixed,
+  );
+}
+
 const double _previewW = 280;
 
 enum _Mode { layout, fields }
@@ -327,9 +338,7 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
       frac: const Rect.fromLTRB(0.1, 0.1, 0.9, 0.24),
       fill: isArt ? null : _paperRef,
       fillAlpha: 0.85,
-      text: isArt
-          ? null
-          : const TextStyleSpec(sizeFrac: 0.035, colorRef: _inkRef),
+      text: isArt ? null : _defaultTextFor(type),
     );
     _update(_d.copyWith(fields: [..._d.fields, f]));
     setState(() => _selectedFieldId = id);
@@ -356,7 +365,7 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
       updated = updated.copyWith(text: null, fill: null);
     } else if (f.text == null) {
       updated = updated.copyWith(
-          text: const TextStyleSpec(sizeFrac: 0.035, colorRef: _inkRef));
+          text: _defaultTextFor(type));
     }
     // The watermark belongs to the Rules field; drop it if the type changes away.
     if (type != FieldType.rules && f.watermark != null) {

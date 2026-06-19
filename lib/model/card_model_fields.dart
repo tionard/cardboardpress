@@ -28,21 +28,33 @@ class OutlineSpec {
 /// Per-field text styling. The text colour REFERENCES the palette (like fills
 /// and the base colour), so it can be single or double and updates live when
 /// the referenced swatch changes. [colorAlpha] applies use-site transparency.
+/// How a text field handles content that doesn't fit its box.
+enum TextFit { fixed, shrink }
+
+/// Vertical anchoring of text within its field box.
+enum VAlign { top, middle, bottom }
+
 class TextStyleSpec {
   final double sizeFrac; // font size as a fraction of card HEIGHT
   final bool bold;
   final bool italic;
-  final TextAlign align;
+  final TextAlign align; // horizontal alignment
+  final VAlign vAlign; // vertical anchor within the field box
   final ColorRef colorRef;
   final double colorAlpha;
+  final TextFit fit; // fixed size, or shrink the font until it fits the box
+  final double padX; // horizontal inset, as a fraction of card width (sides only)
 
   const TextStyleSpec({
     required this.sizeFrac,
     this.bold = false,
     this.italic = false,
     this.align = TextAlign.left,
+    this.vAlign = VAlign.top,
     required this.colorRef,
     this.colorAlpha = 1.0,
+    this.fit = TextFit.fixed,
+    this.padX = 0.04,
   });
 
   TextStyleSpec copyWith({
@@ -50,16 +62,22 @@ class TextStyleSpec {
     bool? bold,
     bool? italic,
     TextAlign? align,
+    VAlign? vAlign,
     ColorRef? colorRef,
     double? colorAlpha,
+    TextFit? fit,
+    double? padX,
   }) =>
       TextStyleSpec(
         sizeFrac: sizeFrac ?? this.sizeFrac,
         bold: bold ?? this.bold,
         italic: italic ?? this.italic,
         align: align ?? this.align,
+        vAlign: vAlign ?? this.vAlign,
         colorRef: colorRef ?? this.colorRef,
         colorAlpha: colorAlpha ?? this.colorAlpha,
+        fit: fit ?? this.fit,
+        padX: padX ?? this.padX,
       );
 }
 

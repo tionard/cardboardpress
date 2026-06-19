@@ -184,18 +184,9 @@ void _paintField(
   //     (Rules rich-text joins the inline path with bold/italic/size later.)
   //     Keyed by field id.
   //
-  //     Text sits inside a small inset so glyphs don't touch the field edges,
-  //     and is clipped to the field box so overflow (e.g. long rules) is hidden
-  //     rather than spilling past the border. Inset is a fraction of card width
-  //     so it scales identically at preview and print resolution.
-  final padX = 0.035 * size.width;
-  final padY = 0.030 * size.width;
-  final textRect = ui.Rect.fromLTRB(
-    rect.left + padX,
-    rect.top + padY,
-    rect.right - padX,
-    rect.bottom - padY,
-  );
+  //     Text is clipped to the field box so overflow is hidden rather than
+  //     spilling past the border; horizontal padding and vertical anchoring are
+  //     handled inside the painters (per the field's text style).
   canvas.save();
   canvas.clipRRect(rrect);
   if (field.type == FieldType.cost) {
@@ -203,7 +194,7 @@ void _paintField(
     final ts = field.text;
     if (s.isNotEmpty && ts != null) {
       final color = refs.resolveColor(ts.colorRef);
-      _paintInline(canvas, textRect, tokenizeInline(s), ts, size, color, card,
+      _paintInline(canvas, rect, tokenizeInline(s), ts, size, color, card,
           refs,
           maxLines: 1);
     }
@@ -211,7 +202,7 @@ void _paintField(
     final s = card.textContent[field.id] ?? '';
     if (s.isNotEmpty) {
       final textColor = refs.resolveColor(field.text!.colorRef);
-      _paintText(canvas, textRect, s, field.text!, size, textColor);
+      _paintText(canvas, rect, s, field.text!, size, textColor);
     }
   }
   canvas.restore();

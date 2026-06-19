@@ -182,9 +182,43 @@ extension _TemplateFieldsPane on _TemplateBodyState {
               ],
               selected: {text.align},
               onSelectionChanged: (s) => _updateField(
-                  f.copyWith(text: text.copyWith(align: s.first))),
+                f.copyWith(text: text.copyWith(align: s.first))),
             ),
           ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            const SizedBox(width: 80, child: Text('Anchor')),
+            SegmentedButton<VAlign>(
+              segments: const [
+                ButtonSegment(
+                    value: VAlign.top, icon: Icon(Icons.vertical_align_top)),
+                ButtonSegment(
+                    value: VAlign.middle,
+                    icon: Icon(Icons.vertical_align_center)),
+                ButtonSegment(
+                    value: VAlign.bottom,
+                    icon: Icon(Icons.vertical_align_bottom)),
+              ],
+              selected: {text.vAlign},
+              onSelectionChanged: (s) => _updateField(
+                  f.copyWith(text: text.copyWith(vAlign: s.first))),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            const SizedBox(width: 80, child: Text('Fit')),
+            SegmentedButton<TextFit>(
+              segments: const [
+                ButtonSegment(value: TextFit.fixed, label: Text('Fixed')),
+                ButtonSegment(value: TextFit.shrink, label: Text('Shrink')),
+              ],
+              selected: {text.fit},
+              onSelectionChanged: (s) => _updateField(
+                  f.copyWith(text: text.copyWith(fit: s.first))),
+            ),
+          ]),
+          _labeledSlider('Side padding', text.padX, 0, 0.12,
+              (v) => _updateField(f.copyWith(text: text.copyWith(padX: v)))),
           const SizedBox(height: 8),
           Text('Text colour', style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 6),

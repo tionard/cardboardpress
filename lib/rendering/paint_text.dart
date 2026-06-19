@@ -10,62 +10,82 @@ part of 'paint_card.dart';
 /// same layout is produced for preview and for export.
 void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
     ui.Size size, ColorValue color) {
-  final fontSize = ts.sizeFrac * size.height;
   final weight = ts.bold ? ui.FontWeight.bold : ui.FontWeight.normal;
   final slant = ts.italic ? ui.FontStyle.italic : ui.FontStyle.normal;
 
-  ui.ParagraphStyle paraStyle() => ui.ParagraphStyle(
-        textAlign: ts.align,
+  // Horizontal padding only (sides), per design — text may reach the box top.
+  final pad = ts.padX * size.width;
+  final box = ui.Rect.fromLTRB(
+      rect.left + pad, rect.top, rect.right - pad, rect.bottom);
+  if (box.width <= 1) return;
+
+  ui.Paragraph layoutAt(double fs, {ui.Paint? fg, ui.Color? col}) {
+    final b = ui.ParagraphBuilder(ui.ParagraphStyle(
+      textAlign: ts.align,
+      fontWeight: weight,
+      fontStyle: slant,
+      fontSize: fs,
+    ))
+      ..pushStyle(ui.TextStyle(
+        foreground: fg,
+        color: fg == null ? col : null,
+        fontSize: fs,
         fontWeight: weight,
         fontStyle: slant,
-        fontSize: fontSize,
-      );
+      ))
+      ..addText(text);
+    return b.build()..layout(ui.ParagraphConstraints(width: box.width));
+  }
 
-  // First pass: measure the laid-out text so a double-colour gradient can span
-  // the actual glyph box (not the whole field), matching the swatch preview.
-  final measure = (ui.ParagraphBuilder(paraStyle())
-        ..pushStyle(ui.TextStyle(
-            fontSize: fontSize, fontWeight: weight, fontStyle: slant))
-        ..addText(text))
-      .build()
-    ..layout(ui.ParagraphConstraints(width: rect.width));
+  // Font size: fixed, or shrink until the laid-out text fits the box (height
+  // and longest line). Same maths at preview and print, so it's stable.
+  var fs = ts.sizeFrac * size.height;
+  if (ts.fit == TextFit.shrink) {
+    const measureColor = ui.Color(0xFF000000);
+    var p = layoutAt(fs, col: measureColor);
+    var guard = 0;
+    while ((p.height > box.height || p.longestLine > box.width + 0.5) &&
+        fs > 3.0 &&
+        guard++ < 80) {
+      fs *= 0.96;
+      p = layoutAt(fs, col: measureColor);
+    }
+  }
 
+  // Measure at the final size for gradient placement + vertical anchoring.
+  final measure = layoutAt(fs, col: const ui.Color(0xFF000000));
   final textW = measure.longestLine;
   final textH = measure.height;
-  final top = rect.top + (rect.height - textH) / 2;
-  final clampedTop = top < rect.top ? rect.top : top;
 
-  // Horizontal start of the text within the field, by alignment — so the
-  // gradient lines up with where the glyphs are actually drawn.
-  double left = rect.left;
-  if (ts.align == ui.TextAlign.center) {
-    left = rect.left + (rect.width - textW) / 2;
-  } else if (ts.align == ui.TextAlign.right || ts.align == ui.TextAlign.end) {
-    left = rect.left + (rect.width - textW);
+  double top;
+  switch (ts.vAlign) {
+    case VAlign.top:
+      top = box.top;
+      break;
+    case VAlign.middle:
+      top = box.top + (box.height - textH) / 2;
+      break;
+    case VAlign.bottom:
+      top = box.bottom - textH;
+      break;
   }
-  final textRect = ui.Rect.fromLTWH(left, clampedTop, textW, textH);
+  if (top < box.top) top = box.top; // overflow clips at the bottom, never the top
+
+  // Horizontal start of the glyph box (for the gradient), by alignment.
+  double left = box.left;
+  if (ts.align == ui.TextAlign.center) {
+    left = box.left + (box.width - textW) / 2;
+  } else if (ts.align == ui.TextAlign.right || ts.align == ui.TextAlign.end) {
+    left = box.left + (box.width - textW);
+  }
+  final textRect = ui.Rect.fromLTWH(left, top, textW, textH);
 
   final shader = _doubleShader(color, textRect, ts.colorAlpha);
-  final runStyle = shader != null
-      ? ui.TextStyle(
-          foreground: ui.Paint()..shader = shader,
-          fontSize: fontSize,
-          fontWeight: weight,
-          fontStyle: slant)
-      : ui.TextStyle(
-          color: color.c1.withValues(alpha: ts.colorAlpha),
-          fontSize: fontSize,
-          fontWeight: weight,
-          fontStyle: slant);
+  final paragraph = shader != null
+      ? layoutAt(fs, fg: ui.Paint()..shader = shader)
+      : layoutAt(fs, col: color.c1.withValues(alpha: ts.colorAlpha));
 
-  // Second pass: real paragraph with the resolved fill.
-  final paragraph = (ui.ParagraphBuilder(paraStyle())
-        ..pushStyle(runStyle)
-        ..addText(text))
-      .build()
-    ..layout(ui.ParagraphConstraints(width: rect.width));
-
-  canvas.drawParagraph(paragraph, ui.Offset(rect.left, clampedTop));
+  canvas.drawParagraph(paragraph, ui.Offset(box.left, top));
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +111,11 @@ void _paintInline(
   final fontSize = ts.sizeFrac * size.height;
   final weight = ts.bold ? ui.FontWeight.bold : ui.FontWeight.normal;
   final slant = ts.italic ? ui.FontStyle.italic : ui.FontStyle.normal;
+
+  // Side-only padding, matching plain text fields.
+  final pad = ts.padX * size.width;
+  final box = ui.Rect.fromLTRB(
+      rect.left + pad, rect.top, rect.right - pad, rect.bottom);
 
   final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
     textAlign: ts.align,
@@ -126,11 +151,22 @@ void _paintInline(
   }
 
   final paragraph = builder.build()
-    ..layout(ui.ParagraphConstraints(width: rect.width));
+    ..layout(ui.ParagraphConstraints(width: box.width));
 
-  final top = rect.top + (rect.height - paragraph.height) / 2;
-  final clampedTop = top < rect.top ? rect.top : top;
-  final origin = ui.Offset(rect.left, clampedTop);
+  double top;
+  switch (ts.vAlign) {
+    case VAlign.top:
+      top = box.top;
+      break;
+    case VAlign.middle:
+      top = box.top + (box.height - paragraph.height) / 2;
+      break;
+    case VAlign.bottom:
+      top = box.bottom - paragraph.height;
+      break;
+  }
+  if (top < box.top) top = box.top;
+  final origin = ui.Offset(box.left, top);
   canvas.drawParagraph(paragraph, origin);
 
   final boxes = paragraph.getBoxesForPlaceholders();
