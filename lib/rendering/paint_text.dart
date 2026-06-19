@@ -13,11 +13,12 @@ void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
   final weight = ts.bold ? ui.FontWeight.bold : ui.FontWeight.normal;
   final slant = ts.italic ? ui.FontStyle.italic : ui.FontStyle.normal;
 
-  // Horizontal padding only (sides), per design — text may reach the box top.
+  // Horizontal padding (sides) + optional vertical padding (top+bottom).
   final pad = ts.padX * size.width;
+  final padV = ts.padY * size.height;
   final box = ui.Rect.fromLTRB(
-      rect.left + pad, rect.top, rect.right - pad, rect.bottom);
-  if (box.width <= 1) return;
+      rect.left + pad, rect.top + padV, rect.right - pad, rect.bottom - padV);
+  if (box.width <= 1 || box.height <= 1) return;
 
   ui.Paragraph layoutAt(double fs, {ui.Paint? fg, ui.Color? col}) {
     final b = ui.ParagraphBuilder(ui.ParagraphStyle(
@@ -129,11 +130,12 @@ void _paintInline(
   final weight = baseBold ? ui.FontWeight.bold : ui.FontWeight.normal;
   final slant = baseItalic ? ui.FontStyle.italic : ui.FontStyle.normal;
 
-  // Side-only padding, matching plain text fields.
+  // Side-only padding by default, plus optional vertical padding.
   final pad = ts.padX * size.width;
+  final padV = ts.padY * size.height;
   final box = ui.Rect.fromLTRB(
-      rect.left + pad, rect.top, rect.right - pad, rect.bottom);
-  if (box.width <= 1) return;
+      rect.left + pad, rect.top + padV, rect.right - pad, rect.bottom - padV);
+  if (box.width <= 1 || box.height <= 1) return;
 
   // Symbol specs in placeholder order, collected once (independent of size).
   final specs = <SymbolSpec>[

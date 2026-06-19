@@ -86,6 +86,7 @@ Map<String, dynamic> _textToMap(TextStyleSpec t) => {
       'colorAlpha': t.colorAlpha,
       'fit': t.fit.name,
       'padX': t.padX,
+      'padY': t.padY,
     };
 
 TextStyleSpec _textFromMap(Map m) => TextStyleSpec(
@@ -98,6 +99,7 @@ TextStyleSpec _textFromMap(Map m) => TextStyleSpec(
       colorAlpha: _d(m['colorAlpha'], 1.0),
       fit: _byName(TextFit.values, m['fit'], TextFit.fixed),
       padX: _d(m['padX'], 0.04),
+      padY: _d(m['padY'], 0.0),
     );
 
 // ---- BorderSpec ----

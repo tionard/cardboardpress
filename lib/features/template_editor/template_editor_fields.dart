@@ -219,6 +219,8 @@ extension _TemplateFieldsPane on _TemplateBodyState {
           ]),
           _labeledSlider('Side padding', text.padX, 0, 0.12,
               (v) => _updateField(f.copyWith(text: text.copyWith(padX: v)))),
+          _labeledSlider('Vert padding', text.padY, 0, 0.12,
+              (v) => _updateField(f.copyWith(text: text.copyWith(padY: v)))),
           const SizedBox(height: 8),
           Text('Text colour', style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 6),

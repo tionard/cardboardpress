@@ -44,6 +44,7 @@ class TextStyleSpec {
   final double colorAlpha;
   final TextFit fit; // fixed size, or shrink the font until it fits the box
   final double padX; // horizontal inset, as a fraction of card width (sides only)
+  final double padY; // vertical inset, as a fraction of card height (top+bottom)
 
   const TextStyleSpec({
     required this.sizeFrac,
@@ -55,6 +56,7 @@ class TextStyleSpec {
     this.colorAlpha = 1.0,
     this.fit = TextFit.fixed,
     this.padX = 0.04,
+    this.padY = 0.0,
   });
 
   TextStyleSpec copyWith({
@@ -67,6 +69,7 @@ class TextStyleSpec {
     double? colorAlpha,
     TextFit? fit,
     double? padX,
+    double? padY,
   }) =>
       TextStyleSpec(
         sizeFrac: sizeFrac ?? this.sizeFrac,
@@ -78,6 +81,7 @@ class TextStyleSpec {
         colorAlpha: colorAlpha ?? this.colorAlpha,
         fit: fit ?? this.fit,
         padX: padX ?? this.padX,
+        padY: padY ?? this.padY,
       );
 }
 
