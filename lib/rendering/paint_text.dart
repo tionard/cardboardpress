@@ -97,6 +97,22 @@ void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
 /// height, then their decoded glyph images are drawn into the placeholder
 /// boxes. Uses ParagraphBuilder.addPlaceholder so text and symbols share one
 /// layout pass — identical at preview and export resolution.
+/// A per-run inline text style. Emphasis is the field's base bold/italic ORed
+/// with the run's own (from **bold** / *italic* markup). Inline text is single
+/// colour (c1); double-colour fills are a plain-text-field feature.
+ui.TextStyle _runStyle(
+        double fs, bool bold, bool italic, ColorValue color, double alpha) =>
+    ui.TextStyle(
+      color: color.c1.withValues(alpha: alpha),
+      fontWeight: bold ? ui.FontWeight.bold : ui.FontWeight.normal,
+      fontStyle: italic ? ui.FontStyle.italic : ui.FontStyle.normal,
+      fontSize: fs,
+    );
+
+/// Draws inline content: literal text (with per-run bold/italic) interleaved
+/// with {symbol} pips. Used by Cost (single line) and Rules (multi-line, which
+/// wraps and — when the field is set to shrink — auto-sizes to fit the box).
+/// Honours the field's side padding and vertical anchor, like plain text.
 void _paintInline(
   ui.Canvas canvas,
   ui.Rect rect,
@@ -106,52 +122,70 @@ void _paintInline(
   ColorValue color,
   CardData card,
   CardRefs refs, {
-  int maxLines = 1,
+  int? maxLines = 1,
 }) {
-  final fontSize = ts.sizeFrac * size.height;
-  final weight = ts.bold ? ui.FontWeight.bold : ui.FontWeight.normal;
-  final slant = ts.italic ? ui.FontStyle.italic : ui.FontStyle.normal;
+  final baseBold = ts.bold;
+  final baseItalic = ts.italic;
+  final weight = baseBold ? ui.FontWeight.bold : ui.FontWeight.normal;
+  final slant = baseItalic ? ui.FontStyle.italic : ui.FontStyle.normal;
 
   // Side-only padding, matching plain text fields.
   final pad = ts.padX * size.width;
   final box = ui.Rect.fromLTRB(
       rect.left + pad, rect.top, rect.right - pad, rect.bottom);
+  if (box.width <= 1) return;
 
-  final builder = ui.ParagraphBuilder(ui.ParagraphStyle(
-    textAlign: ts.align,
-    fontWeight: weight,
-    fontStyle: slant,
-    fontSize: fontSize,
-    maxLines: maxLines,
-    ellipsis: '…',
-  ))
-    ..pushStyle(ui.TextStyle(
-      color: color.c1.withValues(alpha: ts.colorAlpha),
+  // Symbol specs in placeholder order, collected once (independent of size).
+  final specs = <SymbolSpec>[
+    for (final tk in tokens)
+      if (tk is SymbolRun) tk.spec,
+  ];
+
+  // Build the laid-out paragraph at a given font size. Each text run pushes its
+  // own style (emphasis ORed with the field base); symbols are square
+  // placeholders ~one line tall, so they scale with the text when it shrinks.
+  ui.Paragraph build(double fs) {
+    final b = ui.ParagraphBuilder(ui.ParagraphStyle(
+      textAlign: ts.align,
       fontWeight: weight,
       fontStyle: slant,
-      fontSize: fontSize,
-    ));
-
-  // Collect a symbol spec per placeholder, in the order placeholders are added,
-  // so we can match each placeholder box to its symbol after layout.
-  final specs = <SymbolSpec>[];
-  final side = fontSize; // square glyph, roughly one line tall
-  for (final tk in tokens) {
-    if (tk is TextRun) {
-      builder.addText(tk.text);
-    } else if (tk is SymbolRun) {
-      specs.add(tk.spec);
-      builder.addPlaceholder(
-        side,
-        side,
-        ui.PlaceholderAlignment.middle,
-        baseline: ui.TextBaseline.alphabetic,
-      );
+      fontSize: fs,
+      maxLines: maxLines,
+      ellipsis: maxLines == 1 ? '\u2026' : null,
+    ))
+      ..pushStyle(_runStyle(fs, baseBold, baseItalic, color, ts.colorAlpha));
+    for (final tk in tokens) {
+      if (tk is TextRun) {
+        b.pushStyle(_runStyle(fs, baseBold || tk.bold, baseItalic || tk.italic,
+            color, ts.colorAlpha));
+        b.addText(tk.text);
+        b.pop();
+      } else if (tk is SymbolRun) {
+        b.addPlaceholder(
+          fs,
+          fs,
+          ui.PlaceholderAlignment.middle,
+          baseline: ui.TextBaseline.alphabetic,
+        );
+      }
     }
+    return b.build()..layout(ui.ParagraphConstraints(width: box.width));
   }
 
-  final paragraph = builder.build()
-    ..layout(ui.ParagraphConstraints(width: box.width));
+  // Font size: fixed, or shrink until the content fits the box (height for
+  // wrapped rules; longest line for a single-line cost).
+  var fontSize = ts.sizeFrac * size.height;
+  var paragraph = build(fontSize);
+  if (ts.fit == TextFit.shrink) {
+    var guard = 0;
+    while ((paragraph.height > box.height ||
+            paragraph.longestLine > box.width + 0.5) &&
+        fontSize > 3.0 &&
+        guard++ < 80) {
+      fontSize *= 0.96;
+      paragraph = build(fontSize);
+    }
+  }
 
   double top;
   switch (ts.vAlign) {

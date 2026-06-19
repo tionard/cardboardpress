@@ -57,7 +57,7 @@ class CardData {
       ...watermarkImageIds.values,
     };
     for (final f in fields) {
-      if (f.type != FieldType.cost) continue; // Rules joins with rich text
+      if (f.type != FieldType.cost && f.type != FieldType.rules) continue;
       final content = textContent[f.id];
       if (content == null) continue;
       for (final tag in referencedTags(content)) {

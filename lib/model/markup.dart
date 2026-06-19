@@ -1,9 +1,15 @@
 // lib/model/markup.dart
 //
 // Inline content tokenizer. Recognises {tag} symbol references (including the
-// composite forms below) and treats everything else as literal text. The rich
-// text engine will extend this SAME token stream with bold/italic/size runs, so
-// symbols and styling share one parser.
+// composite forms below) and **bold** / *italic* emphasis; everything else is
+// literal text. Symbols and styling share this ONE parser, so Cost and Rules
+// both run through it.
+//
+// Emphasis (spec §3.6 rich rules text):
+//   **bold**     toggles bold for the enclosed text
+//   *italic*     toggles italic
+// Toggles are stateful: an unmatched marker simply leaves the style on until
+// the end. Bold/italic are the ONLY emphasis — no size or colour spans.
 //
 // Symbol forms (spec §3.2):
 //   {R}     a single symbol            -> AtomSymbol('r')
@@ -20,7 +26,9 @@ sealed class InlineToken {
 
 class TextRun extends InlineToken {
   final String text;
-  const TextRun(this.text);
+  final bool bold;
+  final bool italic;
+  const TextRun(this.text, {this.bold = false, this.italic = false});
 }
 
 class SymbolRun extends InlineToken {
@@ -76,15 +84,18 @@ SymbolSpec parseSymbol(String body) {
   return AtomSymbol(b);
 }
 
-/// Splits [s] into literal text and symbol references. An unmatched '{' (or
-/// empty braces) is kept as literal text, so stray braces never break rendering.
+/// Splits [s] into literal text (carrying bold/italic state), symbol
+/// references, and emphasis toggles. An unmatched '{' (or empty braces) is kept
+/// as literal text, so stray braces never break rendering.
 List<InlineToken> tokenizeInline(String s) {
   final out = <InlineToken>[];
   final buf = StringBuffer();
+  var bold = false;
+  var italic = false;
 
   void flush() {
     if (buf.isNotEmpty) {
-      out.add(TextRun(buf.toString()));
+      out.add(TextRun(buf.toString(), bold: bold, italic: italic));
       buf.clear();
     }
   }
@@ -92,6 +103,7 @@ List<InlineToken> tokenizeInline(String s) {
   var i = 0;
   while (i < s.length) {
     final ch = s[i];
+
     if (ch == '{') {
       final close = s.indexOf('}', i + 1);
       if (close > i) {
@@ -104,7 +116,26 @@ List<InlineToken> tokenizeInline(String s) {
         }
       }
       // no closing brace / empty tag -> treat the '{' as literal
+      buf.write(ch);
+      i++;
+      continue;
     }
+
+    if (ch == '*') {
+      // '**' toggles bold, a lone '*' toggles italic. Flush first so the run
+      // that follows carries the new state.
+      if (i + 1 < s.length && s[i + 1] == '*') {
+        flush();
+        bold = !bold;
+        i += 2;
+      } else {
+        flush();
+        italic = !italic;
+        i += 1;
+      }
+      continue;
+    }
+
     buf.write(ch);
     i++;
   }

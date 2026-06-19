@@ -189,17 +189,19 @@ void _paintField(
   //     handled inside the painters (per the field's text style).
   canvas.save();
   canvas.clipRRect(rrect);
-  if (field.type == FieldType.cost) {
-    final s = card.textContent[field.id] ?? '';
+  final s = card.textContent[field.id] ?? '';
+  // Cost and Rules both run through the inline engine (text + {symbols} +
+  // **bold**/*italic*). Cost is single-line; Rules wraps to many lines.
+  final inline =
+      field.type == FieldType.cost || field.type == FieldType.rules;
+  if (inline) {
     final ts = field.text;
     if (s.isNotEmpty && ts != null) {
       final color = refs.resolveColor(ts.colorRef);
-      _paintInline(canvas, rect, tokenizeInline(s), ts, size, color, card,
-          refs,
-          maxLines: 1);
+      _paintInline(canvas, rect, tokenizeInline(s), ts, size, color, card, refs,
+          maxLines: field.type == FieldType.cost ? 1 : null);
     }
   } else if (field.text != null) {
-    final s = card.textContent[field.id] ?? '';
     if (s.isNotEmpty) {
       final textColor = refs.resolveColor(field.text!.colorRef);
       _paintText(canvas, rect, s, field.text!, size, textColor);
