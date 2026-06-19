@@ -156,6 +156,15 @@ CardData composeCard(
   final setSymbolImageId =
       (set?.symbolId == null) ? null : symbolsById[set!.symbolId]?.imageId;
 
+  // Resolve each Rules field's watermark symbol to an image id, keyed by field.
+  final watermarkImageIds = <String, String>{};
+  for (final f in t.fields) {
+    final wm = f.watermark;
+    if (wm == null || wm.symbolId.isEmpty) continue;
+    final img = symbolsById[wm.symbolId]?.imageId;
+    if (img != null) watermarkImageIds[f.id] = img;
+  }
+
   return CardData(
     widthInches: t.widthInches,
     heightInches: t.heightInches,
@@ -175,6 +184,7 @@ CardData composeCard(
     setSymbolImageId: setSymbolImageId,
     setSymbolPlacement: t.setSymbol,
     setSymbolTint: rarity?.color,
+    watermarkImageIds: watermarkImageIds,
   );
 }
 

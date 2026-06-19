@@ -21,12 +21,13 @@ void _paintSetSymbol(
   canvas.restore();
 }
 
-/// Draws the set symbol as a silhouette filled with [cv] (the rarity colour:
-/// single → solid, double → split gradient), the image acting as an alpha mask.
-/// This is the "double colour clipped to a symbol's shape" recipe (rendering.md):
-/// fill the symbol's box, then keep the fill only where the glyph has alpha via
-/// BlendMode.dstIn. [alpha] is baked into the fill so the whole thing fades.
-void _paintSetSymbolTinted(
+/// Draws [img] as a silhouette filled with [cv] (single → solid, double → split
+/// gradient), the image acting as an alpha mask, contain-fit + centred inside
+/// [dst] at [alpha] opacity. The "double colour clipped to a symbol's shape"
+/// recipe (rendering.md): fill the symbol's box, then keep the fill only where
+/// the glyph has alpha via BlendMode.dstIn. Shared by the rarity-tinted set
+/// symbol and the Rules-field watermark.
+void _paintTintedSymbol(
     ui.Canvas canvas, ui.Image img, ui.Rect dst, ColorValue cv, double alpha) {
   final box = _containRect(img, dst);
   if (box == null) return;

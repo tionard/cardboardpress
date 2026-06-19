@@ -69,6 +69,31 @@ class TextStyleSpec {
 /// in pixels. This is the trick that makes drawing resolution-independent: the
 /// exact same field maths is correct at a 240px-wide preview and at a
 /// 750px-wide print render.
+/// The Rules field's optional watermark (spec §3.7): a standalone symbol drawn
+/// faintly BEHIND the rules text, centred in the field. [symbolId] is a
+/// standalone-symbol id (resolved to an image at compose time; '' = none chosen
+/// yet); [color] is a palette colour (single or double, clipped to the symbol's
+/// shape); [alpha] is its transparency. Independent of the set symbol — it lives
+/// on the field, not the set.
+class WatermarkSpec {
+  final String symbolId;
+  final ColorRef color;
+  final double alpha;
+
+  const WatermarkSpec({
+    this.symbolId = '',
+    required this.color,
+    this.alpha = 0.15,
+  });
+
+  WatermarkSpec copyWith({String? symbolId, ColorRef? color, double? alpha}) =>
+      WatermarkSpec(
+        symbolId: symbolId ?? this.symbolId,
+        color: color ?? this.color,
+        alpha: alpha ?? this.alpha,
+      );
+}
+
 class FieldSpec {
   final String id; // stable per-field id (content is keyed by this, not type)
   final FieldType type;
@@ -78,6 +103,7 @@ class FieldSpec {
   final double fillAlpha; // use-site opacity for the fill, 0..1
   final OutlineSpec? outline; // optional
   final TextStyleSpec? text; // present on text-bearing fields
+  final WatermarkSpec? watermark; // Rules field only; drawn behind the text
 
   const FieldSpec({
     required this.id,
@@ -88,6 +114,7 @@ class FieldSpec {
     this.fillAlpha = 1.0,
     this.outline,
     this.text,
+    this.watermark,
   });
 
   FieldSpec copyWith({
@@ -98,6 +125,7 @@ class FieldSpec {
     double? fillAlpha,
     Object? outline = _sentinel,
     Object? text = _sentinel,
+    Object? watermark = _sentinel,
   }) =>
       FieldSpec(
         id: id,
@@ -109,6 +137,9 @@ class FieldSpec {
         outline:
             identical(outline, _sentinel) ? this.outline : outline as OutlineSpec?,
         text: identical(text, _sentinel) ? this.text : text as TextStyleSpec?,
+        watermark: identical(watermark, _sentinel)
+            ? this.watermark
+            : watermark as WatermarkSpec?,
       );
 }
 

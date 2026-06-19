@@ -3,6 +3,18 @@ part of 'template_editor_screen.dart';
 /// The Fields pane: add / remove / select fields and edit the selected one
 /// (type, layer order, position, corner, fill, outline, text style).
 extension _TemplateFieldsPane on _TemplateBodyState {
+  /// Open the symbol picker for a Rules field's watermark, then decode the
+  /// chosen symbol so the preview reflects it.
+  Future<void> _pickWatermarkSymbol(FieldSpec f) async {
+    final current = f.watermark;
+    final choice = await pickSymbol(context, ref, currentId: current?.symbolId);
+    if (choice == null) return; // cancelled
+    final base = current ?? const WatermarkSpec(color: _inkRef);
+    _updateField(
+        f.copyWith(watermark: base.copyWith(symbolId: choice.id ?? '')));
+    _syncImages();
+  }
+
   // ---- Fields pane ----
 
   Widget _fieldsPane() {
@@ -186,6 +198,45 @@ extension _TemplateFieldsPane on _TemplateBodyState {
           _labeledSlider('Opacity', text.colorAlpha, 0, 1,
               (v) => _updateField(
                   f.copyWith(text: text.copyWith(colorAlpha: v)))),
+        ],
+        if (f.type == FieldType.rules) ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            Text('Watermark', style: Theme.of(context).textTheme.labelLarge),
+            const Spacer(),
+            Switch(
+              value: f.watermark != null,
+              onChanged: (on) => _updateField(f.copyWith(
+                  watermark: on ? const WatermarkSpec(color: _inkRef) : null)),
+            ),
+          ]),
+          if (f.watermark != null) ...[
+            Text('A symbol drawn faintly behind the rules text.',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 6),
+            Row(children: [
+              const SizedBox(width: 80, child: Text('Symbol')),
+              OutlinedButton.icon(
+                onPressed: () => _pickWatermarkSymbol(f),
+                icon: const Icon(Icons.image_outlined),
+                label: Text(
+                    f.watermark!.symbolId.isEmpty ? 'Choose…' : 'Change…'),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Text('Colour', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 6),
+            Wrap(spacing: 10, runSpacing: 10, children: [
+              for (final s in widget.swatches)
+                _swatch(s.value, s.id == f.watermark!.color.id,
+                    () => _updateField(f.copyWith(
+                        watermark: f.watermark!.copyWith(
+                            color: ColorRef(id: s.id, snapshot: s.value))))),
+            ]),
+            _labeledSlider('Opacity', f.watermark!.alpha, 0, 1,
+                (v) => _updateField(
+                    f.copyWith(watermark: f.watermark!.copyWith(alpha: v)))),
+          ],
         ],
       ],
     );

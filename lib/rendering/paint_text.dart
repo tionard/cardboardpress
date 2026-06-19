@@ -19,8 +19,6 @@ void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
         fontWeight: weight,
         fontStyle: slant,
         fontSize: fontSize,
-        maxLines: 4,
-        ellipsis: '…',
       );
 
   // First pass: measure the laid-out text so a double-colour gradient can span

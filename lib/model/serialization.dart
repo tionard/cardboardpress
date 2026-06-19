@@ -111,6 +111,12 @@ Map<String, dynamic> _fieldToMap(FieldSpec f) => {
       'fillAlpha': f.fillAlpha,
       if (f.outline != null) 'outline': _outlineToMap(f.outline!),
       if (f.text != null) 'text': _textToMap(f.text!),
+      if (f.watermark != null)
+        'wm': {
+          'sym': f.watermark!.symbolId,
+          'color': _colorRefToMap(f.watermark!.color),
+          'a': f.watermark!.alpha,
+        },
     };
 
 FieldSpec _fieldFromMap(Map m) {
@@ -129,8 +135,15 @@ FieldSpec _fieldFromMap(Map m) {
     fillAlpha: _d(m['fillAlpha'], 1.0),
     outline: m['outline'] == null ? null : _outlineFromMap(m['outline'] as Map),
     text: m['text'] == null ? null : _textFromMap(m['text'] as Map),
+    watermark: m['wm'] == null ? null : _watermarkFromMap(m['wm'] as Map),
   );
 }
+
+WatermarkSpec _watermarkFromMap(Map m) => WatermarkSpec(
+      symbolId: (m['sym'] as String?) ?? '',
+      color: _colorRefFromMap((m['color'] as Map?) ?? const {}),
+      alpha: _d(m['a'], 0.15),
+    );
 
 // ---- TemplateData ----
 Map<String, dynamic> templateToMap(TemplateData t) => {

@@ -88,7 +88,7 @@ void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
     if (tint != null) {
       // Tinted: the symbol becomes a silhouette filled with the rarity colour
       // (single or double), the image acting as an alpha mask.
-      _paintSetSymbolTinted(canvas, ssImg, dst, refs.resolveColor(tint), ssp.alpha);
+      _paintTintedSymbol(canvas, ssImg, dst, refs.resolveColor(tint), ssp.alpha);
     } else {
       _paintSetSymbol(canvas, ssImg, dst, ssp.alpha);
     }
@@ -165,23 +165,54 @@ void _paintField(
     canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
   }
 
+  // 2.x Watermark (a property of the Rules field): a symbol silhouette filled
+  //     with a palette colour, centred in the field and drawn BEHIND the text.
+  //     Clipped to the field's rounded rect so it never bleeds past the corners.
+  final wm = field.watermark;
+  if (wm != null) {
+    final wmImg = refs.resolveImage(card.watermarkImageIds[field.id]);
+    if (wmImg != null) {
+      canvas.save();
+      canvas.clipRRect(rrect);
+      _paintTintedSymbol(canvas, wmImg, rect, refs.resolveColor(wm.color), wm.alpha);
+      canvas.restore();
+    }
+  }
+
   // 2.3 Content — text, drawn in its resolved colour (single or double).
   //     Cost renders inline text + {tag} symbols; other text fields are plain.
   //     (Rules rich-text joins the inline path with bold/italic/size later.)
   //     Keyed by field id.
+  //
+  //     Text sits inside a small inset so glyphs don't touch the field edges,
+  //     and is clipped to the field box so overflow (e.g. long rules) is hidden
+  //     rather than spilling past the border. Inset is a fraction of card width
+  //     so it scales identically at preview and print resolution.
+  final padX = 0.035 * size.width;
+  final padY = 0.030 * size.width;
+  final textRect = ui.Rect.fromLTRB(
+    rect.left + padX,
+    rect.top + padY,
+    rect.right - padX,
+    rect.bottom - padY,
+  );
+  canvas.save();
+  canvas.clipRRect(rrect);
   if (field.type == FieldType.cost) {
     final s = card.textContent[field.id] ?? '';
     final ts = field.text;
     if (s.isNotEmpty && ts != null) {
       final color = refs.resolveColor(ts.colorRef);
-      _paintInline(canvas, rect, tokenizeInline(s), ts, size, color, card, refs,
+      _paintInline(canvas, textRect, tokenizeInline(s), ts, size, color, card,
+          refs,
           maxLines: 1);
     }
   } else if (field.text != null) {
     final s = card.textContent[field.id] ?? '';
     if (s.isNotEmpty) {
       final textColor = refs.resolveColor(field.text!.colorRef);
-      _paintText(canvas, rect, s, field.text!, size, textColor);
+      _paintText(canvas, textRect, s, field.text!, size, textColor);
     }
   }
+  canvas.restore();
 }

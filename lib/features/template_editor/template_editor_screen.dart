@@ -28,6 +28,7 @@ import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../widgets/card_preview.dart';
+import '../customization/symbol_picker.dart';
 
 part 'template_editor_widgets.dart';
 part 'template_editor_layout.dart';
@@ -173,7 +174,7 @@ class _TemplateEditorScreenState extends ConsumerState<TemplateEditorScreen> {
   }
 }
 
-class _TemplateBody extends StatefulWidget {
+class _TemplateBody extends ConsumerStatefulWidget {
   final TemplateEntry entry;
   final Map<String, ColorValue> palette;
   final List<PaletteSwatch> swatches;
@@ -190,10 +191,10 @@ class _TemplateBody extends StatefulWidget {
   });
 
   @override
-  State<_TemplateBody> createState() => _TemplateBodyState();
+  ConsumerState<_TemplateBody> createState() => _TemplateBodyState();
 }
 
-class _TemplateBodyState extends State<_TemplateBody> {
+class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   late TemplateEntry _working;
   late final TextEditingController _name;
   late final TextEditingController _widthCtl;
@@ -214,7 +215,7 @@ class _TemplateBodyState extends State<_TemplateBody> {
       ..addListener(_onDimsChanged);
     _heightCtl = TextEditingController(text: _fmtInches(_d.heightInches))
       ..addListener(_onDimsChanged);
-    _syncBgImage(); // decode an existing background, if any
+    _syncImages(); // decode background + any watermark symbols
   }
 
   @override
@@ -357,6 +358,10 @@ class _TemplateBodyState extends State<_TemplateBody> {
       updated = updated.copyWith(
           text: const TextStyleSpec(sizeFrac: 0.035, colorRef: _inkRef));
     }
+    // The watermark belongs to the Rules field; drop it if the type changes away.
+    if (type != FieldType.rules && f.watermark != null) {
+      updated = updated.copyWith(watermark: null);
+    }
     _updateField(updated);
   }
 
@@ -386,14 +391,19 @@ class _TemplateBodyState extends State<_TemplateBody> {
     return frame.image;
   }
 
-  Future<void> _syncBgImage() async {
-    final id = _d.bgImageId;
-    if (id == null || _images.containsKey(id)) return;
-    final bytes = await widget.imageStore.load(id);
-    if (bytes == null) return;
-    final img = await _decode(bytes);
-    if (!mounted) return;
-    setState(() => _images[id] = img);
+  Future<void> _syncImages() async {
+    // Decode every image the previewed card needs (background + any Rules
+    // watermark). composeCard resolves the watermark symbol ids to image ids.
+    final card =
+        composeCard(_d, content: sampleContent(), symbolsById: ref.read(symbolsMapProvider));
+    for (final id in card.imageIdsToDecode()) {
+      if (_images.containsKey(id)) continue;
+      final bytes = await widget.imageStore.load(id);
+      if (bytes == null) continue;
+      final img = await _decode(bytes);
+      if (!mounted) return;
+      setState(() => _images[id] = img);
+    }
   }
 
   Future<void> _pickBgImage() async {
@@ -472,7 +482,8 @@ class _TemplateBodyState extends State<_TemplateBody> {
   Widget _previewWithOverlay() {
     final h = _previewW * _d.heightInches / _d.widthInches;
     final sel = _selectedField;
-    final card = composeCard(_d, content: sampleContent());
+    final card = composeCard(_d,
+        content: sampleContent(), symbolsById: ref.watch(symbolsMapProvider));
     return SizedBox(
       width: _previewW,
       height: h,

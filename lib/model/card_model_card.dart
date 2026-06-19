@@ -22,6 +22,7 @@ class CardData {
   final String? setSymbolImageId; // resolved set-symbol image (from the set)
   final SetSymbolPlacement? setSymbolPlacement; // where/how it draws (template)
   final ColorRef? setSymbolTint; // rarity colour tinting the set symbol; null => none
+  final Map<String, String> watermarkImageIds; // fieldId -> resolved watermark image
 
   const CardData({
     this.widthInches = 2.5,
@@ -42,6 +43,7 @@ class CardData {
     this.setSymbolImageId,
     this.setSymbolPlacement,
     this.setSymbolTint,
+    this.watermarkImageIds = const {},
   });
 
   /// Every image id the renderer needs decoded: card art, the template
@@ -52,6 +54,7 @@ class CardData {
       ...artImageIds.values,
       if (bgImageId != null) bgImageId!,
       if (setSymbolImageId != null) setSymbolImageId!,
+      ...watermarkImageIds.values,
     };
     for (final f in fields) {
       if (f.type != FieldType.cost) continue; // Rules joins with rich text
