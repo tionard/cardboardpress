@@ -5,6 +5,13 @@
 // artwork. Art images are decoded by this widget and handed to the renderer via
 // CardRefs.images — paintCard stays synchronous and never loads files itself.
 //
+// Layout (one set of widgets, switched by width breakpoint):
+//   * Phone (<720) — a TEMPLATE header on top, the preview filling the area
+//     above a slide-up DOCK (PreviewDockScaffold). The dock's grab handle drags
+//     to resize/collapse; the preview shrinks/grows to fill the space left over.
+//   * Tablet/desktop (>=720) — the same header on top, then preview · rail ·
+//     settings side-by-side (the established Windows arrangement).
+//
 // Split across parts (one library): the State + its logic + build live here;
 // the per-category settings panels and the leaf widgets (rail, swatch tile)
 // live in card_editor_panels.dart / card_editor_widgets.dart as, respectively,
@@ -25,6 +32,7 @@ import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../widgets/card_preview.dart';
+import '../../widgets/preview_dock.dart';
 
 part 'card_editor_panels.dart';
 part 'card_editor_widgets.dart';
@@ -377,6 +385,101 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     widget.repo.save(_working);
   }
 
+  // ---- shared chrome ----
+
+  /// The TEMPLATE header row (picker) shown above the preview on every layout.
+  /// Moved here from the Card settings panel so there is one picker, always in
+  /// the same place, matching the phone wireframes.
+  Widget _templateHeader() {
+    final scheme = Theme.of(context).colorScheme;
+    final currentId = widget.templates.any((t) => t.id == _working.templateId)
+        ? _working.templateId
+        : null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 12, 6),
+      child: Row(
+        children: [
+          Text(
+            'TEMPLATE',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  letterSpacing: 1.2,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+          ),
+          const Spacer(),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: scheme.outlineVariant),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  isDense: true,
+                  isExpanded: true,
+                  value: currentId,
+                  hint: const Text('No template'),
+                  icon: const Icon(Icons.expand_more, size: 20),
+                  borderRadius: BorderRadius.circular(12),
+                  items: [
+                    for (final t in widget.templates)
+                      DropdownMenuItem(
+                        value: t.id,
+                        child:
+                            Text(t.name, overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  // Show a little template glyph beside the name in the closed
+                  // state, like the pill in the wireframe.
+                  selectedItemBuilder: (context) => [
+                    for (final t in widget.templates)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.style_outlined,
+                              size: 16, color: scheme.onSurfaceVariant),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(t.name,
+                                overflow: TextOverflow.ellipsis),
+                          ),
+                        ],
+                      ),
+                  ],
+                  onChanged: _changeTemplate,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A preview that fits the card into whatever box it is handed — used on the
+  /// phone so the card scales as the dock grows/shrinks. Keeps the card's
+  /// aspect ratio, constrained by both the available width and height.
+  Widget _fittingPreview(CardData card, CardRefs refs) {
+    final aspect = card.widthInches / card.heightInches;
+    return LayoutBuilder(
+      builder: (context, c) {
+        const pad = 16.0;
+        final double availW = c.maxWidth - pad * 2;
+        final double availH = c.maxHeight - pad * 2;
+        if (availW <= 0 || availH <= 0) return const SizedBox.shrink();
+        double w = availW;
+        if (w / aspect > availH) w = availH * aspect; // height-constrained
+        return Padding(
+          padding: const EdgeInsets.all(pad),
+          child: Center(child: CardPreview(card: card, refs: refs, width: w)),
+        );
+      },
+    );
+  }
+
   // ---- layout ----
 
   @override
@@ -387,42 +490,60 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 720;
-        final preview = Padding(
-          padding: const EdgeInsets.all(16),
-          child: Center(
-            child: CardPreview(card: card, refs: refs, width: wide ? 300 : 220),
-          ),
-        );
 
         if (wide) {
-          return Row(
+          // Tablet / desktop: header on top, then preview · rail · settings.
+          final preview = Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: CardPreview(card: card, refs: refs, width: 300),
+            ),
+          );
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(flex: 5, child: preview),
-              _Rail(
-                  vertical: true,
-                  selected: _cat,
-                  onSelect: (c) => setState(() => _cat = c)),
+              _templateHeader(),
               Expanded(
-                flex: 4,
-                child: Material(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  child: _settings(),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(flex: 5, child: preview),
+                    _Rail(
+                        vertical: true,
+                        selected: _cat,
+                        onSelect: (c) => setState(() => _cat = c)),
+                    Expanded(
+                      flex: 4,
+                      child: Material(
+                        color:
+                            Theme.of(context).colorScheme.surfaceContainerLow,
+                        child: _settings(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           );
         }
 
-        return Column(
-          children: [
-            preview,
-            _Rail(
-                vertical: false,
+        // Phone: header on top, preview filling the space above a slide-up dock.
+        return PreviewDockScaffold(
+          header: _templateHeader(),
+          preview: _fittingPreview(card, refs),
+          dock: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Rail(
+                vertical: true,
+                scroll: true,
                 selected: _cat,
-                onSelect: (c) => setState(() => _cat = c)),
-            Expanded(child: _settings()),
-          ],
+                onSelect: (c) => setState(() => _cat = c),
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(child: _settings()),
+            ],
+          ),
         );
       },
     );

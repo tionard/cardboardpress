@@ -70,11 +70,19 @@ class _SwatchTile extends StatelessWidget {
 
 class _Rail extends StatelessWidget {
   final bool vertical;
+
+  /// When true (the phone dock), the vertical rail top-aligns and scrolls if the
+  /// tiles don't fit. Desktop leaves this false so the tiles stay centred.
+  final bool scroll;
   final _Cat selected;
   final ValueChanged<_Cat> onSelect;
 
-  const _Rail(
-      {required this.vertical, required this.selected, required this.onSelect});
+  const _Rail({
+    required this.vertical,
+    required this.selected,
+    required this.onSelect,
+    this.scroll = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -90,11 +98,20 @@ class _Rail extends StatelessWidget {
         ),
     ];
     if (vertical) {
+      final column = Column(
+        mainAxisAlignment:
+            scroll ? MainAxisAlignment.start : MainAxisAlignment.center,
+        children: tiles,
+      );
       return Container(
         width: 84,
         color: scheme.surfaceContainerHighest,
-        child: Column(
-            mainAxisAlignment: MainAxisAlignment.center, children: tiles),
+        child: scroll
+            ? SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: column,
+              )
+            : column,
       );
     }
     return Container(

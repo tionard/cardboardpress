@@ -27,22 +27,6 @@ extension _CardEditorPanels on _CardEditorBodyState {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Row(
-          children: [
-            const Text('Template: '),
-            DropdownButton<String>(
-              value: widget.templates.any((t) => t.id == _working.templateId)
-                  ? _working.templateId
-                  : null,
-              items: [
-                for (final t in widget.templates)
-                  DropdownMenuItem(value: t.id, child: Text(t.name)),
-              ],
-              onChanged: _changeTemplate,
-            ),
-          ],
-        ),
-        const Divider(height: 28),
         for (final f in _editableFields) ...[
           TextField(
             controller: _controllerFor(f),
@@ -57,7 +41,8 @@ extension _CardEditorPanels on _CardEditorBodyState {
         ],
         Text(
           'Each field autosaves as you type and the preview updates live. The '
-          'Footer is omitted — it shows values derived from the set and rarity.',
+          'Footer is omitted — it shows values derived from the set and rarity. '
+          'Switch templates from the picker at the top.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
