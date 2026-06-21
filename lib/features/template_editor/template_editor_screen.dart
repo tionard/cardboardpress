@@ -50,16 +50,26 @@ const _inkRef =
 
 /// Default text style for a freshly created/changed field. Multi-line types
 /// (rules, flavor) default to shrink-to-fit so long text stays inside the box.
+/// Everything is middle-anchored except Rules, which stays top-anchored so
+/// multi-line rules text reads top-down.
 TextStyleSpec _defaultTextFor(FieldType type) {
   final multiline = type == FieldType.rules || type == FieldType.flavor;
+  final isRules = type == FieldType.rules;
   return TextStyleSpec(
     sizeFrac: 0.035,
     colorRef: _inkRef,
+    vAlign: isRules ? VAlign.top : VAlign.middle,
+    padX: 0.025,
+    padY: isRules ? 0.015 : 0.0,
     fit: multiline ? TextFit.shrink : TextFit.fixed,
   );
 }
 
 const double _previewW = 280;
+
+// Shown in the Template Editor preview only, so the footer can be seen and
+// positioned. Real cards derive their footer from set/rarity/number instead.
+const _footerPlaceholder = '001/XXX · CORE · R';
 
 enum _Mode { layout, fields }
 
@@ -404,8 +414,11 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   Future<void> _syncImages() async {
     // Decode every image the previewed card needs (background + any Rules
     // watermark). composeCard resolves the watermark symbol ids to image ids.
-    final card =
-        composeCard(_d, content: sampleContent(), symbolsById: ref.read(symbolsMapProvider));
+    final card = composeCard(_d,
+        content: sampleContent(),
+        symbolImageIds: ref.read(textSymbolMapProvider),
+        symbolsById: ref.read(symbolsMapProvider),
+        footerPlaceholder: _footerPlaceholder);
     for (final id in card.imageIdsToDecode()) {
       if (_images.containsKey(id)) continue;
       final bytes = await widget.imageStore.load(id);
@@ -491,7 +504,10 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     final h = _previewW * _d.heightInches / _d.widthInches;
     final sel = _selectedField;
     final card = composeCard(_d,
-        content: sampleContent(), symbolsById: ref.watch(symbolsMapProvider));
+        content: sampleContent(),
+        symbolImageIds: ref.watch(textSymbolMapProvider),
+        symbolsById: ref.watch(symbolsMapProvider),
+        footerPlaceholder: _footerPlaceholder);
     return SizedBox(
       width: _previewW,
       height: h,

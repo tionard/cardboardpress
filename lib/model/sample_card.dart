@@ -11,9 +11,11 @@ import 'card_model.dart';
 
 // Stable field ids for the default layout.
 const fNameId = 'f_name';
+const fCostId = 'f_cost';
 const fArtId = 'f_art';
 const fTypeId = 'f_type';
 const fRulesId = 'f_rules';
+const fStatId = 'f_stat';
 const fFooterId = 'f_footer';
 
 // Seeded palette references reused across the default templates.
@@ -32,7 +34,16 @@ const _paperRef =
     ColorRef(id: 'c_paper', snapshot: ColorValue.single(Color(0xFFF1EFE8)));
 
 // The shared field layout. Only the Name text colour varies between templates.
+// List order = draw order (later fields paint on top):
+//   Art → Name → Cost → Type → Rules → Stat → Footer.
+// Anchors: every field is middle-anchored except Rules, which stays top-anchored
+// so multi-line rules text reads top-down. (padX/padY are left at their
+// defaults pending the padding-scale decision.)
 List<FieldSpec> _fields({required ColorRef nameTextRef}) => [
+      const FieldSpec(
+          id: fArtId,
+          type: FieldType.art,
+          frac: Rect.fromLTRB(0.06, 0.17, 0.94, 0.52)),
       FieldSpec(
         id: fNameId,
         type: FieldType.name,
@@ -40,17 +51,40 @@ List<FieldSpec> _fields({required ColorRef nameTextRef}) => [
         fill: _paperRef,
         fillAlpha: 0.85,
         outline: const OutlineSpec(intensity: 0.45),
-        text: TextStyleSpec(sizeFrac: 0.05, bold: true, colorRef: nameTextRef),
+        text: TextStyleSpec(
+            sizeFrac: 0.05,
+            bold: true,
+            vAlign: VAlign.middle,
+            padX: 0.025,
+            colorRef: nameTextRef),
       ),
+      // Cost overlays the Name bar: same box, transparent fill, right-aligned —
+      // the MTG-style mana cost tucked into the top-right of the title.
       const FieldSpec(
-          id: fArtId, type: FieldType.art, frac: Rect.fromLTRB(0.06, 0.17, 0.94, 0.52)),
+        id: fCostId,
+        type: FieldType.cost,
+        frac: Rect.fromLTRB(0.06, 0.05, 0.94, 0.15),
+        text: TextStyleSpec(
+          sizeFrac: 0.045,
+          align: TextAlign.right,
+          vAlign: VAlign.middle,
+          padX: 0.025,
+          colorRef: _inkRef,
+        ),
+      ),
       const FieldSpec(
         id: fTypeId,
         type: FieldType.type,
         frac: Rect.fromLTRB(0.06, 0.54, 0.94, 0.62),
         fill: _paperRef,
         fillAlpha: 0.7,
-        text: TextStyleSpec(sizeFrac: 0.032, bold: true, colorRef: _inkRef),
+        outline: OutlineSpec(intensity: 0.45),
+        text: TextStyleSpec(
+            sizeFrac: 0.032,
+            bold: true,
+            vAlign: VAlign.middle,
+            padX: 0.025,
+            colorRef: _inkRef),
       ),
       const FieldSpec(
         id: fRulesId,
@@ -59,14 +93,42 @@ List<FieldSpec> _fields({required ColorRef nameTextRef}) => [
         fill: _paperRef,
         fillAlpha: 0.55,
         outline: OutlineSpec(intensity: 0.3),
-        text: TextStyleSpec(sizeFrac: 0.03, colorRef: _inkRef),
+        text: TextStyleSpec(
+            sizeFrac: 0.03,
+            vAlign: VAlign.top,
+            padX: 0.025,
+            padY: 0.015,
+            colorRef: _inkRef),
+      ),
+      // Stat (power/toughness) plate in the bottom-right corner of the Rules box.
+      const FieldSpec(
+        id: fStatId,
+        type: FieldType.stat,
+        frac: Rect.fromLTRB(0.74, 0.80, 0.94, 0.895),
+        fill: _paperRef,
+        fillAlpha: 1.0,
+        outline: OutlineSpec(intensity: 0.45),
+        text: TextStyleSpec(
+          sizeFrac: 0.045,
+          bold: true,
+          align: TextAlign.center,
+          vAlign: VAlign.middle,
+          padX: 0.025,
+          colorRef: _inkRef,
+          colorAlpha: 1.0,
+        ),
       ),
       const FieldSpec(
         id: fFooterId,
         type: FieldType.footer,
         frac: Rect.fromLTRB(0.06, 0.905, 0.94, 0.96),
         text: TextStyleSpec(
-            sizeFrac: 0.022, align: TextAlign.left, colorRef: _inkRef, colorAlpha: 0.6),
+            sizeFrac: 0.022,
+            align: TextAlign.left,
+            vAlign: VAlign.middle,
+            padX: 0.025,
+            colorRef: _inkRef,
+            colorAlpha: 0.6),
       ),
     ];
 
@@ -96,8 +158,10 @@ TemplateData starterTemplate() => _parchment();
 /// Sample card content, keyed by field id.
 CardContent sampleContent() => const CardContent(text: {
       fNameId: 'Thornwood Stag',
+      fCostId: '{G}',
       fTypeId: 'Creature — Beast',
       fRulesId: 'Vigilance. When this enters, scry 2.',
+      fStatId: '3/4',
       fFooterId: '001/120 · TWD · © 26',
     });
 
@@ -110,6 +174,7 @@ String deriveFooterText({
   RarityEntry? rarity,
   int? number,
   int? total,
+  String? placeholder,
 }) {
   final parts = <String>[];
   if (set != null && set.numbering && number != null && total != null) {
@@ -123,6 +188,10 @@ String deriveFooterText({
   if (set != null) {
     parts.add(set.owner.isEmpty ? '© ${set.year}' : '© ${set.year} ${set.owner}');
   }
+  // Nothing resolved yet. The Template Editor passes a placeholder so the
+  // footer can be seen and positioned; real cards leave it blank until a
+  // set/rarity/number exists.
+  if (parts.isEmpty) return placeholder ?? '';
   return parts.join('  ·  ');
 }
 
@@ -138,6 +207,7 @@ CardData composeCard(
   int? total,
   Map<String, String> symbolImageIds = const {},
   Map<String, SymbolEntry> symbolsById = const {},
+  String? footerPlaceholder,
 }) {
   final footer = deriveFooterText(
     artist: content.artist,
@@ -145,6 +215,7 @@ CardData composeCard(
     rarity: rarity,
     number: number,
     total: total,
+    placeholder: footerPlaceholder,
   );
   final text = Map<String, String>.from(content.text);
   for (final f in t.fields) {
