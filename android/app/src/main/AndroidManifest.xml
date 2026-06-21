@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- gal needs this to save images to the gallery on Android 9 and below.
+         On Android 10+ it writes via MediaStore with no runtime permission;
+         maxSdkVersion keeps this permission off newer devices. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
     <application
         android:label="cardboardpress"
         android:name="${applicationName}"

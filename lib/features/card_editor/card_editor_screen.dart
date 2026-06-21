@@ -22,6 +22,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -338,6 +339,46 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  // Android: save the rendered PNG straight into the photo gallery.
+  Future<void> _saveToGallery() async {
+    setState(() => _exporting = true);
+    try {
+      final card = _compose();
+      final refs = CardRefs(palette: widget.palette, images: _images);
+      final name = await widget.exporter.saveToGallery(card, refs);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved "$name" to your photos')));
+    } on GalleryAccessDenied {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Photo access was denied — enable it in Settings to save cards.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Save failed: $e')));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  // Android: render to a temp PNG and open the system share sheet.
+  Future<void> _shareImage() async {
+    setState(() => _exporting = true);
+    try {
+      final card = _compose();
+      final refs = CardRefs(palette: widget.palette, images: _images);
+      await widget.exporter.shareImage(card, refs);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Share failed: $e')));
     } finally {
       if (mounted) setState(() => _exporting = false);
     }

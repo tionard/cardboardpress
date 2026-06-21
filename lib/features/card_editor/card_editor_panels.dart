@@ -311,28 +311,47 @@ extension _CardEditorPanels on _CardEditorBodyState {
   }
 
   Widget _exportSettings() {
+    final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+    final spinner = _exporting
+        ? const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2))
+        : null;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Text('Export', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Text(
-          'Renders this card at 300 dpi (750×1050 px) through the same '
-          'paintCard the preview uses, so the PNG matches exactly — including '
-          'art and colours. You choose where to save it.',
+          isAndroid
+              ? 'Renders this card at 300 dpi (750×1050 px) through the same '
+                  'paintCard the preview uses, so the image matches exactly. '
+                  'Save it to your photos or share it straight from here.'
+              : 'Renders this card at 300 dpi (750×1050 px) through the same '
+                  'paintCard the preview uses, so the PNG matches exactly — '
+                  'including art and colours. You choose where to save it.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 16),
-        FilledButton.icon(
-          onPressed: _exporting ? null : _exportPng,
-          icon: _exporting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.download_outlined),
-          label: Text(_exporting ? 'Exporting…' : 'Export PNG…'),
-        ),
+        if (isAndroid) ...[
+          FilledButton.icon(
+            onPressed: _exporting ? null : _saveToGallery,
+            icon: spinner ?? const Icon(Icons.photo_library_outlined),
+            label: Text(_exporting ? 'Working…' : 'Save to Photos'),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _exporting ? null : _shareImage,
+            icon: const Icon(Icons.ios_share_outlined),
+            label: const Text('Share…'),
+          ),
+        ] else
+          FilledButton.icon(
+            onPressed: _exporting ? null : _exportPng,
+            icon: spinner ?? const Icon(Icons.download_outlined),
+            label: Text(_exporting ? 'Exporting…' : 'Export PNG…'),
+          ),
       ],
     );
   }
