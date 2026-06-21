@@ -171,12 +171,12 @@ class SymbolManager extends ConsumerWidget {
                   OutlinedButton.icon(
                     onPressed: () async {
                       final res = await FilePicker.pickFiles(
-                          type: FileType.image, withData: true);
+                          type: FileType.image);
                       if (res == null) return;
                       final f = res.files.first;
-                      if (f.bytes == null) return;
+                      final picked = await f.readAsBytes();
                       setLocal(() {
-                        bytes = f.bytes;
+                        bytes = picked;
                         ext = (f.extension ?? 'png').toLowerCase();
                       });
                     },
@@ -262,13 +262,13 @@ class SymbolManager extends ConsumerWidget {
   Future<void> _replaceImage(
       BuildContext context, WidgetRef ref, SymbolEntry s) async {
     final res =
-        await FilePicker.pickFiles(type: FileType.image, withData: true);
+        await FilePicker.pickFiles(type: FileType.image);
     if (res == null) return;
     final f = res.files.first;
-    if (f.bytes == null) return;
+    final bytes = await f.readAsBytes();
     final id = await ref
         .read(imageStoreProvider)
-        .save(f.bytes!, ext: (f.extension ?? 'png').toLowerCase());
+        .save(bytes, ext: (f.extension ?? 'png').toLowerCase());
     await ref.read(symbolRepositoryProvider).replaceImage(s.id, id);
     // (The old image file is left on disk; orphan cleanup is handled elsewhere.)
   }

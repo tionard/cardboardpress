@@ -416,12 +416,10 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   }
 
   Future<void> _pickBgImage() async {
-    final result =
-        await FilePicker.pickFiles(type: FileType.image, withData: true);
+    final result = await FilePicker.pickFiles(type: FileType.image);
     if (result == null) return;
     final file = result.files.first;
-    final bytes = file.bytes;
-    if (bytes == null) return;
+    final bytes = await file.readAsBytes();
     final imageId = await widget.imageStore
         .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
     final img = await _decode(bytes);

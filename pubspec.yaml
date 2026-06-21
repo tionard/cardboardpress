@@ -42,7 +42,6 @@ dependencies:
   path: ^1.9.1
   gal: ^2.3.0          # save exported PNGs to the device gallery (Android)
   share_plus: ^13.1.0  # 13.x uses win32 ^6.x, matching file_picker 12.x (12.x needs win32 ^6.3.0, share_plus 12.x pinned win32 ^5.5.3 — incompatible). Same SharePlus.instance.share API.
-  cross_file: ^0.3.0   # XFile, used by share_plus's ShareParams
 
 dev_dependencies:
   flutter_test:
