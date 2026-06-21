@@ -30,6 +30,7 @@ import '../../state/providers.dart';
 import '../../widgets/card_preview.dart';
 import '../../widgets/decoded_card_preview.dart';
 import '../../widgets/labeled_slider.dart';
+import '../../widgets/preview_dock.dart';
 import '../customization/symbol_picker.dart';
 
 part 'template_editor_widgets.dart';
@@ -730,11 +731,6 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
 
   @override
   Widget build(BuildContext context) {
-    final preview = Padding(
-      padding: const EdgeInsets.all(16),
-      child: Center(child: _previewWithOverlay()),
-    );
-
     final pane = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -755,32 +751,63 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
       ],
     );
 
-    return Column(
-      children: [
-        _editorHeader(),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 720;
-              if (wide) {
-                return Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 720;
+        if (wide) {
+          // Desktop: header on top, fixed-width preview beside the pane.
+          final preview = Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(child: _previewWithOverlay(_previewW)),
+          );
+          return Column(
+            children: [
+              _editorHeader(),
+              Expanded(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(flex: 5, child: preview),
                     Expanded(flex: 5, child: pane),
                   ],
-                );
-              }
-              return Column(children: [preview, Expanded(child: pane)]);
-            },
-          ),
-        ),
-      ],
+                ),
+              ),
+            ],
+          );
+        }
+        // Phone: the same slide-up dock as the Card Editor. The preview scales
+        // to fill the space above the dock as the handle is dragged.
+        return PreviewDockScaffold(
+          header: _editorHeader(),
+          preview: _fittingPreviewWithOverlay(),
+          dock: pane,
+        );
+      },
     );
   }
 
-  Widget _previewWithOverlay() {
-    final h = _previewW * _d.heightInches / _d.widthInches;
+  // Fit the preview (and its overlays) into whatever box it's handed, so it can
+  // scale as the dock grows/shrinks on the phone.
+  Widget _fittingPreviewWithOverlay() {
+    final aspect = _d.widthInches / _d.heightInches;
+    return LayoutBuilder(
+      builder: (context, c) {
+        const pad = 16.0;
+        final double availW = c.maxWidth - pad * 2;
+        final double availH = c.maxHeight - pad * 2;
+        if (availW <= 0 || availH <= 0) return const SizedBox.shrink();
+        double w = availW;
+        if (w / aspect > availH) w = availH * aspect;
+        return Padding(
+          padding: const EdgeInsets.all(pad),
+          child: Center(child: _previewWithOverlay(w)),
+        );
+      },
+    );
+  }
+
+  Widget _previewWithOverlay(double w) {
+    final h = w * _d.heightInches / _d.widthInches;
     final sel = _selectedField;
     final card = composeCard(_d,
         content: sampleContent(),
@@ -788,19 +815,19 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
         symbolsById: ref.watch(symbolsMapProvider),
         footerPlaceholder: _footerPlaceholder);
     return SizedBox(
-      width: _previewW,
+      width: w,
       height: h,
       child: Stack(
         children: [
           CardPreview(
               card: card,
               refs: CardRefs(palette: widget.palette, images: _images),
-              width: _previewW),
+              width: w),
           if (_mode == _Mode.fields && sel != null)
             Positioned(
-              left: sel.frac.left * _previewW,
+              left: sel.frac.left * w,
               top: sel.frac.top * h,
-              width: sel.frac.width * _previewW,
+              width: sel.frac.width * w,
               height: sel.frac.height * h,
               child: IgnorePointer(
                 child: Container(
@@ -815,9 +842,9 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
           // cards, where the set has chosen one — here we just show the zone).
           if (_d.setSymbol.enabled)
             Positioned(
-              left: _d.setSymbol.frac.left * _previewW,
+              left: _d.setSymbol.frac.left * w,
               top: _d.setSymbol.frac.top * h,
-              width: _d.setSymbol.frac.width * _previewW,
+              width: _d.setSymbol.frac.width * w,
               height: _d.setSymbol.frac.height * h,
               child: IgnorePointer(
                 child: Container(

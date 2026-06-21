@@ -49,12 +49,17 @@ class AppShell extends ConsumerWidget {
     final index = ref.watch(selectedTabProvider).clamp(0, tabs.length - 1);
 
     return Scaffold(
-      appBar: AppBar(title: Text(tabs[index].label)),
-      // IndexedStack keeps every tab alive and preserves its state (scroll
-      // position, selections) instead of rebuilding from scratch on each switch.
-      body: IndexedStack(
-        index: index,
-        children: [for (final t in tabs) t.screen],
+      // No AppBar: every screen carries its own title/header, so a shell-level
+      // title bar just duplicated it. SafeArea keeps content clear of the status
+      // bar (the bottom inset is handled by the navigation bar below).
+      body: SafeArea(
+        bottom: false,
+        // IndexedStack keeps every tab alive and preserves its state (scroll
+        // position, selections) instead of rebuilding from scratch on each switch.
+        child: IndexedStack(
+          index: index,
+          children: [for (final t in tabs) t.screen],
+        ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
