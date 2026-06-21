@@ -5,40 +5,19 @@ part of 'template_editor_screen.dart';
 extension _TemplateEditorShared on _TemplateBodyState {
   // ---- shared bits ----
 
-  // Fine controls (small ranges like sizes/thicknesses) read better with more
-  // precision than coarse 0..1/0..3 sliders.
-  String _fmtSlider(double v, double max) =>
-      max <= 0.2 ? v.toStringAsFixed(3) : v.toStringAsFixed(2);
-
   Widget _labeledSlider(String label, double value, double min, double max,
       ValueChanged<double> onChanged,
       {double? step}) {
-    final shown = value.clamp(min, max);
-    // Snap to discrete steps. Fine ranges step by 0.005, coarser ones by 0.05,
-    // unless the caller overrides (e.g. position uses clean 1% steps).
-    final s = step ?? ((max - min) <= 0.15 ? 0.005 : 0.05);
-    final divisions = ((max - min) / s).round().clamp(1, 1000);
-    return Row(children: [
-      SizedBox(
-          width: 80,
-          child: Text(label, style: Theme.of(context).textTheme.bodySmall)),
-      Expanded(
-        child: Slider(
-            value: shown,
-            min: min,
-            max: max,
-            divisions: divisions,
-            onChanged: onChanged),
-      ),
-      SizedBox(
-        width: 40,
-        child: Text(
-          _fmtSlider(shown, max),
-          textAlign: TextAlign.end,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ),
-    ]);
+    // Fine ranges (sizes/thicknesses) read better with an extra decimal.
+    return LabeledSlider(
+      label: label,
+      value: value,
+      min: min,
+      max: max,
+      step: step,
+      decimals: max <= 0.2 ? 3 : 2,
+      onChanged: onChanged,
+    );
   }
 
   Widget _swatch(ColorValue v, bool selected, VoidCallback onTap) {

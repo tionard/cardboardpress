@@ -67,25 +67,16 @@ extension _TemplateLayoutPane on _TemplateBodyState {
         ],
         const SizedBox(height: 16),
         Text('Corner radius', style: Theme.of(context).textTheme.titleSmall),
-        Row(children: [
-          Expanded(
-            child: Slider(
-              value: _d.cornerRadiusFrac.clamp(0.0, 0.12),
-              min: 0.0,
-              max: 0.12,
-              divisions: 24,
-              onChanged: (v) => _update(_d.copyWith(cornerRadiusFrac: v)),
-            ),
-          ),
-          SizedBox(
-            width: 40,
-            child: Text(
-              _fmtSlider(_d.cornerRadiusFrac.clamp(0.0, 0.12), 0.12),
-              textAlign: TextAlign.end,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        ]),
+        LabeledSlider(
+          label: '',
+          labelWidth: 0,
+          value: _d.cornerRadiusFrac.clamp(0.0, 0.12),
+          min: 0.0,
+          max: 0.12,
+          step: 0.005,
+          decimals: 3,
+          onChanged: (v) => _update(_d.copyWith(cornerRadiusFrac: v)),
+        ),
         const SizedBox(height: 8),
         Text('Card size', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),

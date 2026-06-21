@@ -28,6 +28,7 @@ import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../widgets/card_preview.dart';
+import '../../widgets/labeled_slider.dart';
 import '../customization/symbol_picker.dart';
 
 part 'template_editor_widgets.dart';

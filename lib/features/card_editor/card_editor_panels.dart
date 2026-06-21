@@ -123,33 +123,14 @@ extension _CardEditorPanels on _CardEditorBodyState {
 
     Widget slider(String label, double value, double min, double max,
         ValueChanged<double> onChanged) {
-      final shown = value.clamp(min, max);
-      final step = (max - min) <= 0.15 ? 0.005 : 0.05;
-      final divisions = ((max - min) / step).round().clamp(1, 1000);
-      return Row(
-        children: [
-          SizedBox(
-            width: 78,
-            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
-          ),
-          Expanded(
-            child: Slider(
-              value: shown,
-              min: min,
-              max: max,
-              divisions: divisions,
-              onChanged: onChanged,
-            ),
-          ),
-          SizedBox(
-            width: 40,
-            child: Text(
-              shown.toStringAsFixed(2),
-              textAlign: TextAlign.end,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        ],
+      return LabeledSlider(
+        label: label,
+        value: value,
+        min: min,
+        max: max,
+        decimals: 2,
+        labelWidth: 78,
+        onChanged: onChanged,
       );
     }
 
@@ -266,24 +247,16 @@ extension _CardEditorPanels on _CardEditorBodyState {
         ),
         if (_working.content.tint != null) ...[
           const SizedBox(height: 12),
-          Row(children: [
-            const SizedBox(width: 70, child: Text('Opacity')),
-            Expanded(
-              child: Slider(
-                value: _working.content.tintAlpha.clamp(0.0, 1.0),
-                divisions: 20,
-                onChanged: _setTintAlpha,
-              ),
-            ),
-            SizedBox(
-              width: 40,
-              child: Text(
-                _working.content.tintAlpha.clamp(0.0, 1.0).toStringAsFixed(2),
-                textAlign: TextAlign.end,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          ]),
+          LabeledSlider(
+            label: 'Opacity',
+            value: _working.content.tintAlpha.clamp(0.0, 1.0),
+            min: 0,
+            max: 1,
+            step: 0.05,
+            decimals: 2,
+            labelWidth: 70,
+            onChanged: _setTintAlpha,
+          ),
         ],
         const SizedBox(height: 20),
         Text('Foil', style: Theme.of(context).textTheme.titleSmall),
