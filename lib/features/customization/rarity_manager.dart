@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../model/card_model.dart';
 import '../../state/providers.dart';
+import '../../widgets/swatch_picker.dart';
 
 class RarityManager extends ConsumerWidget {
   const RarityManager({super.key});
@@ -132,23 +133,22 @@ class RarityManager extends ConsumerWidget {
                 Text('Colour (tints the set symbol)',
                     style: Theme.of(ctx).textTheme.bodySmall),
                 const SizedBox(height: 8),
-                Wrap(
+                SwatchPicker(
+                  swatches: swatches,
+                  use: SwatchUse.symbol,
+                  selectedId: color?.id,
                   spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _ColorChoice(
-                      value: null,
-                      selected: color == null,
-                      onTap: () => setLocal(() => color = null),
-                    ),
-                    for (final s in swatches)
-                      _ColorChoice(
-                        value: s.value,
-                        selected: color?.id == s.id,
-                        onTap: () => setLocal(() =>
-                            color = ColorRef(id: s.id, snapshot: s.value)),
-                      ),
-                  ],
+                  leading: _ColorChoice(
+                    value: null,
+                    selected: color == null,
+                    onTap: () => setLocal(() => color = null),
+                  ),
+                  tileBuilder: (s) => _ColorChoice(
+                    value: s.value,
+                    selected: color?.id == s.id,
+                    onTap: () => setLocal(
+                        () => color = ColorRef(id: s.id, snapshot: s.value)),
+                  ),
                 ),
                 if (swatches.isEmpty)
                   Padding(

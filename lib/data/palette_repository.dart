@@ -46,6 +46,9 @@ class PaletteRepository {
       orientation: Value(
           v.orientation == MixOrientation.horizontal ? 'horizontal' : 'vertical'),
       mix: Value(v.mix),
+      tagCard: Value(s.tagCard),
+      tagText: Value(s.tagText),
+      tagSymbol: Value(s.tagSymbol),
       position: position,
     );
   }
@@ -62,6 +65,13 @@ class PaletteRepository {
                 : MixOrientation.vertical,
             mix: row.mix,
           );
-    return PaletteSwatch(id: row.id, name: row.name, value: value);
+    return PaletteSwatch(
+      id: row.id,
+      name: row.name,
+      value: value,
+      tagCard: row.tagCard,
+      tagText: row.tagText,
+      tagSymbol: row.tagSymbol,
+    );
   }
 }

@@ -79,6 +79,51 @@ class $PaletteColorsTable extends PaletteColors
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _tagCardMeta = const VerificationMeta(
+    'tagCard',
+  );
+  @override
+  late final GeneratedColumn<bool> tagCard = GeneratedColumn<bool>(
+    'tag_card',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("tag_card" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _tagTextMeta = const VerificationMeta(
+    'tagText',
+  );
+  @override
+  late final GeneratedColumn<bool> tagText = GeneratedColumn<bool>(
+    'tag_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("tag_text" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _tagSymbolMeta = const VerificationMeta(
+    'tagSymbol',
+  );
+  @override
+  late final GeneratedColumn<bool> tagSymbol = GeneratedColumn<bool>(
+    'tag_symbol',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("tag_symbol" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -88,6 +133,9 @@ class $PaletteColorsTable extends PaletteColors
     orientation,
     mix,
     position,
+    tagCard,
+    tagText,
+    tagSymbol,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -143,6 +191,24 @@ class $PaletteColorsTable extends PaletteColors
         position.isAcceptableOrUnknown(data['position']!, _positionMeta),
       );
     }
+    if (data.containsKey('tag_card')) {
+      context.handle(
+        _tagCardMeta,
+        tagCard.isAcceptableOrUnknown(data['tag_card']!, _tagCardMeta),
+      );
+    }
+    if (data.containsKey('tag_text')) {
+      context.handle(
+        _tagTextMeta,
+        tagText.isAcceptableOrUnknown(data['tag_text']!, _tagTextMeta),
+      );
+    }
+    if (data.containsKey('tag_symbol')) {
+      context.handle(
+        _tagSymbolMeta,
+        tagSymbol.isAcceptableOrUnknown(data['tag_symbol']!, _tagSymbolMeta),
+      );
+    }
     return context;
   }
 
@@ -180,6 +246,18 @@ class $PaletteColorsTable extends PaletteColors
         DriftSqlType.int,
         data['${effectivePrefix}position'],
       )!,
+      tagCard: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tag_card'],
+      )!,
+      tagText: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tag_text'],
+      )!,
+      tagSymbol: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tag_symbol'],
+      )!,
     );
   }
 
@@ -197,6 +275,9 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
   final String orientation;
   final double mix;
   final int position;
+  final bool tagCard;
+  final bool tagText;
+  final bool tagSymbol;
   const PaletteColor({
     required this.id,
     required this.name,
@@ -205,6 +286,9 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
     required this.orientation,
     required this.mix,
     required this.position,
+    required this.tagCard,
+    required this.tagText,
+    required this.tagSymbol,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -218,6 +302,9 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
     map['orientation'] = Variable<String>(orientation);
     map['mix'] = Variable<double>(mix);
     map['position'] = Variable<int>(position);
+    map['tag_card'] = Variable<bool>(tagCard);
+    map['tag_text'] = Variable<bool>(tagText);
+    map['tag_symbol'] = Variable<bool>(tagSymbol);
     return map;
   }
 
@@ -230,6 +317,9 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
       orientation: Value(orientation),
       mix: Value(mix),
       position: Value(position),
+      tagCard: Value(tagCard),
+      tagText: Value(tagText),
+      tagSymbol: Value(tagSymbol),
     );
   }
 
@@ -246,6 +336,9 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
       orientation: serializer.fromJson<String>(json['orientation']),
       mix: serializer.fromJson<double>(json['mix']),
       position: serializer.fromJson<int>(json['position']),
+      tagCard: serializer.fromJson<bool>(json['tagCard']),
+      tagText: serializer.fromJson<bool>(json['tagText']),
+      tagSymbol: serializer.fromJson<bool>(json['tagSymbol']),
     );
   }
   @override
@@ -259,6 +352,9 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
       'orientation': serializer.toJson<String>(orientation),
       'mix': serializer.toJson<double>(mix),
       'position': serializer.toJson<int>(position),
+      'tagCard': serializer.toJson<bool>(tagCard),
+      'tagText': serializer.toJson<bool>(tagText),
+      'tagSymbol': serializer.toJson<bool>(tagSymbol),
     };
   }
 
@@ -270,6 +366,9 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
     String? orientation,
     double? mix,
     int? position,
+    bool? tagCard,
+    bool? tagText,
+    bool? tagSymbol,
   }) => PaletteColor(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -278,6 +377,9 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
     orientation: orientation ?? this.orientation,
     mix: mix ?? this.mix,
     position: position ?? this.position,
+    tagCard: tagCard ?? this.tagCard,
+    tagText: tagText ?? this.tagText,
+    tagSymbol: tagSymbol ?? this.tagSymbol,
   );
   PaletteColor copyWithCompanion(PaletteColorsCompanion data) {
     return PaletteColor(
@@ -290,6 +392,9 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
           : this.orientation,
       mix: data.mix.present ? data.mix.value : this.mix,
       position: data.position.present ? data.position.value : this.position,
+      tagCard: data.tagCard.present ? data.tagCard.value : this.tagCard,
+      tagText: data.tagText.present ? data.tagText.value : this.tagText,
+      tagSymbol: data.tagSymbol.present ? data.tagSymbol.value : this.tagSymbol,
     );
   }
 
@@ -302,13 +407,27 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
           ..write('c2: $c2, ')
           ..write('orientation: $orientation, ')
           ..write('mix: $mix, ')
-          ..write('position: $position')
+          ..write('position: $position, ')
+          ..write('tagCard: $tagCard, ')
+          ..write('tagText: $tagText, ')
+          ..write('tagSymbol: $tagSymbol')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, c1, c2, orientation, mix, position);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    c1,
+    c2,
+    orientation,
+    mix,
+    position,
+    tagCard,
+    tagText,
+    tagSymbol,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -319,7 +438,10 @@ class PaletteColor extends DataClass implements Insertable<PaletteColor> {
           other.c2 == this.c2 &&
           other.orientation == this.orientation &&
           other.mix == this.mix &&
-          other.position == this.position);
+          other.position == this.position &&
+          other.tagCard == this.tagCard &&
+          other.tagText == this.tagText &&
+          other.tagSymbol == this.tagSymbol);
 }
 
 class PaletteColorsCompanion extends UpdateCompanion<PaletteColor> {
@@ -330,6 +452,9 @@ class PaletteColorsCompanion extends UpdateCompanion<PaletteColor> {
   final Value<String> orientation;
   final Value<double> mix;
   final Value<int> position;
+  final Value<bool> tagCard;
+  final Value<bool> tagText;
+  final Value<bool> tagSymbol;
   final Value<int> rowid;
   const PaletteColorsCompanion({
     this.id = const Value.absent(),
@@ -339,6 +464,9 @@ class PaletteColorsCompanion extends UpdateCompanion<PaletteColor> {
     this.orientation = const Value.absent(),
     this.mix = const Value.absent(),
     this.position = const Value.absent(),
+    this.tagCard = const Value.absent(),
+    this.tagText = const Value.absent(),
+    this.tagSymbol = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PaletteColorsCompanion.insert({
@@ -349,6 +477,9 @@ class PaletteColorsCompanion extends UpdateCompanion<PaletteColor> {
     this.orientation = const Value.absent(),
     this.mix = const Value.absent(),
     this.position = const Value.absent(),
+    this.tagCard = const Value.absent(),
+    this.tagText = const Value.absent(),
+    this.tagSymbol = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -361,6 +492,9 @@ class PaletteColorsCompanion extends UpdateCompanion<PaletteColor> {
     Expression<String>? orientation,
     Expression<double>? mix,
     Expression<int>? position,
+    Expression<bool>? tagCard,
+    Expression<bool>? tagText,
+    Expression<bool>? tagSymbol,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -371,6 +505,9 @@ class PaletteColorsCompanion extends UpdateCompanion<PaletteColor> {
       if (orientation != null) 'orientation': orientation,
       if (mix != null) 'mix': mix,
       if (position != null) 'position': position,
+      if (tagCard != null) 'tag_card': tagCard,
+      if (tagText != null) 'tag_text': tagText,
+      if (tagSymbol != null) 'tag_symbol': tagSymbol,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -383,6 +520,9 @@ class PaletteColorsCompanion extends UpdateCompanion<PaletteColor> {
     Value<String>? orientation,
     Value<double>? mix,
     Value<int>? position,
+    Value<bool>? tagCard,
+    Value<bool>? tagText,
+    Value<bool>? tagSymbol,
     Value<int>? rowid,
   }) {
     return PaletteColorsCompanion(
@@ -393,6 +533,9 @@ class PaletteColorsCompanion extends UpdateCompanion<PaletteColor> {
       orientation: orientation ?? this.orientation,
       mix: mix ?? this.mix,
       position: position ?? this.position,
+      tagCard: tagCard ?? this.tagCard,
+      tagText: tagText ?? this.tagText,
+      tagSymbol: tagSymbol ?? this.tagSymbol,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -421,6 +564,15 @@ class PaletteColorsCompanion extends UpdateCompanion<PaletteColor> {
     if (position.present) {
       map['position'] = Variable<int>(position.value);
     }
+    if (tagCard.present) {
+      map['tag_card'] = Variable<bool>(tagCard.value);
+    }
+    if (tagText.present) {
+      map['tag_text'] = Variable<bool>(tagText.value);
+    }
+    if (tagSymbol.present) {
+      map['tag_symbol'] = Variable<bool>(tagSymbol.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -437,6 +589,9 @@ class PaletteColorsCompanion extends UpdateCompanion<PaletteColor> {
           ..write('orientation: $orientation, ')
           ..write('mix: $mix, ')
           ..write('position: $position, ')
+          ..write('tagCard: $tagCard, ')
+          ..write('tagText: $tagText, ')
+          ..write('tagSymbol: $tagSymbol, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2735,6 +2890,9 @@ typedef $$PaletteColorsTableCreateCompanionBuilder =
       Value<String> orientation,
       Value<double> mix,
       Value<int> position,
+      Value<bool> tagCard,
+      Value<bool> tagText,
+      Value<bool> tagSymbol,
       Value<int> rowid,
     });
 typedef $$PaletteColorsTableUpdateCompanionBuilder =
@@ -2746,6 +2904,9 @@ typedef $$PaletteColorsTableUpdateCompanionBuilder =
       Value<String> orientation,
       Value<double> mix,
       Value<int> position,
+      Value<bool> tagCard,
+      Value<bool> tagText,
+      Value<bool> tagSymbol,
       Value<int> rowid,
     });
 
@@ -2790,6 +2951,21 @@ class $$PaletteColorsTableFilterComposer
 
   ColumnFilters<int> get position => $composableBuilder(
     column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get tagCard => $composableBuilder(
+    column: $table.tagCard,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get tagText => $composableBuilder(
+    column: $table.tagText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get tagSymbol => $composableBuilder(
+    column: $table.tagSymbol,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2837,6 +3013,21 @@ class $$PaletteColorsTableOrderingComposer
     column: $table.position,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get tagCard => $composableBuilder(
+    column: $table.tagCard,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get tagText => $composableBuilder(
+    column: $table.tagText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get tagSymbol => $composableBuilder(
+    column: $table.tagSymbol,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PaletteColorsTableAnnotationComposer
@@ -2870,6 +3061,15 @@ class $$PaletteColorsTableAnnotationComposer
 
   GeneratedColumn<int> get position =>
       $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<bool> get tagCard =>
+      $composableBuilder(column: $table.tagCard, builder: (column) => column);
+
+  GeneratedColumn<bool> get tagText =>
+      $composableBuilder(column: $table.tagText, builder: (column) => column);
+
+  GeneratedColumn<bool> get tagSymbol =>
+      $composableBuilder(column: $table.tagSymbol, builder: (column) => column);
 }
 
 class $$PaletteColorsTableTableManager
@@ -2910,6 +3110,9 @@ class $$PaletteColorsTableTableManager
                 Value<String> orientation = const Value.absent(),
                 Value<double> mix = const Value.absent(),
                 Value<int> position = const Value.absent(),
+                Value<bool> tagCard = const Value.absent(),
+                Value<bool> tagText = const Value.absent(),
+                Value<bool> tagSymbol = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PaletteColorsCompanion(
                 id: id,
@@ -2919,6 +3122,9 @@ class $$PaletteColorsTableTableManager
                 orientation: orientation,
                 mix: mix,
                 position: position,
+                tagCard: tagCard,
+                tagText: tagText,
+                tagSymbol: tagSymbol,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2930,6 +3136,9 @@ class $$PaletteColorsTableTableManager
                 Value<String> orientation = const Value.absent(),
                 Value<double> mix = const Value.absent(),
                 Value<int> position = const Value.absent(),
+                Value<bool> tagCard = const Value.absent(),
+                Value<bool> tagText = const Value.absent(),
+                Value<bool> tagSymbol = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PaletteColorsCompanion.insert(
                 id: id,
@@ -2939,6 +3148,9 @@ class $$PaletteColorsTableTableManager
                 orientation: orientation,
                 mix: mix,
                 position: position,
+                tagCard: tagCard,
+                tagText: tagText,
+                tagSymbol: tagSymbol,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

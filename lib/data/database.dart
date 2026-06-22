@@ -22,6 +22,12 @@ class PaletteColors extends Table {
       text().withDefault(const Constant('vertical'))();
   RealColumn get mix => real().withDefault(const Constant(0.3))();
   IntColumn get position => integer().withDefault(const Constant(0))();
+  // Usage tags: which contexts a colour picker shows this swatch in by default.
+  // They filter, never forbid — every picker offers "show all". Default all-on,
+  // so existing swatches behave exactly as before until a user curates them.
+  BoolColumn get tagCard => boolean().withDefault(const Constant(true))();
+  BoolColumn get tagText => boolean().withDefault(const Constant(true))();
+  BoolColumn get tagSymbol => boolean().withDefault(const Constant(true))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -122,7 +128,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -177,6 +183,14 @@ class AppDatabase extends _$AppDatabase {
             // v8→v9: a rarity can carry a palette colour that tints the set
             // symbol. Existing rarities default to none (null).
             await m.addColumn(rarities, rarities.color);
+          }
+          if (from < 10) {
+            // v9→v10: per-swatch usage tags (card / text / symbol). They filter
+            // pickers, never forbid. Existing swatches default to all-on, so
+            // nothing changes until a user curates them.
+            await m.addColumn(paletteColors, paletteColors.tagCard);
+            await m.addColumn(paletteColors, paletteColors.tagText);
+            await m.addColumn(paletteColors, paletteColors.tagSymbol);
           }
         },
         beforeOpen: (details) async {

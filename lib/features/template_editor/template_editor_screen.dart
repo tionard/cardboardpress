@@ -31,6 +31,7 @@ import '../../widgets/card_preview.dart';
 import '../../widgets/decoded_card_preview.dart';
 import '../../widgets/labeled_slider.dart';
 import '../../widgets/preview_dock.dart';
+import '../../widgets/swatch_picker.dart';
 import '../customization/symbol_picker.dart';
 
 part 'template_editor_widgets.dart';

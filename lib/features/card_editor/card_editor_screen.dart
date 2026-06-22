@@ -35,6 +35,7 @@ import '../../state/providers.dart';
 import '../../widgets/card_preview.dart';
 import '../../widgets/labeled_slider.dart';
 import '../../widgets/preview_dock.dart';
+import '../../widgets/swatch_picker.dart';
 
 part 'card_editor_panels.dart';
 part 'card_editor_widgets.dart';

@@ -10,12 +10,36 @@ class PaletteSwatch {
   final String id;
   final String name;
   final ColorValue value;
+  // Usage tags — which picker contexts show this swatch by default. Filter,
+  // not forbid: pickers always offer "show all". Default all-on.
+  final bool tagCard;
+  final bool tagText;
+  final bool tagSymbol;
 
   const PaletteSwatch({
     required this.id,
     required this.name,
     required this.value,
+    this.tagCard = true,
+    this.tagText = true,
+    this.tagSymbol = true,
   });
+
+  PaletteSwatch copyWith({
+    String? name,
+    ColorValue? value,
+    bool? tagCard,
+    bool? tagText,
+    bool? tagSymbol,
+  }) =>
+      PaletteSwatch(
+        id: id,
+        name: name ?? this.name,
+        value: value ?? this.value,
+        tagCard: tagCard ?? this.tagCard,
+        tagText: tagText ?? this.tagText,
+        tagSymbol: tagSymbol ?? this.tagSymbol,
+      );
 }
 
 /// A rarity (spec §3): name + 1–3-letter abbreviation. (Its palette colour and

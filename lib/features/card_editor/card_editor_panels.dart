@@ -226,24 +226,22 @@ extension _CardEditorPanels on _CardEditorBodyState {
       children: [
         Text('Tint', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _SwatchTile(
-              value: defaultBase,
-              label: 'Default',
-              selected: _working.content.tint == null,
-              onTap: _clearTint,
-            ),
-            for (final s in widget.swatches)
-              _SwatchTile(
-                value: s.value,
-                label: s.name,
-                selected: s.id == tintId,
-                onTap: () => _setTint(s),
-              ),
-          ],
+        SwatchPicker(
+          swatches: widget.swatches,
+          use: SwatchUse.card,
+          selectedId: tintId,
+          leading: _SwatchTile(
+            value: defaultBase,
+            label: 'Default',
+            selected: _working.content.tint == null,
+            onTap: _clearTint,
+          ),
+          tileBuilder: (s) => _SwatchTile(
+            value: s.value,
+            label: s.name,
+            selected: s.id == tintId,
+            onTap: () => _setTint(s),
+          ),
         ),
         if (_working.content.tint != null) ...[
           const SizedBox(height: 12),

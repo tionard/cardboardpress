@@ -233,6 +233,7 @@ class _ColorEditorState extends State<_ColorEditor> {
   late int _r1, _g1, _b1, _r2, _g2, _b2;
   late MixOrientation _orientation;
   late double _mix;
+  late bool _tagCard, _tagText, _tagSymbol;
   Timer? _saveTimer;
 
   @override
@@ -252,6 +253,9 @@ class _ColorEditorState extends State<_ColorEditor> {
     _b2 = b.$3;
     _orientation = v.orientation;
     _mix = v.mix;
+    _tagCard = widget.swatch.tagCard;
+    _tagText = widget.swatch.tagText;
+    _tagSymbol = widget.swatch.tagSymbol;
 
     _hex1 = TextEditingController(text: _hex6(_r1, _g1, _b1));
     _hex2 = TextEditingController(text: _hex6(_r2, _g2, _b2));
@@ -280,7 +284,14 @@ class _ColorEditorState extends State<_ColorEditor> {
         ? ColorValue.duo(_c1, _c2, orientation: _orientation, mix: _mix)
         : ColorValue.single(_c1);
     final name = _name.text.trim().isEmpty ? 'Unnamed' : _name.text.trim();
-    return PaletteSwatch(id: widget.swatch.id, name: name, value: value);
+    return PaletteSwatch(
+      id: widget.swatch.id,
+      name: name,
+      value: value,
+      tagCard: _tagCard,
+      tagText: _tagText,
+      tagSymbol: _tagSymbol,
+    );
   }
 
   void _scheduleSave() {
@@ -415,8 +426,29 @@ class _ColorEditorState extends State<_ColorEditor> {
               onChanged: (d) => _change(() => _mix = d),
             ),
           ],
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Text('Show in pickers for',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 2),
+          _tagToggle('Card backgrounds & fills', _tagCard,
+              (v) => _change(() => _tagCard = v)),
+          _tagToggle('Text', _tagText, (v) => _change(() => _tagText = v)),
+          _tagToggle('Symbols & watermarks', _tagSymbol,
+              (v) => _change(() => _tagSymbol = v)),
         ],
       ),
+    );
+  }
+
+  Widget _tagToggle(String label, bool value, ValueChanged<bool> onChanged) {
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      title: Text(label),
+      value: value,
+      onChanged: onChanged,
     );
   }
 

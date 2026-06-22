@@ -131,16 +131,18 @@ extension _TemplateFieldsPane on _TemplateBodyState {
         if (f.type != FieldType.art)
           _section('fill', 'Fill', [
             const SizedBox(height: 4),
-            Wrap(spacing: 10, runSpacing: 10, children: [
-              _noneTile(
+            SwatchPicker(
+              swatches: widget.swatches,
+              use: SwatchUse.card,
+              selectedId: f.fill?.id,
+              leading: _noneTile(
                   f.fill == null, () => _updateField(f.copyWith(fill: null))),
-              for (final s in widget.swatches)
-                _swatch(
-                    s.value,
-                    s.id == f.fill?.id,
-                    () => _updateField(f.copyWith(
-                        fill: ColorRef(id: s.id, snapshot: s.value)))),
-            ]),
+              tileBuilder: (s) => _swatch(
+                  s.value,
+                  s.id == f.fill?.id,
+                  () => _updateField(
+                      f.copyWith(fill: ColorRef(id: s.id, snapshot: s.value)))),
+            ),
             if (f.fill != null)
               _labeledSlider('Opacity', f.fillAlpha, 0, 1,
                   (v) => _updateField(f.copyWith(fillAlpha: v))),
@@ -245,15 +247,17 @@ extension _TemplateFieldsPane on _TemplateBodyState {
             const SizedBox(height: 8),
             Text('Colour', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 6),
-            Wrap(spacing: 10, runSpacing: 10, children: [
-              for (final s in widget.swatches)
-                _swatch(
-                    s.value,
-                    s.id == text.colorRef.id,
-                    () => _updateField(f.copyWith(
-                        text: text.copyWith(
-                            colorRef: ColorRef(id: s.id, snapshot: s.value))))),
-            ]),
+            SwatchPicker(
+              swatches: widget.swatches,
+              use: SwatchUse.text,
+              selectedId: text.colorRef.id,
+              tileBuilder: (s) => _swatch(
+                  s.value,
+                  s.id == text.colorRef.id,
+                  () => _updateField(f.copyWith(
+                      text: text.copyWith(
+                          colorRef: ColorRef(id: s.id, snapshot: s.value))))),
+            ),
             _labeledSlider('Opacity', text.colorAlpha, 0, 1,
                 (v) => _updateField(
                     f.copyWith(text: text.copyWith(colorAlpha: v)))),
@@ -285,15 +289,17 @@ extension _TemplateFieldsPane on _TemplateBodyState {
               const SizedBox(height: 8),
               Text('Colour', style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 6),
-              Wrap(spacing: 10, runSpacing: 10, children: [
-                for (final s in widget.swatches)
-                  _swatch(
-                      s.value,
-                      s.id == f.watermark!.color.id,
-                      () => _updateField(f.copyWith(
-                          watermark: f.watermark!.copyWith(
-                              color: ColorRef(id: s.id, snapshot: s.value))))),
-              ]),
+              SwatchPicker(
+                swatches: widget.swatches,
+                use: SwatchUse.symbol,
+                selectedId: f.watermark!.color.id,
+                tileBuilder: (s) => _swatch(
+                    s.value,
+                    s.id == f.watermark!.color.id,
+                    () => _updateField(f.copyWith(
+                        watermark: f.watermark!.copyWith(
+                            color: ColorRef(id: s.id, snapshot: s.value))))),
+              ),
               _labeledSlider('Opacity', f.watermark!.alpha, 0, 1,
                   (v) => _updateField(
                       f.copyWith(watermark: f.watermark!.copyWith(alpha: v)))),

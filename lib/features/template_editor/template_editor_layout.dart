@@ -20,15 +20,15 @@ extension _TemplateLayoutPane on _TemplateBodyState {
         const SizedBox(height: 20),
         Text('Base colour', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (final s in widget.swatches)
-              _swatch(s.value, s.id == _d.baseColor.id,
-                  () => _update(_d.copyWith(
-                      baseColor: ColorRef(id: s.id, snapshot: s.value)))),
-          ],
+        SwatchPicker(
+          swatches: widget.swatches,
+          use: SwatchUse.card,
+          selectedId: _d.baseColor.id,
+          tileBuilder: (s) => _swatch(
+              s.value,
+              s.id == _d.baseColor.id,
+              () => _update(_d.copyWith(
+                  baseColor: ColorRef(id: s.id, snapshot: s.value)))),
         ),
         const SizedBox(height: 20),
         _bgImageSection(),
