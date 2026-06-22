@@ -417,6 +417,9 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   bool _dirty = false; // unsaved edits to the working copy
   _Mode _mode = _Mode.layout;
   String? _selectedFieldId;
+  // Which field-editor sections are expanded (keyed by section). Remembered as
+  // you move between fields so it doesn't keep snapping shut. Empty = all closed.
+  final Set<String> _expandedSections = {};
 
   @override
   void initState() {
@@ -589,6 +592,12 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     final fields =
         _d.fields.map((f) => f.id == updated.id ? updated : f).toList();
     _update(_d.copyWith(fields: fields));
+  }
+
+  void _toggleSection(String key) {
+    setState(() {
+      if (!_expandedSections.remove(key)) _expandedSections.add(key);
+    });
   }
 
   // ---- single-placement rule (spec §3.6) ----

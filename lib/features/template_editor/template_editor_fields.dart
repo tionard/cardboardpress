@@ -73,6 +73,7 @@ extension _TemplateFieldsPane on _TemplateBodyState {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Pinned: type, layer order, delete — always visible.
         Row(
           children: [
             const SizedBox(width: 80, child: Text('Type')),
@@ -114,185 +115,232 @@ extension _TemplateFieldsPane on _TemplateBodyState {
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 4),
-        Text('Position', style: Theme.of(context).textTheme.labelLarge),
-        _labeledSlider('Left', f.frac.left, 0, 1, (v) => _setFrac(f, l: v),
-            step: 0.01),
-        _labeledSlider('Top', f.frac.top, 0, 1, (v) => _setFrac(f, t: v),
-            step: 0.01),
-        _labeledSlider('Right', f.frac.right, 0, 1, (v) => _setFrac(f, r: v),
-            step: 0.01),
-        _labeledSlider('Bottom', f.frac.bottom, 0, 1, (v) => _setFrac(f, b: v),
-            step: 0.01),
-        const SizedBox(height: 8),
-        _labeledSlider('Corner', f.cornerRadius, 0, 0.1,
-            (v) => _updateField(f.copyWith(cornerRadius: v))),
-        const SizedBox(height: 12),
-        Text('Fill', style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 6),
-        Wrap(spacing: 10, runSpacing: 10, children: [
-          _noneTile(f.fill == null, () => _updateField(f.copyWith(fill: null))),
-          for (final s in widget.swatches)
-            _swatch(s.value, s.id == f.fill?.id,
-                () => _updateField(
-                    f.copyWith(fill: ColorRef(id: s.id, snapshot: s.value)))),
+        _section('pos', 'Position & size', [
+          _labeledSlider('Left', f.frac.left, 0, 1, (v) => _setFrac(f, l: v),
+              step: 0.01),
+          _labeledSlider('Top', f.frac.top, 0, 1, (v) => _setFrac(f, t: v),
+              step: 0.01),
+          _labeledSlider('Right', f.frac.right, 0, 1, (v) => _setFrac(f, r: v),
+              step: 0.01),
+          _labeledSlider('Bottom', f.frac.bottom, 0, 1,
+              (v) => _setFrac(f, b: v), step: 0.01),
+          const SizedBox(height: 8),
+          _labeledSlider('Corner', f.cornerRadius, 0, 0.1,
+              (v) => _updateField(f.copyWith(cornerRadius: v))),
         ]),
-        if (f.fill != null)
-          _labeledSlider('Opacity', f.fillAlpha, 0, 1,
-              (v) => _updateField(f.copyWith(fillAlpha: v))),
-        const SizedBox(height: 12),
-        Row(children: [
-          Text('Outline', style: Theme.of(context).textTheme.labelLarge),
-          const Spacer(),
-          Switch(
-            value: outline != null,
-            onChanged: (on) => _updateField(
-                f.copyWith(outline: on ? const OutlineSpec() : null)),
-          ),
-        ]),
-        if (outline != null) ...[
-          _labeledSlider('Intensity', outline.intensity, 0, 1,
-              (v) => _updateField(f.copyWith(outline: outline.copyWith(intensity: v)))),
-          Row(children: [
-            const SizedBox(width: 80, child: Text('Lighter')),
-            Switch(
-              value: outline.lighter,
-              onChanged: (v) => _updateField(
-                  f.copyWith(outline: outline.copyWith(lighter: v))),
-            ),
-          ]),
-        ],
-        if (text != null) ...[
-          const SizedBox(height: 12),
-          Text('Text', style: Theme.of(context).textTheme.labelLarge),
-          _labeledSlider('Size', text.sizeFrac, 0.01, 0.12,
-              (v) => _updateField(f.copyWith(text: text.copyWith(sizeFrac: v)))),
-          Row(children: [
-            const SizedBox(width: 80, child: Text('Bold')),
-            Switch(
-              value: text.bold,
-              onChanged: (v) =>
-                  _updateField(f.copyWith(text: text.copyWith(bold: v))),
-            ),
-            const SizedBox(width: 12),
-            SegmentedButton<TextAlign>(
-              segments: const [
-                ButtonSegment(value: TextAlign.left, icon: Icon(Icons.format_align_left)),
-                ButtonSegment(value: TextAlign.center, icon: Icon(Icons.format_align_center)),
-                ButtonSegment(value: TextAlign.right, icon: Icon(Icons.format_align_right)),
-              ],
-              selected: {text.align},
-              onSelectionChanged: (s) => _updateField(
-                f.copyWith(text: text.copyWith(align: s.first))),
-            ),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            const SizedBox(width: 80, child: Text('Anchor')),
-            SegmentedButton<VAlign>(
-              segments: const [
-                ButtonSegment(
-                    value: VAlign.top, icon: Icon(Icons.vertical_align_top)),
-                ButtonSegment(
-                    value: VAlign.middle,
-                    icon: Icon(Icons.vertical_align_center)),
-                ButtonSegment(
-                    value: VAlign.bottom,
-                    icon: Icon(Icons.vertical_align_bottom)),
-              ],
-              selected: {text.vAlign},
-              onSelectionChanged: (s) => _updateField(
-                  f.copyWith(text: text.copyWith(vAlign: s.first))),
-            ),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            const SizedBox(width: 80, child: Text('Fit')),
-            SegmentedButton<TextFit>(
-              segments: const [
-                ButtonSegment(value: TextFit.fixed, label: Text('Fixed')),
-                ButtonSegment(value: TextFit.shrink, label: Text('Shrink')),
-              ],
-              selected: {text.fit},
-              onSelectionChanged: (s) => _updateField(
-                  f.copyWith(text: text.copyWith(fit: s.first))),
-            ),
-          ]),
-          _labeledSlider('Side padding', text.padX, 0, 0.12,
-              (v) => _updateField(f.copyWith(text: text.copyWith(padX: v)))),
-          _labeledSlider('Vert padding', text.padY, 0, 0.12,
-              (v) => _updateField(f.copyWith(text: text.copyWith(padY: v)))),
-          const SizedBox(height: 8),
-          Text('Text colour', style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 6),
+        _section('fill', 'Fill', [
+          const SizedBox(height: 4),
           Wrap(spacing: 10, runSpacing: 10, children: [
+            _noneTile(
+                f.fill == null, () => _updateField(f.copyWith(fill: null))),
             for (final s in widget.swatches)
-              _swatch(s.value, s.id == text.colorRef.id,
-                  () => _updateField(f.copyWith(
-                      text: text.copyWith(
-                          colorRef: ColorRef(id: s.id, snapshot: s.value))))),
+              _swatch(
+                  s.value,
+                  s.id == f.fill?.id,
+                  () => _updateField(
+                      f.copyWith(fill: ColorRef(id: s.id, snapshot: s.value)))),
           ]),
-          _labeledSlider('Opacity', text.colorAlpha, 0, 1,
-              (v) => _updateField(
-                  f.copyWith(text: text.copyWith(colorAlpha: v)))),
-        ],
-        if (f.type == FieldType.rules) ...[
-          const SizedBox(height: 12),
+          if (f.fill != null)
+            _labeledSlider('Opacity', f.fillAlpha, 0, 1,
+                (v) => _updateField(f.copyWith(fillAlpha: v))),
+        ]),
+        _section('outline', 'Outline', [
           Row(children: [
-            Text('Watermark', style: Theme.of(context).textTheme.labelLarge),
-            const Spacer(),
+            const SizedBox(width: 80, child: Text('Enabled')),
             Switch(
-              value: f.watermark != null,
-              onChanged: (on) => _updateField(f.copyWith(
-                  watermark: on ? const WatermarkSpec(color: _inkRef) : null)),
+              value: outline != null,
+              onChanged: (on) => _updateField(
+                  f.copyWith(outline: on ? const OutlineSpec() : null)),
             ),
           ]),
-          if (f.watermark != null) ...[
-            Text('A symbol drawn faintly behind the rules text.',
-                style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 6),
+          if (outline != null) ...[
+            _labeledSlider(
+                'Intensity',
+                outline.intensity,
+                0,
+                1,
+                (v) => _updateField(
+                    f.copyWith(outline: outline.copyWith(intensity: v)))),
             Row(children: [
-              const SizedBox(width: 80, child: Text('Symbol')),
-              OutlinedButton.icon(
-                onPressed: () => _pickWatermarkSymbol(f),
-                icon: const Icon(Icons.image_outlined),
-                label: Text(
-                    f.watermark!.symbolId.isEmpty ? 'Choose…' : 'Change…'),
+              const SizedBox(width: 80, child: Text('Lighter')),
+              Switch(
+                value: outline.lighter,
+                onChanged: (v) => _updateField(
+                    f.copyWith(outline: outline.copyWith(lighter: v))),
               ),
             ]),
+          ],
+        ]),
+        if (text != null)
+          _section('text', 'Text', [
+            _labeledSlider('Size', text.sizeFrac, 0.01, 0.12,
+                (v) => _updateField(f.copyWith(text: text.copyWith(sizeFrac: v)))),
+            Row(children: [
+              const SizedBox(width: 80, child: Text('Bold')),
+              Switch(
+                value: text.bold,
+                onChanged: (v) =>
+                    _updateField(f.copyWith(text: text.copyWith(bold: v))),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SegmentedButton<TextAlign>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(
+                        value: TextAlign.left,
+                        icon: Icon(Icons.format_align_left)),
+                    ButtonSegment(
+                        value: TextAlign.center,
+                        icon: Icon(Icons.format_align_center)),
+                    ButtonSegment(
+                        value: TextAlign.right,
+                        icon: Icon(Icons.format_align_right)),
+                  ],
+                  selected: {text.align},
+                  onSelectionChanged: (s) => _updateField(
+                      f.copyWith(text: text.copyWith(align: s.first))),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              const SizedBox(width: 80, child: Text('Anchor')),
+              SegmentedButton<VAlign>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                      value: VAlign.top, icon: Icon(Icons.vertical_align_top)),
+                  ButtonSegment(
+                      value: VAlign.middle,
+                      icon: Icon(Icons.vertical_align_center)),
+                  ButtonSegment(
+                      value: VAlign.bottom,
+                      icon: Icon(Icons.vertical_align_bottom)),
+                ],
+                selected: {text.vAlign},
+                onSelectionChanged: (s) => _updateField(
+                    f.copyWith(text: text.copyWith(vAlign: s.first))),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              const SizedBox(width: 80, child: Text('Fit')),
+              SegmentedButton<TextFit>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: TextFit.fixed, label: Text('Fixed')),
+                  ButtonSegment(value: TextFit.shrink, label: Text('Shrink')),
+                ],
+                selected: {text.fit},
+                onSelectionChanged: (s) => _updateField(
+                    f.copyWith(text: text.copyWith(fit: s.first))),
+              ),
+            ]),
+            _labeledSlider('Side padding', text.padX, 0, 0.12,
+                (v) => _updateField(f.copyWith(text: text.copyWith(padX: v)))),
+            _labeledSlider('Vert padding', text.padY, 0, 0.12,
+                (v) => _updateField(f.copyWith(text: text.copyWith(padY: v)))),
             const SizedBox(height: 8),
             Text('Colour', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 6),
             Wrap(spacing: 10, runSpacing: 10, children: [
               for (final s in widget.swatches)
-                _swatch(s.value, s.id == f.watermark!.color.id,
+                _swatch(
+                    s.value,
+                    s.id == text.colorRef.id,
                     () => _updateField(f.copyWith(
-                        watermark: f.watermark!.copyWith(
-                            color: ColorRef(id: s.id, snapshot: s.value))))),
+                        text: text.copyWith(
+                            colorRef: ColorRef(id: s.id, snapshot: s.value))))),
             ]),
-            _labeledSlider('Opacity', f.watermark!.alpha, 0, 1,
+            _labeledSlider('Opacity', text.colorAlpha, 0, 1,
                 (v) => _updateField(
-                    f.copyWith(watermark: f.watermark!.copyWith(alpha: v)))),
-          ],
-        ],
-        if (f.type == FieldType.footer) ...[
-          const SizedBox(height: 12),
-          Row(children: [
-            Text('Footer', style: Theme.of(context).textTheme.labelLarge),
-            const Spacer(),
-            Switch(
-              value: f.footer != null,
-              onChanged: (on) => _updateField(
-                  f.copyWith(footer: on ? const FooterSpec.defaults() : null)),
-            ),
+                    f.copyWith(text: text.copyWith(colorAlpha: v)))),
           ]),
-          if (f.footer == null)
-            Text(
-              'Off: one auto line. Turn on to pick a layout and place each '
-              'piece (number, set, rarity, artist, copyright).',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          if (f.footer != null) ..._footerControls(f, f.footer!),
-        ],
+        if (f.type == FieldType.rules)
+          _section('wm', 'Watermark', [
+            Row(children: [
+              const SizedBox(width: 80, child: Text('Enabled')),
+              Switch(
+                value: f.watermark != null,
+                onChanged: (on) => _updateField(f.copyWith(
+                    watermark:
+                        on ? const WatermarkSpec(color: _inkRef) : null)),
+              ),
+            ]),
+            if (f.watermark != null) ...[
+              Text('A symbol drawn faintly behind the rules text.',
+                  style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 6),
+              Row(children: [
+                const SizedBox(width: 80, child: Text('Symbol')),
+                OutlinedButton.icon(
+                  onPressed: () => _pickWatermarkSymbol(f),
+                  icon: const Icon(Icons.image_outlined),
+                  label: Text(
+                      f.watermark!.symbolId.isEmpty ? 'Choose…' : 'Change…'),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              Text('Colour', style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 6),
+              Wrap(spacing: 10, runSpacing: 10, children: [
+                for (final s in widget.swatches)
+                  _swatch(
+                      s.value,
+                      s.id == f.watermark!.color.id,
+                      () => _updateField(f.copyWith(
+                          watermark: f.watermark!.copyWith(
+                              color: ColorRef(id: s.id, snapshot: s.value))))),
+              ]),
+              _labeledSlider('Opacity', f.watermark!.alpha, 0, 1,
+                  (v) => _updateField(
+                      f.copyWith(watermark: f.watermark!.copyWith(alpha: v)))),
+            ],
+          ]),
+        if (f.type == FieldType.footer)
+          _section('footer', 'Footer', [
+            Row(children: [
+              const SizedBox(width: 80, child: Text('Enabled')),
+              Switch(
+                value: f.footer != null,
+                onChanged: (on) => _updateField(f.copyWith(
+                    footer: on ? const FooterSpec.defaults() : null)),
+              ),
+            ]),
+            if (f.footer == null)
+              Text(
+                'Off: one auto line. Turn on to pick a layout and place each '
+                'piece (number, set, rarity, artist, copyright).',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            if (f.footer != null) ..._footerControls(f, f.footer!),
+          ]),
+      ],
+    );
+  }
+
+  /// A collapsible group in the field editor. The header (title + chevron) is
+  /// always shown; [children] appear only when expanded. Expansion state lives
+  /// on the body, so it persists as you move between fields.
+  Widget _section(String key, String title, List<Widget> children) {
+    final open = _expandedSections.contains(key);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => _toggleSection(key),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(children: [
+              Icon(open ? Icons.expand_more : Icons.chevron_right, size: 20),
+              const SizedBox(width: 4),
+              Text(title, style: Theme.of(context).textTheme.labelLarge),
+            ]),
+          ),
+        ),
+        if (open) ...children,
+        const Divider(height: 1),
       ],
     );
   }
