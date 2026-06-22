@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/palette_repository.dart';
 import '../../model/card_model.dart';
 import '../../state/providers.dart';
+import '../../widgets/labeled_slider.dart';
 import 'rarity_manager.dart';
 import 'symbol_manager.dart';
 import 'text_symbol_manager.dart';
@@ -403,22 +404,15 @@ class _ColorEditorState extends State<_ColorEditor> {
               onSelectionChanged: (s) => _change(() => _orientation = s.first),
             ),
             const SizedBox(height: 6),
-            Row(
-              children: [
-                const SizedBox(width: 36, child: Text('Mix')),
-                Expanded(
-                  child: Slider(
-                    value: _mix,
-                    divisions: 20,
-                    label: _mix.toStringAsFixed(2),
-                    onChanged: (d) => _change(() => _mix = d),
-                  ),
-                ),
-                SizedBox(
-                    width: 36,
-                    child: Text(_mix.toStringAsFixed(2),
-                        textAlign: TextAlign.right)),
-              ],
+            LabeledSlider(
+              label: 'Mix',
+              value: _mix,
+              min: 0,
+              max: 1,
+              step: 0.05,
+              decimals: 2,
+              labelWidth: 36,
+              onChanged: (d) => _change(() => _mix = d),
             ),
           ],
         ],
@@ -484,21 +478,15 @@ class _ColorEditorState extends State<_ColorEditor> {
   }
 
   Widget _channel(String label, int value, ValueChanged<int> onChanged) {
-    return Row(
-      children: [
-        SizedBox(width: 18, child: Text(label)),
-        Expanded(
-          child: Slider(
-            value: value.toDouble(),
-            min: 0,
-            max: 255,
-            divisions: 255,
-            label: '$value',
-            onChanged: (d) => onChanged(d.round()),
-          ),
-        ),
-        SizedBox(width: 30, child: Text('$value', textAlign: TextAlign.right)),
-      ],
+    return LabeledSlider(
+      label: label,
+      value: value.toDouble(),
+      min: 0,
+      max: 255,
+      step: 1,
+      decimals: 0,
+      labelWidth: 22,
+      onChanged: (d) => onChanged(d.round()),
     );
   }
 }
