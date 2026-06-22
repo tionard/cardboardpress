@@ -122,6 +122,7 @@ List<FieldSpec> _fields({required ColorRef nameTextRef}) => [
         id: fFooterId,
         type: FieldType.footer,
         frac: Rect.fromLTRB(0.06, 0.905, 0.94, 0.96),
+        footer: FooterSpec.defaults(),
         text: TextStyleSpec(
             sizeFrac: 0.022,
             align: TextAlign.left,
@@ -158,7 +159,7 @@ TemplateData starterTemplate() => _parchment();
 /// Sample card content, keyed by field id.
 CardContent sampleContent() => const CardContent(text: {
       fNameId: 'Thornwood Stag',
-      fCostId: '{G}',
+      fCostId: '{R}',
       fTypeId: 'Creature — Beast',
       fRulesId: 'Vigilance. When this enters, scry 2.',
       fStatId: '3/4',
@@ -168,6 +169,34 @@ CardContent sampleContent() => const CardContent(text: {
 /// Builds the Footer's derived text (spec §3): collector number, set
 /// abbreviation, rarity abbreviation, artist, copyright — joined in a fixed
 /// arrangement for now. Only present parts are shown.
+/// The footer's individual pieces, derived per-card. An empty string means
+/// there's nothing to show for that component (e.g. no set assigned yet).
+Map<FooterComponent, String> deriveFooterValues({
+  required String artist,
+  SetEntry? set,
+  RarityEntry? rarity,
+  int? number,
+  int? total,
+}) {
+  return {
+    FooterComponent.number:
+        (set != null && set.numbering && number != null && total != null)
+            ? '${number.toString().padLeft(3, '0')}/$total'
+            : '',
+    FooterComponent.set:
+        (set != null && set.abbreviation.isNotEmpty) ? set.abbreviation : '',
+    FooterComponent.rarity: (rarity != null && rarity.abbreviation.isNotEmpty)
+        ? rarity.abbreviation
+        : '',
+    FooterComponent.artist: artist.isNotEmpty ? 'Illus. $artist' : '',
+    FooterComponent.copyright: set == null
+        ? ''
+        : (set.owner.isEmpty
+            ? '© ${set.year}'
+            : '© ${set.year} ${set.owner}'),
+  };
+}
+
 String deriveFooterText({
   required String artist,
   SetEntry? set,
@@ -176,18 +205,12 @@ String deriveFooterText({
   int? total,
   String? placeholder,
 }) {
-  final parts = <String>[];
-  if (set != null && set.numbering && number != null && total != null) {
-    parts.add('${number.toString().padLeft(3, '0')}/$total');
-  }
-  if (set != null && set.abbreviation.isNotEmpty) parts.add(set.abbreviation);
-  if (rarity != null && rarity.abbreviation.isNotEmpty) {
-    parts.add(rarity.abbreviation);
-  }
-  if (artist.isNotEmpty) parts.add('Illus. $artist');
-  if (set != null) {
-    parts.add(set.owner.isEmpty ? '© ${set.year}' : '© ${set.year} ${set.owner}');
-  }
+  final v = deriveFooterValues(
+      artist: artist, set: set, rarity: rarity, number: number, total: total);
+  final parts = [
+    for (final c in FooterComponent.values)
+      if (v[c]!.isNotEmpty) v[c]!,
+  ];
   // Nothing resolved yet. The Template Editor passes a placeholder so the
   // footer can be seen and positioned; real cards leave it blank until a
   // set/rarity/number exists.
@@ -217,6 +240,26 @@ CardData composeCard(
     total: total,
     placeholder: footerPlaceholder,
   );
+  var footerValues = deriveFooterValues(
+    artist: content.artist,
+    set: set,
+    rarity: rarity,
+    number: number,
+    total: total,
+  );
+  // Template preview: when nothing has resolved, fill representative pieces so
+  // the configured footer zones can be seen and positioned. Real cards (no
+  // footerPlaceholder) keep empty pieces and render blank until data exists.
+  if (footerPlaceholder != null &&
+      footerValues.values.every((s) => s.isEmpty)) {
+    footerValues = const {
+      FooterComponent.number: '001/XXX',
+      FooterComponent.set: 'CORE',
+      FooterComponent.rarity: 'R',
+      FooterComponent.artist: '',
+      FooterComponent.copyright: '',
+    };
+  }
   final text = Map<String, String>.from(content.text);
   for (final f in t.fields) {
     if (f.type == FieldType.footer) text[f.id] = footer;
@@ -256,6 +299,7 @@ CardData composeCard(
     setSymbolPlacement: t.setSymbol,
     setSymbolTint: rarity?.color,
     watermarkImageIds: watermarkImageIds,
+    footerValues: footerValues,
   );
 }
 

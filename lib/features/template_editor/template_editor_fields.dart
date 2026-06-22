@@ -274,7 +274,180 @@ extension _TemplateFieldsPane on _TemplateBodyState {
                     f.copyWith(watermark: f.watermark!.copyWith(alpha: v)))),
           ],
         ],
+        if (f.type == FieldType.footer) ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            Text('Footer', style: Theme.of(context).textTheme.labelLarge),
+            const Spacer(),
+            Switch(
+              value: f.footer != null,
+              onChanged: (on) => _updateField(
+                  f.copyWith(footer: on ? const FooterSpec.defaults() : null)),
+            ),
+          ]),
+          if (f.footer == null)
+            Text(
+              'Off: one auto line. Turn on to pick a layout and place each '
+              'piece (number, set, rarity, artist, copyright).',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          if (f.footer != null) ..._footerControls(f, f.footer!),
+        ],
       ],
     );
+  }
+
+  // ---- footer arrangement ----
+
+  List<Widget> _footerControls(FieldSpec f, FooterSpec spec) {
+    final hidden = [
+      for (final c in FooterComponent.values)
+        if (!spec.items.any((it) => it.component == c)) c,
+    ];
+    return [
+      const SizedBox(height: 6),
+      Row(children: [
+        const SizedBox(width: 76, child: Text('Layout')),
+        Expanded(
+          child: SegmentedButton<FooterMode>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(
+                  value: FooterMode.singleLine, label: Text('Single')),
+              ButtonSegment(value: FooterMode.leftRight, label: Text('L · R')),
+              ButtonSegment(
+                  value: FooterMode.fourCorners, label: Text('Corners')),
+            ],
+            selected: {spec.mode},
+            onSelectionChanged: (s) => _setFooterMode(f, s.first),
+          ),
+        ),
+      ]),
+      const SizedBox(height: 8),
+      Text('Place each piece in a zone (or hide it); arrows reorder.',
+          style: Theme.of(context).textTheme.bodySmall),
+      const SizedBox(height: 2),
+      if (spec.mode == FooterMode.fourCorners)
+        Text('Tip: make the footer box ~2 lines tall so corners separate.',
+            style: Theme.of(context).textTheme.bodySmall),
+      const SizedBox(height: 4),
+      for (var i = 0; i < spec.items.length; i++)
+        _footerRow(f, spec, spec.items[i].component, spec.items[i].zone,
+            idx: i, count: spec.items.length),
+      for (final c in hidden) _footerRow(f, spec, c, null),
+    ];
+  }
+
+  Widget _footerRow(
+      FieldSpec f, FooterSpec spec, FooterComponent c, FooterZone? zone,
+      {int? idx, int? count}) {
+    final visible = zone != null;
+    return Row(children: [
+      SizedBox(width: 76, child: Text(_footerComponentLabel(c))),
+      Expanded(
+        child: DropdownButton<FooterZone?>(
+          isExpanded: true,
+          isDense: true,
+          value: zone,
+          items: [
+            const DropdownMenuItem<FooterZone?>(
+                value: null, child: Text('Hidden')),
+            for (final z in spec.zones)
+              DropdownMenuItem<FooterZone?>(
+                  value: z, child: Text(_footerZoneLabel(z))),
+          ],
+          onChanged: (z) => _setFooterZone(f, c, z),
+        ),
+      ),
+      IconButton(
+        visualDensity: VisualDensity.compact,
+        tooltip: '',
+        icon: const Icon(Icons.keyboard_arrow_up),
+        onPressed: (visible && idx != null && idx > 0)
+            ? () => _moveFooterItem(f, c, -1)
+            : null,
+      ),
+      IconButton(
+        visualDensity: VisualDensity.compact,
+        tooltip: '',
+        icon: const Icon(Icons.keyboard_arrow_down),
+        onPressed: (visible && idx != null && count != null && idx < count - 1)
+            ? () => _moveFooterItem(f, c, 1)
+            : null,
+      ),
+    ]);
+  }
+
+  void _setFooterMode(FieldSpec f, FooterMode mode) {
+    final spec = f.footer ?? const FooterSpec.defaults();
+    final valid = FooterSpec(mode: mode).zones.toSet();
+    final fallback = FooterSpec(mode: mode).zones.first;
+    // Components in zones the new mode doesn't have move to its first zone, so
+    // nothing silently disappears when switching layouts.
+    final items = [
+      for (final it in spec.items)
+        valid.contains(it.zone) ? it : it.copyWith(zone: fallback),
+    ];
+    _updateField(f.copyWith(footer: spec.copyWith(mode: mode, items: items)));
+  }
+
+  void _setFooterZone(FieldSpec f, FooterComponent c, FooterZone? zone) {
+    final spec = f.footer!;
+    final items = [...spec.items];
+    final idx = items.indexWhere((it) => it.component == c);
+    if (zone == null) {
+      if (idx >= 0) items.removeAt(idx); // hide
+    } else if (idx >= 0) {
+      items[idx] = items[idx].copyWith(zone: zone); // move zones
+    } else {
+      items.add(FooterItem(c, zone)); // show
+    }
+    _updateField(f.copyWith(footer: spec.copyWith(items: items)));
+  }
+
+  void _moveFooterItem(FieldSpec f, FooterComponent c, int delta) {
+    final spec = f.footer!;
+    final items = [...spec.items];
+    final idx = items.indexWhere((it) => it.component == c);
+    final ni = idx + delta;
+    if (idx < 0 || ni < 0 || ni >= items.length) return;
+    final tmp = items[idx];
+    items[idx] = items[ni];
+    items[ni] = tmp;
+    _updateField(f.copyWith(footer: spec.copyWith(items: items)));
+  }
+
+  String _footerComponentLabel(FooterComponent c) {
+    switch (c) {
+      case FooterComponent.number:
+        return 'Number';
+      case FooterComponent.set:
+        return 'Set';
+      case FooterComponent.rarity:
+        return 'Rarity';
+      case FooterComponent.artist:
+        return 'Artist';
+      case FooterComponent.copyright:
+        return 'Copyright';
+    }
+  }
+
+  String _footerZoneLabel(FooterZone z) {
+    switch (z) {
+      case FooterZone.line:
+        return 'Line';
+      case FooterZone.left:
+        return 'Left';
+      case FooterZone.right:
+        return 'Right';
+      case FooterZone.topLeft:
+        return 'Top-left';
+      case FooterZone.topRight:
+        return 'Top-right';
+      case FooterZone.bottomLeft:
+        return 'Bottom-left';
+      case FooterZone.bottomRight:
+        return 'Bottom-right';
+    }
   }
 }

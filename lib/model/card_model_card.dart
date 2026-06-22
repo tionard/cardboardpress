@@ -23,6 +23,7 @@ class CardData {
   final SetSymbolPlacement? setSymbolPlacement; // where/how it draws (template)
   final ColorRef? setSymbolTint; // rarity colour tinting the set symbol; null => none
   final Map<String, String> watermarkImageIds; // fieldId -> resolved watermark image
+  final Map<FooterComponent, String> footerValues; // derived footer pieces (per card)
 
   const CardData({
     this.widthInches = 2.5,
@@ -44,6 +45,7 @@ class CardData {
     this.setSymbolPlacement,
     this.setSymbolTint,
     this.watermarkImageIds = const {},
+    this.footerValues = const {},
   });
 
   /// Every image id the renderer needs decoded: card art, the template

@@ -194,7 +194,12 @@ void _paintField(
   // **bold**/*italic*). Cost is single-line; Rules wraps to many lines.
   final inline =
       field.type == FieldType.cost || field.type == FieldType.rules;
-  if (inline) {
+  if (field.type == FieldType.footer &&
+      field.footer != null &&
+      field.text != null) {
+    // Configured footer: paint each zone's pieces anchored to its corner/edge.
+    _paintFooterZones(canvas, rect, field.footer!, field.text!, card, refs, size);
+  } else if (inline) {
     final ts = field.text;
     if (s.isNotEmpty && ts != null) {
       final color = refs.resolveColor(ts.colorRef);
@@ -208,4 +213,45 @@ void _paintField(
     }
   }
   canvas.restore();
+}
+
+// Footer zones: for each live zone, join its assigned components (in order,
+// skipping empties) and paint them anchored to the matching corner/edge of the
+// footer box. All zones share the footer field's text style; only the
+// alignment changes. The box's size/position decides how the zones sit — make
+// it ~2 lines tall for the 4-corners mode so top and bottom rows don't collide.
+void _paintFooterZones(ui.Canvas canvas, ui.Rect rect, FooterSpec spec,
+    TextStyleSpec ts, CardData card, CardRefs refs, ui.Size size) {
+  final color = refs.resolveColor(ts.colorRef);
+  for (final zone in spec.zones) {
+    final parts = <String>[
+      for (final item in spec.items)
+        if (item.zone == zone &&
+            (card.footerValues[item.component] ?? '').isNotEmpty)
+          card.footerValues[item.component]!,
+    ];
+    if (parts.isEmpty) continue;
+    final (align, vAlign) = _footerZoneAnchor(zone, ts.align);
+    _paintText(canvas, rect, parts.join('  ·  '),
+        ts.copyWith(align: align, vAlign: vAlign), size, color);
+  }
+}
+
+(ui.TextAlign, VAlign) _footerZoneAnchor(FooterZone zone, ui.TextAlign dflt) {
+  switch (zone) {
+    case FooterZone.line:
+      return (dflt, VAlign.middle);
+    case FooterZone.left:
+      return (ui.TextAlign.left, VAlign.middle);
+    case FooterZone.right:
+      return (ui.TextAlign.right, VAlign.middle);
+    case FooterZone.topLeft:
+      return (ui.TextAlign.left, VAlign.top);
+    case FooterZone.topRight:
+      return (ui.TextAlign.right, VAlign.top);
+    case FooterZone.bottomLeft:
+      return (ui.TextAlign.left, VAlign.bottom);
+    case FooterZone.bottomRight:
+      return (ui.TextAlign.right, VAlign.bottom);
+  }
 }

@@ -116,6 +116,89 @@ class WatermarkSpec {
       );
 }
 
+// ---------------------------------------------------------------------------
+// Footer arrangement (template-level). The footer's VALUES resolve per-card
+// (number/set/rarity/artist/copyright), but their LAYOUT — which components
+// show, where, and in what order — is configured once on the template's footer
+// field and shared by every card. Rendering anchors each zone's text to a
+// corner/edge of the footer box, so the box's size/position (edited like any
+// field) decides how the zones sit.
+// ---------------------------------------------------------------------------
+
+/// How the footer box is divided into zones.
+enum FooterMode {
+  singleLine, // one line: [line]
+  leftRight, // two ends: [left, right]
+  fourCorners, // box corners: [topLeft, topRight, bottomLeft, bottomRight]
+}
+
+/// The placeable pieces of collector info. Their text is derived per-card.
+enum FooterComponent { number, set, rarity, artist, copyright }
+
+/// A placement slot. Which ones are live depends on [FooterMode].
+enum FooterZone { line, left, right, topLeft, topRight, bottomLeft, bottomRight }
+
+/// One placed component: which piece, and which zone it sits in. Order within a
+/// zone follows the order items appear in [FooterSpec.items].
+class FooterItem {
+  final FooterComponent component;
+  final FooterZone zone;
+  const FooterItem(this.component, this.zone);
+
+  FooterItem copyWith({FooterComponent? component, FooterZone? zone}) =>
+      FooterItem(component ?? this.component, zone ?? this.zone);
+
+  @override
+  bool operator ==(Object o) =>
+      o is FooterItem && o.component == component && o.zone == zone;
+  @override
+  int get hashCode => Object.hash(component, zone);
+}
+
+class FooterSpec {
+  final FooterMode mode;
+
+  /// Visible components, in render order. A component absent here is hidden.
+  final List<FooterItem> items;
+
+  const FooterSpec({
+    this.mode = FooterMode.singleLine,
+    this.items = const [],
+  });
+
+  /// The default: every component on one line, in collector-info order. This
+  /// reproduces the original single-string footer.
+  const FooterSpec.defaults()
+      : mode = FooterMode.singleLine,
+        items = const [
+          FooterItem(FooterComponent.number, FooterZone.line),
+          FooterItem(FooterComponent.set, FooterZone.line),
+          FooterItem(FooterComponent.rarity, FooterZone.line),
+          FooterItem(FooterComponent.artist, FooterZone.line),
+          FooterItem(FooterComponent.copyright, FooterZone.line),
+        ];
+
+  /// The zones live for the current mode, in a stable order.
+  List<FooterZone> get zones {
+    switch (mode) {
+      case FooterMode.singleLine:
+        return const [FooterZone.line];
+      case FooterMode.leftRight:
+        return const [FooterZone.left, FooterZone.right];
+      case FooterMode.fourCorners:
+        return const [
+          FooterZone.topLeft,
+          FooterZone.topRight,
+          FooterZone.bottomLeft,
+          FooterZone.bottomRight,
+        ];
+    }
+  }
+
+  FooterSpec copyWith({FooterMode? mode, List<FooterItem>? items}) =>
+      FooterSpec(mode: mode ?? this.mode, items: items ?? this.items);
+}
+
 class FieldSpec {
   final String id; // stable per-field id (content is keyed by this, not type)
   final FieldType type;
@@ -126,6 +209,7 @@ class FieldSpec {
   final OutlineSpec? outline; // optional
   final TextStyleSpec? text; // present on text-bearing fields
   final WatermarkSpec? watermark; // Rules field only; drawn behind the text
+  final FooterSpec? footer; // Footer field only; per-zone layout of components
 
   const FieldSpec({
     required this.id,
@@ -137,6 +221,7 @@ class FieldSpec {
     this.outline,
     this.text,
     this.watermark,
+    this.footer,
   });
 
   FieldSpec copyWith({
@@ -148,6 +233,7 @@ class FieldSpec {
     Object? outline = _sentinel,
     Object? text = _sentinel,
     Object? watermark = _sentinel,
+    Object? footer = _sentinel,
   }) =>
       FieldSpec(
         id: id,
@@ -162,6 +248,9 @@ class FieldSpec {
         watermark: identical(watermark, _sentinel)
             ? this.watermark
             : watermark as WatermarkSpec?,
+        footer: identical(footer, _sentinel)
+            ? this.footer
+            : footer as FooterSpec?,
       );
 }
 

@@ -125,6 +125,7 @@ Map<String, dynamic> _fieldToMap(FieldSpec f) => {
           'color': _colorRefToMap(f.watermark!.color),
           'a': f.watermark!.alpha,
         },
+      if (f.footer != null) 'footer': _footerToMap(f.footer!),
     };
 
 FieldSpec _fieldFromMap(Map m) {
@@ -144,6 +145,7 @@ FieldSpec _fieldFromMap(Map m) {
     outline: m['outline'] == null ? null : _outlineFromMap(m['outline'] as Map),
     text: m['text'] == null ? null : _textFromMap(m['text'] as Map),
     watermark: m['wm'] == null ? null : _watermarkFromMap(m['wm'] as Map),
+    footer: m['footer'] == null ? null : _footerFromMap(m['footer'] as Map),
   );
 }
 
@@ -151,6 +153,26 @@ WatermarkSpec _watermarkFromMap(Map m) => WatermarkSpec(
       symbolId: (m['sym'] as String?) ?? '',
       color: _colorRefFromMap((m['color'] as Map?) ?? const {}),
       alpha: _d(m['a'], 0.15),
+    );
+
+// ---- FooterSpec ----
+Map<String, dynamic> _footerToMap(FooterSpec f) => {
+      'mode': f.mode.name,
+      'items': [
+        for (final it in f.items) {'c': it.component.name, 'z': it.zone.name},
+      ],
+    };
+
+FooterSpec _footerFromMap(Map m) => FooterSpec(
+      mode: _byName(FooterMode.values, m['mode'], FooterMode.singleLine),
+      items: [
+        for (final raw in (m['items'] as List? ?? const []))
+          FooterItem(
+            _byName(FooterComponent.values, (raw as Map)['c'],
+                FooterComponent.number),
+            _byName(FooterZone.values, raw['z'], FooterZone.line),
+          ),
+      ],
     );
 
 // ---- TemplateData ----
