@@ -128,22 +128,23 @@ extension _TemplateFieldsPane on _TemplateBodyState {
           _labeledSlider('Corner', f.cornerRadius, 0, 0.1,
               (v) => _updateField(f.copyWith(cornerRadius: v))),
         ]),
-        _section('fill', 'Fill', [
-          const SizedBox(height: 4),
-          Wrap(spacing: 10, runSpacing: 10, children: [
-            _noneTile(
-                f.fill == null, () => _updateField(f.copyWith(fill: null))),
-            for (final s in widget.swatches)
-              _swatch(
-                  s.value,
-                  s.id == f.fill?.id,
-                  () => _updateField(
-                      f.copyWith(fill: ColorRef(id: s.id, snapshot: s.value)))),
+        if (f.type != FieldType.art)
+          _section('fill', 'Fill', [
+            const SizedBox(height: 4),
+            Wrap(spacing: 10, runSpacing: 10, children: [
+              _noneTile(
+                  f.fill == null, () => _updateField(f.copyWith(fill: null))),
+              for (final s in widget.swatches)
+                _swatch(
+                    s.value,
+                    s.id == f.fill?.id,
+                    () => _updateField(f.copyWith(
+                        fill: ColorRef(id: s.id, snapshot: s.value)))),
+            ]),
+            if (f.fill != null)
+              _labeledSlider('Opacity', f.fillAlpha, 0, 1,
+                  (v) => _updateField(f.copyWith(fillAlpha: v))),
           ]),
-          if (f.fill != null)
-            _labeledSlider('Opacity', f.fillAlpha, 0, 1,
-                (v) => _updateField(f.copyWith(fillAlpha: v))),
-        ]),
         _section('outline', 'Outline', [
           Row(children: [
             const SizedBox(width: 80, child: Text('Enabled')),

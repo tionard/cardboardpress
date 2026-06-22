@@ -130,9 +130,9 @@ void _paintField(
   final r = field.cornerRadius * size.width; // 0 => square corners
   final rrect = ui.RRect.fromRectAndRadius(rect, ui.Radius.circular(r));
 
-  // Art has no background/outline — just its image (a placeholder here).
   // Art: draw the resolved image (cover-fit, clipped) if present, else a
-  // placeholder. The image is resolved via refs — never loaded here.
+  // placeholder, then an optional outline framing it. The image is resolved
+  // via refs — never loaded here. (Art has no fill: the image covers it.)
   if (field.type == FieldType.art) {
     final img = refs.resolveImage(card.artImageIds[field.id]);
     if (img != null) {
@@ -140,6 +140,20 @@ void _paintField(
           card.artTransforms[field.id] ?? const ArtTransform());
     } else {
       _paintArtPlaceholder(canvas, rrect, size);
+    }
+    // Outline drawn OVER the image so it actually frames the art. With no fill
+    // to shade, the frame shades off the card's base colour.
+    final outline = field.outline;
+    if (outline != null) {
+      final base = refs.resolveColor(card.baseColor).c1;
+      final shaded =
+          _shade(base, lighter: outline.lighter, t: outline.intensity);
+      final strokeW = outline.thickness * size.width;
+      final paint = ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = strokeW
+        ..color = shaded;
+      canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
     }
     return;
   }
