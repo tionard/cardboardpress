@@ -158,7 +158,9 @@ class _DockShell extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Material(
       elevation: 10,
-      color: scheme.surfaceContainerLow,
+      // A clearly grayer panel than the (near-white) preview area above it, so
+      // the editor reads with more depth instead of one flat white field.
+      color: scheme.surfaceContainerHigh,
       clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

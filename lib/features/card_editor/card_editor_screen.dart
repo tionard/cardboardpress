@@ -686,8 +686,9 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
                       Expanded(
                         flex: 4,
                         child: Material(
-                          color:
-                              Theme.of(context).colorScheme.surfaceContainerLow,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHigh,
                           child: _settings(),
                         ),
                       ),

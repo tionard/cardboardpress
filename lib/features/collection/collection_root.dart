@@ -135,7 +135,7 @@ extension _RootView on _CollectionScreenState {
         : (f.abbr.isEmpty ? '$count $cardWord' : '${f.abbr} · $count $cardWord');
 
     final tile = Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(14),
@@ -202,10 +202,15 @@ extension _RootView on _CollectionScreenState {
                   child: _SetSymbolThumb(imageId: symbol.imageId, size: 26),
                 ),
               if (f.set != null && !_selecting)
-                IconButton(
-                  tooltip: 'Set settings',
-                  icon: const Icon(Icons.settings_outlined),
-                  onPressed: () => _openSetSettings(f.set!),
+                SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    tooltip: 'Set settings',
+                    icon: const Icon(Icons.settings_outlined, size: 20),
+                    onPressed: () => _openSetSettings(f.set!),
+                  ),
                 ),
             ],
           ),

@@ -778,7 +778,14 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(flex: 5, child: preview),
-                    Expanded(flex: 5, child: pane),
+                    Expanded(
+                      flex: 5,
+                      child: Material(
+                        color:
+                            Theme.of(context).colorScheme.surfaceContainerHigh,
+                        child: pane,
+                      ),
+                    ),
                   ],
                 ),
               ),
