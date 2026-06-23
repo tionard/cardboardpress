@@ -257,7 +257,7 @@ extension _SetView on _CollectionScreenState {
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 24),
       buildDefaultDragHandles: false,
       itemCount: ordered.length,
-      onReorder: (oldIndex, newIndex) =>
+      onReorderItem: (oldIndex, newIndex) =>
           _applyReorder(oldIndex, newIndex, folder.set?.id),
       itemBuilder: (context, i) {
         final card = ordered[i];
