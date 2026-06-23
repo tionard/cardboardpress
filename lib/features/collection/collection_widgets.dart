@@ -102,44 +102,6 @@ class _SelectionBar extends StatelessWidget {
   }
 }
 
-/// Up to four card thumbnails arranged as a gallery folder cover. Shows a small
-/// "empty" hint when the folder has no cards.
-class _FolderCover extends StatelessWidget {
-  final List<Widget> thumbs; // already-built mini previews (0..4)
-  final double height;
-  const _FolderCover({required this.thumbs, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    if (thumbs.isEmpty) {
-      return Container(
-        height: height,
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        alignment: Alignment.center,
-        child: Icon(Icons.inbox_outlined,
-            color: scheme.onSurfaceVariant.withValues(alpha: 0.5)),
-      );
-    }
-    return SizedBox(
-      height: height,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          for (final t in thumbs)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: t,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Wraps a tile with the selection affordance: an accent ring + check while the
 /// item is selected.
 class _Selectable extends StatelessWidget {

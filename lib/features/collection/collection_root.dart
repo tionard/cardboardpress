@@ -124,84 +124,115 @@ extension _RootView on _CollectionScreenState {
     final selectable = !f.isUnassigned;
     final selected = _selected.contains(f.key);
     final dim = _selecting && !selectable;
+    final symbol = f.set?.symbolId == null ? null : ctx.symbols[f.set!.symbolId];
+
+    const previewW = 64.0; // bigger than before; fills the row better
+    final previews = _folderThumbs(f, ctx, previewW, 4);
+    final count = f.cards.length;
+    final cardWord = count == 1 ? 'card' : 'cards';
+    final subtitle = f.isUnassigned
+        ? 'Permanent · $count $cardWord'
+        : (f.abbr.isEmpty ? '$count $cardWord' : '${f.abbr} · $count $cardWord');
 
     final tile = Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _FolderCover(thumbs: _folderThumbs(f, ctx, 46, 4), height: 66),
-          const SizedBox(height: 10),
-          _folderMetaRow(f, ctx, scheme),
-        ],
-      ),
-    );
-
-    return Opacity(
-      opacity: dim ? 0.4 : 1,
-      child: _Selectable(
-        selecting: _selecting && selectable,
-        selected: selected,
-        onTap: () {
-          if (_selecting) {
-            if (selectable) _toggleSelected(f.key);
-          } else {
-            _openFolder(f.key);
-          }
-        },
-        onLongPress:
-            (selectable && !_selecting) ? () => _enterSelection(f.key) : null,
-        child: tile,
-      ),
-    );
-  }
-
-  Widget _folderMetaRow(_Folder f, _CardCtx ctx, ColorScheme scheme) {
-    final symbol = f.set?.symbolId == null ? null : ctx.symbols[f.set!.symbolId];
-    return Row(
-      children: [
-        if (f.isUnassigned) ...[
-          const Icon(Icons.lock_outline, size: 16),
-          const SizedBox(width: 6),
-        ],
-        Flexible(
-          child: Text(
-            f.abbr.isEmpty ? f.title : '${f.title} · ${f.abbr}',
-            style: Theme.of(context).textTheme.titleSmall,
-            overflow: TextOverflow.ellipsis,
+          SizedBox(
+            height: previewW * 1.4,
+            child: previews.isEmpty
+                ? Container(
+                    width: previewW,
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(Icons.inbox_outlined,
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                  )
+                : Row(
+                    children: [
+                      for (final p in previews)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: p,
+                        ),
+                    ],
+                  ),
           ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              if (f.isUnassigned) ...[
+                Icon(Icons.lock_outline,
+                    size: 18, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      f.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              if (symbol != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: _SetSymbolThumb(imageId: symbol.imageId, size: 26),
+                ),
+              if (f.set != null && !_selecting)
+                IconButton(
+                  tooltip: 'Set settings',
+                  icon: const Icon(Icons.settings_outlined),
+                  onPressed: () => _openSetSettings(f.set!),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Opacity(
+        opacity: dim ? 0.4 : 1,
+        child: _Selectable(
+          selecting: _selecting && selectable,
+          selected: selected,
+          onTap: () {
+            if (_selecting) {
+              if (selectable) _toggleSelected(f.key);
+            } else {
+              _openFolder(f.key);
+            }
+          },
+          onLongPress: (selectable && !_selecting)
+              ? () => _enterSelection(f.key)
+              : null,
+          child: tile,
         ),
-        const SizedBox(width: 8),
-        Text('${f.cards.length}',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant)),
-        if (f.isUnassigned) ...[
-          const SizedBox(width: 8),
-          Text('permanent',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant.withValues(alpha: 0.7))),
-        ],
-        const Spacer(),
-        if (symbol != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: _SetSymbolThumb(imageId: symbol.imageId, size: 20),
-          ),
-        if (f.set != null && !_selecting)
-          IconButton(
-            tooltip: 'Set settings',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.settings_outlined, size: 20),
-            onPressed: () => _openSetSettings(f.set!),
-          ),
-      ],
+      ),
     );
   }
 
@@ -220,7 +251,7 @@ extension _RootView on _CollectionScreenState {
             runSpacing: gap,
             children: [
               for (final f in folders)
-                SizedBox(width: tileW, child: _gridFolderTile(f, ctx, tileW)),
+                SizedBox(width: tileW, child: _gridFolderTile(f, ctx)),
             ],
           ),
         );
@@ -228,7 +259,7 @@ extension _RootView on _CollectionScreenState {
     );
   }
 
-  Widget _gridFolderTile(_Folder f, _CardCtx ctx, double tileW) {
+  Widget _gridFolderTile(_Folder f, _CardCtx ctx) {
     final scheme = Theme.of(context).colorScheme;
     final selectable = !f.isUnassigned;
     final selected = _selected.contains(f.key);
@@ -244,7 +275,7 @@ extension _RootView on _CollectionScreenState {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _gridFolderCover(f, ctx, tileW - 16),
+          _gridFolderCover(f, ctx),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -306,51 +337,56 @@ extension _RootView on _CollectionScreenState {
 
   /// A fixed 2×2 folder cover: up to four card thumbnails in equal cells, empty
   /// cells filled with a placeholder so every set tile is the SAME size
-  /// regardless of how many cards it holds. [innerW] is the tile's content width
-  /// (tile width minus padding).
-  Widget _gridFolderCover(_Folder f, _CardCtx ctx, double innerW) {
+  /// regardless of how many cards it holds. Measures its own available width
+  /// (rather than being told), so ancestor padding/borders can't make it
+  /// overflow.
+  Widget _gridFolderCover(_Folder f, _CardCtx ctx) {
     const gap = 6.0;
     final scheme = Theme.of(context).colorScheme;
-    final cellW = ((innerW - gap) / 2).floorToDouble();
-    final cellH = cellW * 1.4; // card-ish aspect; identical for every tile
+    return LayoutBuilder(
+      builder: (context, c) {
+        final cellW = ((c.maxWidth - gap) / 2).floorToDouble();
+        final cellH = cellW * 1.4; // card-ish aspect; identical for every tile
 
-    Widget cell(int i) {
-      if (i >= f.cards.length) {
-        return Container(
-          width: cellW,
-          height: cellH,
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        );
-      }
-      return SizedBox(
-        width: cellW,
-        height: cellH,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: FittedBox(
-            fit: BoxFit.cover,
-            clipBehavior: Clip.hardEdge,
-            child: DecodedCardPreview(
-              card: _compose(f, f.cards[i], i, ctx),
-              palette: ctx.palette,
-              imageStore: ctx.imageStore,
+        Widget cell(int i) {
+          if (i >= f.cards.length) {
+            return Container(
               width: cellW,
+              height: cellH,
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            );
+          }
+          return SizedBox(
+            width: cellW,
+            height: cellH,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: FittedBox(
+                fit: BoxFit.cover,
+                clipBehavior: Clip.hardEdge,
+                child: DecodedCardPreview(
+                  card: _compose(f, f.cards[i], i, ctx),
+                  palette: ctx.palette,
+                  imageStore: ctx.imageStore,
+                  width: cellW,
+                ),
+              ),
             ),
-          ),
-        ),
-      );
-    }
+          );
+        }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(children: [cell(0), SizedBox(width: gap), cell(1)]),
-        SizedBox(height: gap),
-        Row(children: [cell(2), SizedBox(width: gap), cell(3)]),
-      ],
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(children: [cell(0), const SizedBox(width: gap), cell(1)]),
+            const SizedBox(height: gap),
+            Row(children: [cell(2), const SizedBox(width: gap), cell(3)]),
+          ],
+        );
+      },
     );
   }
 }
