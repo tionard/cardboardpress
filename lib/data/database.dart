@@ -305,6 +305,12 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteCard(String id) =>
       (delete(cards)..where((t) => t.id.equals(id))).go();
 
+  /// Delete several cards in one statement (atomic; emits the stream once).
+  Future<void> deleteCards(List<String> ids) async {
+    if (ids.isEmpty) return;
+    await (delete(cards)..where((t) => t.id.isIn(ids))).go();
+  }
+
   /// Persist a new intra-set card order. [idsInNewOrder] is the target set's
   /// cards (those with setId == [setId]) in the desired order; every other card
   /// keeps its slot. We renumber the WHOLE table 0..N-1 in one batch so card

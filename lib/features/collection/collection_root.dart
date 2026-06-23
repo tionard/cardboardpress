@@ -234,25 +234,17 @@ extension _RootView on _CollectionScreenState {
     final selected = _selected.contains(f.key);
     final dim = _selecting && !selectable;
 
-    const innerPad = 8.0;
-    const thumbGap = 6.0;
-    final thumbW = ((tileW - innerPad * 2 - thumbGap) / 2).floorToDouble();
-    final thumbs = _folderThumbs(f, ctx, thumbW, 4);
-
-    final cover = thumbs.isEmpty
-        ? _FolderCover(thumbs: const [], height: thumbW * 1.4 * 2 + thumbGap)
-        : Wrap(spacing: thumbGap, runSpacing: thumbGap, children: thumbs);
-
     final tile = Container(
-      padding: const EdgeInsets.all(innerPad),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          cover,
+          _gridFolderCover(f, ctx, tileW - 16),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -309,6 +301,56 @@ extension _RootView on _CollectionScreenState {
             (selectable && !_selecting) ? () => _enterSelection(f.key) : null,
         child: tile,
       ),
+    );
+  }
+
+  /// A fixed 2×2 folder cover: up to four card thumbnails in equal cells, empty
+  /// cells filled with a placeholder so every set tile is the SAME size
+  /// regardless of how many cards it holds. [innerW] is the tile's content width
+  /// (tile width minus padding).
+  Widget _gridFolderCover(_Folder f, _CardCtx ctx, double innerW) {
+    const gap = 6.0;
+    final scheme = Theme.of(context).colorScheme;
+    final cellW = ((innerW - gap) / 2).floorToDouble();
+    final cellH = cellW * 1.4; // card-ish aspect; identical for every tile
+
+    Widget cell(int i) {
+      if (i >= f.cards.length) {
+        return Container(
+          width: cellW,
+          height: cellH,
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+      }
+      return SizedBox(
+        width: cellW,
+        height: cellH,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: FittedBox(
+            fit: BoxFit.cover,
+            clipBehavior: Clip.hardEdge,
+            child: DecodedCardPreview(
+              card: _compose(f, f.cards[i], i, ctx),
+              palette: ctx.palette,
+              imageStore: ctx.imageStore,
+              width: cellW,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(children: [cell(0), SizedBox(width: gap), cell(1)]),
+        SizedBox(height: gap),
+        Row(children: [cell(2), SizedBox(width: gap), cell(3)]),
+      ],
     );
   }
 }

@@ -63,6 +63,9 @@ class CardRepository {
 
   Future<void> delete(String id) => _db.deleteCard(id);
 
+  /// Delete a batch of cards atomically.
+  Future<void> deleteMany(List<String> ids) => _db.deleteCards(ids);
+
   Future<void> setSet(String id, String? setId) => _db.updateCardSet(id, setId);
 
   /// Persist a new order for the cards in [setId] (null => Unassigned).

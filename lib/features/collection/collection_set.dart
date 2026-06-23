@@ -153,37 +153,14 @@ extension _SetView on _CollectionScreenState {
     final selected = _selected.contains(card.id);
     final name = _cardName(card, ctx);
 
-    final preview = DecodedCardPreview(
-      card: _compose(folder, card, index, ctx),
-      palette: ctx.palette,
-      imageStore: ctx.imageStore,
-      width: 96,
-    );
-
     final tile = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Stack(
-          children: [
-            preview,
-            if (!_selecting)
-              Positioned(
-                top: 2,
-                right: 2,
-                child: Material(
-                  color: scheme.surface.withValues(alpha: 0.85),
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: () => _cardMenu(card, folder, index, ctx),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(Icons.more_horiz, size: 18),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+        DecodedCardPreview(
+          card: _compose(folder, card, index, ctx),
+          palette: ctx.palette,
+          imageStore: ctx.imageStore,
+          width: 96,
         ),
         const SizedBox(height: 3),
         Text(
@@ -196,16 +173,40 @@ extension _SetView on _CollectionScreenState {
       ],
     );
 
+    // The ⋯ button is a sibling OVERLAY (not a child of _Selectable's gesture
+    // detector), so its taps don't compete with the tile's open-editor tap.
     return SizedBox(
       width: 104,
-      child: _Selectable(
-        selecting: _selecting,
-        selected: selected,
-        onTap: () =>
-            _selecting ? _toggleSelected(card.id) : _openEditor(card.id),
-        onLongPress: () =>
-            _selecting ? _toggleSelected(card.id) : _enterSelection(card.id),
-        child: tile,
+      child: Stack(
+        children: [
+          _Selectable(
+            selecting: _selecting,
+            selected: selected,
+            onTap: () =>
+                _selecting ? _toggleSelected(card.id) : _openEditor(card.id),
+            onLongPress: () => _selecting
+                ? _toggleSelected(card.id)
+                : _enterSelection(card.id),
+            child: tile,
+          ),
+          if (!_selecting)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Material(
+                color: scheme.surface.withValues(alpha: 0.85),
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => _cardMenu(card, folder, index, ctx),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.more_horiz, size: 18),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

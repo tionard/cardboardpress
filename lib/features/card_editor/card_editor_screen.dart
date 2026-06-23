@@ -17,7 +17,6 @@
 // live in card_editor_panels.dart / card_editor_widgets.dart as, respectively,
 // an extension on _CardEditorBodyState and plain widget classes.
 
-import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -90,6 +89,8 @@ class CardEditorScreen extends ConsumerWidget {
           repo: ref.read(cardRepositoryProvider),
           imageStore: ref.read(imageStoreProvider),
           exporter: ref.read(cardExporterProvider),
+          onLeave: () => ref.read(selectedTabProvider.notifier).set(0),
+          active: ref.watch(selectedTabProvider) == kCardEditorTabIndex,
         );
       },
     );
@@ -127,6 +128,8 @@ class _CardEditorBody extends StatefulWidget {
   final CardRepository repo;
   final ImageStore imageStore;
   final CardExporter exporter;
+  final VoidCallback onLeave; // return to the Collection tab
+  final bool active; // is the Card Editor the visible tab? (gates back handling)
 
   const _CardEditorBody({
     super.key,
@@ -143,6 +146,8 @@ class _CardEditorBody extends StatefulWidget {
     required this.repo,
     required this.imageStore,
     required this.exporter,
+    required this.onLeave,
+    required this.active,
   });
 
   @override
@@ -154,7 +159,8 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, ui.Image> _images = {}; // imageId -> decoded image
   late final TextEditingController _artist;
-  Timer? _saveTimer;
+  bool _dirty = false; // unsaved edits to the working copy
+  bool _suppressDirty = false; // guards controller resync during revert
   _Cat _cat = _Cat.card;
   bool _exporting = false;
 
@@ -169,8 +175,9 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
 
   @override
   void dispose() {
-    _saveTimer?.cancel();
-    widget.repo.save(_working);
+    // No autosave / flush-on-dispose: edits persist only via the Save button.
+    // (This is what lets a card deleted from the Collection stay deleted instead
+    // of being re-inserted when this editor body is torn down.)
     _artist.dispose();
     for (final c in _controllers.values) {
       c.dispose();
@@ -238,24 +245,26 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   }
 
   void _onFieldChanged(String fieldId, String value) {
+    if (_suppressDirty) return;
     if ((_working.content.text[fieldId] ?? '') == value) return;
-    setState(() => _working =
+    _markDirty(() => _working =
         _working.copyWith(content: _working.content.withText(fieldId, value)));
-    _scheduleSave();
   }
 
-  void _scheduleSave() {
-    _saveTimer?.cancel();
-    _saveTimer = Timer(
-        const Duration(milliseconds: 400), () => widget.repo.save(_working));
+  /// Apply an in-memory edit and flag the working copy dirty. Nothing persists
+  /// until the user taps Save (mirrors the Template Editor's working-copy model).
+  void _markDirty(VoidCallback change) {
+    setState(() {
+      change();
+      _dirty = true;
+    });
   }
 
   void _changeTemplate(String? id) {
     if (id == null) return;
     final snapshot = widget.templatesMap[id] ?? _working.templateSnapshot;
-    setState(() => _working =
+    _markDirty(() => _working =
         _working.copyWith(templateId: id, templateSnapshot: snapshot));
-    widget.repo.save(_working);
     _syncArtImages();
   }
 
@@ -294,21 +303,19 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
       _images[imageId] = img;
       _working = _working.copyWith(
           content: _working.content.withArt(artFieldId, imageId));
+      _dirty = true;
     });
-    widget.repo.save(_working);
   }
 
   void _removeArt(String artFieldId) {
-    setState(() => _working =
+    _markDirty(() => _working =
         _working.copyWith(content: _working.content.withArt(artFieldId, null)));
-    widget.repo.save(_working);
     // (The file is left on disk; orphan cleanup comes with Collection delete.)
   }
 
   void _setArtTransform(String fieldId, ArtTransform t) {
-    setState(() => _working = _working.copyWith(
+    _markDirty(() => _working = _working.copyWith(
         content: _working.content.withArtTransform(fieldId, t)));
-    _scheduleSave();
   }
 
   CardData _compose() {
@@ -385,48 +392,162 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   }
 
   void _setTint(PaletteSwatch s) {
-    setState(() => _working = _working.copyWith(
+    _markDirty(() => _working = _working.copyWith(
         content:
             _working.content.withTint(ColorRef(id: s.id, snapshot: s.value))));
-    widget.repo.save(_working);
   }
 
   void _clearTint() {
-    setState(() =>
+    _markDirty(() =>
         _working = _working.copyWith(content: _working.content.withTint(null)));
-    widget.repo.save(_working);
   }
 
   void _setTintAlpha(double a) {
-    setState(() => _working =
+    _markDirty(() => _working =
         _working.copyWith(content: _working.content.withTintAlpha(a)));
-    _scheduleSave();
   }
 
   void _setFoil(FoilType f) {
-    setState(() => _working = _working.copyWith(foil: f));
-    widget.repo.save(_working);
+    _markDirty(() => _working = _working.copyWith(foil: f));
   }
 
   void _onArtistChanged() {
+    if (_suppressDirty) return;
     if (_working.content.artist == _artist.text) return;
-    setState(() => _working =
+    _markDirty(() => _working =
         _working.copyWith(content: _working.content.withArtist(_artist.text)));
-    _scheduleSave();
   }
 
   void _changeSet(String? setId) {
-    setState(() => _working = _working.copyWith(setId: setId));
-    widget.repo.setSet(_working.id, setId);
+    _markDirty(() => _working = _working.copyWith(setId: setId));
   }
 
   void _setRarity(String? rarityId) {
-    setState(() => _working =
+    _markDirty(() => _working =
         _working.copyWith(content: _working.content.withRarity(rarityId)));
-    widget.repo.save(_working);
+  }
+
+  // ---- save / cancel / leave ----
+
+  Future<void> _save() async {
+    // save() writes the editable fields; setSet() persists membership (which
+    // save() deliberately leaves untouched). Both reflect the working copy.
+    await widget.repo.save(_working);
+    await widget.repo.setSet(_working.id, _working.setId);
+    if (!mounted) return;
+    setState(() => _dirty = false);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Card saved')));
+  }
+
+  /// Discard unsaved edits, snapping the working copy back to the persisted card
+  /// and resyncing the text controllers (without re-marking dirty).
+  void _revert() {
+    setState(() {
+      _working = widget.card;
+      _dirty = false;
+    });
+    _suppressDirty = true;
+    _artist.text = _working.content.artist;
+    for (final entry in _controllers.entries) {
+      entry.value.text = _working.content.text[entry.key] ?? '';
+    }
+    _suppressDirty = false;
+    _syncArtImages();
+  }
+
+  // Back arrow + Android system back both route here. Nothing persists unless
+  // the user saves, so leaving with edits asks first.
+  Future<void> _handleBack() async {
+    if (!_dirty) {
+      widget.onLeave();
+      return;
+    }
+    final action = await showDialog<String>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: const Text('Unsaved changes'),
+        content: const Text('Save your changes to this card before leaving?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(d, 'cancel'),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(d, 'discard'),
+              child: const Text('Discard')),
+          FilledButton(
+              onPressed: () => Navigator.pop(d, 'save'),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (action == 'save') {
+      await _save();
+      widget.onLeave();
+    } else if (action == 'discard') {
+      _revert();
+      widget.onLeave();
+    }
+    // cancel / dismissed → stay in the editor
   }
 
   // ---- shared chrome ----
+
+  /// The card's display name, taken from its Name field's content.
+  String _cardDisplayName() {
+    for (final f in _effective.fields) {
+      if (f.type == FieldType.name) {
+        final t = (_working.content.text[f.id] ?? '').trim();
+        if (t.isNotEmpty) return t;
+      }
+    }
+    return 'Untitled card';
+  }
+
+  /// Header with a back arrow (to Collection), the card name, and Save/Cancel.
+  /// Save is enabled only when there are unsaved edits; Cancel reverts them.
+  Widget _cardHeader() {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 6, 12, 4),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: 'Back to Collection',
+              icon: const Icon(Icons.arrow_back),
+              onPressed: _handleBack,
+            ),
+            Flexible(
+              child: Text(
+                _cardDisplayName(),
+                style: Theme.of(context).textTheme.titleMedium,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'CARD',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant,
+                  ),
+            ),
+            const Spacer(),
+            if (_dirty)
+              TextButton(onPressed: _revert, child: const Text('Cancel')),
+            const SizedBox(width: 4),
+            FilledButton(
+              onPressed: _dirty ? _save : null,
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   /// The TEMPLATE header row (picker) shown above the preview on every layout.
   /// Moved here from the Card settings panel so there is one picker, always in
@@ -528,65 +649,78 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     final refs = CardRefs(palette: widget.palette, images: _images);
     final card = _compose();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 720;
+    return PopScope(
+      // Only intercept Back while this tab is the visible one — every tab lives
+      // in the shell's IndexedStack, so an always-on PopScope would swallow Back
+      // from other tabs too.
+      canPop: !widget.active,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && widget.active) _handleBack();
+      },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 720;
 
-        if (wide) {
-          // Tablet / desktop: header on top, then preview · rail · settings.
-          final preview = Padding(
-            padding: const EdgeInsets.all(16),
-            child: Center(
-              child: CardPreview(card: card, refs: refs, width: 300),
+          if (wide) {
+            // Tablet / desktop: header on top, then preview · rail · settings.
+            final preview = Padding(
+              padding: const EdgeInsets.all(16),
+              child: Center(
+                child: CardPreview(card: card, refs: refs, width: 300),
+              ),
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _cardHeader(),
+                _templateHeader(),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(flex: 5, child: preview),
+                      _Rail(
+                          vertical: true,
+                          selected: _cat,
+                          onSelect: (c) => setState(() => _cat = c)),
+                      Expanded(
+                        flex: 4,
+                        child: Material(
+                          color:
+                              Theme.of(context).colorScheme.surfaceContainerLow,
+                          child: _settings(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // Phone: header on top, preview filling the space above a slide-up dock.
+          return PreviewDockScaffold(
+            header: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [_cardHeader(), _templateHeader()],
+            ),
+            preview: _fittingPreview(card, refs),
+            dock: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Rail(
+                  vertical: true,
+                  scroll: true,
+                  selected: _cat,
+                  onSelect: (c) => setState(() => _cat = c),
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: _settings()),
+              ],
             ),
           );
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _templateHeader(),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(flex: 5, child: preview),
-                    _Rail(
-                        vertical: true,
-                        selected: _cat,
-                        onSelect: (c) => setState(() => _cat = c)),
-                    Expanded(
-                      flex: 4,
-                      child: Material(
-                        color:
-                            Theme.of(context).colorScheme.surfaceContainerLow,
-                        child: _settings(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        }
-
-        // Phone: header on top, preview filling the space above a slide-up dock.
-        return PreviewDockScaffold(
-          header: _templateHeader(),
-          preview: _fittingPreview(card, refs),
-          dock: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _Rail(
-                vertical: true,
-                scroll: true,
-                selected: _cat,
-                onSelect: (c) => setState(() => _cat = c),
-              ),
-              const VerticalDivider(width: 1),
-              Expanded(child: _settings()),
-            ],
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 }

@@ -486,9 +486,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       if (ok != true) return;
     }
     final repo = ref.read(cardRepositoryProvider);
-    for (final id in ids) {
-      await repo.delete(id);
-    }
+    await repo.deleteMany(ids);
     if (mounted && _selecting) _cancelSelection();
   }
 
