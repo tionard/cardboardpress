@@ -22,7 +22,7 @@
 // The screen is one library split across part files: this root holds all state and
 // the action/mutation logic; the parts build the two views and the leaf widgets.
 
-// import 'dart:typed_data';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -49,6 +49,9 @@ const String _kUnassignedKey = '__unassigned__';
 /// The two ways the root browser lays folders out.
 enum _View { large, grid }
 
+/// How the set folders are ordered (Unassigned always leads regardless).
+enum _SetSort { created, name, year }
+
 class CollectionScreen extends ConsumerStatefulWidget {
   const CollectionScreen({super.key});
 
@@ -64,6 +67,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   // ---- root view options ----
   _View _view = _View.large;
   double _density = 3; // grid columns (root grid + opened set), 2..5
+  _SetSort _sort = _SetSort.created; // newest-created first by default
 
   // ---- search ----
   final TextEditingController _searchCtl = TextEditingController();
@@ -101,6 +105,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
 
   void _setView(_View v) => setState(() => _view = v);
   void _setDensity(double d) => setState(() => _density = d);
+  void _setSort(_SetSort s) => setState(() => _sort = s);
 
   void _setQuery(String q) {
     if (q == _query) return;
@@ -271,24 +276,46 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     return _buildOpenedSet(open, ctx);
   }
 
-  /// Unassigned first, then each persisted set in order.
-  List<_Folder> _folders(List<CardEntry> cards, List<SetEntry> sets) => [
+  /// Unassigned first, then each persisted set in the chosen sort order.
+  List<_Folder> _folders(List<CardEntry> cards, List<SetEntry> sets) {
+    final sorted = [...sets];
+    switch (_sort) {
+      case _SetSort.created:
+        // position increments on creation (no set reordering), so descending
+        // position == newest created first.
+        sorted.sort((a, b) => b.position.compareTo(a.position));
+        break;
+      case _SetSort.name:
+        sorted.sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        break;
+      case _SetSort.year:
+        sorted.sort((a, b) {
+          final byYear = b.year.compareTo(a.year); // newest year first
+          return byYear != 0
+              ? byYear
+              : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+        break;
+    }
+    return [
+      _Folder(
+        key: _kUnassignedKey,
+        set: null,
+        title: 'Unassigned',
+        abbr: '',
+        cards: cards.where((c) => c.setId == null).toList(),
+      ),
+      for (final s in sorted)
         _Folder(
-          key: _kUnassignedKey,
-          set: null,
-          title: 'Unassigned',
-          abbr: '',
-          cards: cards.where((c) => c.setId == null).toList(),
+          key: s.id,
+          set: s,
+          title: s.name,
+          abbr: s.abbreviation,
+          cards: cards.where((c) => c.setId == s.id).toList(),
         ),
-        for (final s in sets)
-          _Folder(
-            key: s.id,
-            set: s,
-            title: s.name,
-            abbr: s.abbreviation,
-            cards: cards.where((c) => c.setId == s.id).toList(),
-          ),
-      ];
+    ];
+  }
 
   // ---- compose / decode (for thumbnails and export) ----
 
@@ -760,11 +787,11 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     if (mounted) _cancelSelection();
   }
 
-  // Future<void> _chooseSetSymbol(SetEntry set) async {
-  //   final choice = await pickSymbol(context, ref, currentId: set.symbolId);
-  //   if (choice == null) return; // cancelled
-  //   await ref.read(setRepositoryProvider).setSymbol(set.id, choice.id);
-  // }
+  Future<void> _chooseSetSymbol(SetEntry set) async {
+    final choice = await pickSymbol(context, ref, currentId: set.symbolId);
+    if (choice == null) return; // cancelled
+    await ref.read(setRepositoryProvider).setSymbol(set.id, choice.id);
+  }
 
   // ---- small shared helpers ----
 

@@ -38,6 +38,30 @@ extension _RootView on _CollectionScreenState {
                 selected: {_view},
                 onSelectionChanged: (s) => _setView(s.first),
               ),
+              const Spacer(),
+              PopupMenuButton<_SetSort>(
+                tooltip: 'Sort sets',
+                icon: const Icon(Icons.sort),
+                initialValue: _sort,
+                onSelected: _setSort,
+                itemBuilder: (_) => [
+                  CheckedPopupMenuItem(
+                    value: _SetSort.created,
+                    checked: _sort == _SetSort.created,
+                    child: const Text('Newest first'),
+                  ),
+                  CheckedPopupMenuItem(
+                    value: _SetSort.name,
+                    checked: _sort == _SetSort.name,
+                    child: const Text('Name (A–Z)'),
+                  ),
+                  CheckedPopupMenuItem(
+                    value: _SetSort.year,
+                    checked: _sort == _SetSort.year,
+                    child: const Text('Year (newest)'),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

@@ -91,6 +91,8 @@ class CardEditorScreen extends ConsumerWidget {
           exporter: ref.read(cardExporterProvider),
           onLeave: () => ref.read(selectedTabProvider.notifier).set(0),
           active: ref.watch(selectedTabProvider) == kCardEditorTabIndex,
+          onOpenCard: (id) =>
+              ref.read(currentCardIdProvider.notifier).set(id),
         );
       },
     );
@@ -130,6 +132,7 @@ class _CardEditorBody extends StatefulWidget {
   final CardExporter exporter;
   final VoidCallback onLeave; // return to the Collection tab
   final bool active; // is the Card Editor the visible tab? (gates back handling)
+  final ValueChanged<String> onOpenCard; // switch the editor to another card id
 
   const _CardEditorBody({
     super.key,
@@ -148,6 +151,7 @@ class _CardEditorBody extends StatefulWidget {
     required this.exporter,
     required this.onLeave,
     required this.active,
+    required this.onOpenCard,
   });
 
   @override
@@ -456,6 +460,27 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     _syncArtImages();
   }
 
+  /// Ask what to do about unsaved edits. Returns 'save' | 'discard' | 'cancel'
+  /// (or null if dismissed, treated as cancel).
+  Future<String?> _promptUnsaved() => showDialog<String>(
+        context: context,
+        builder: (d) => AlertDialog(
+          title: const Text('Unsaved changes'),
+          content: const Text('Save your changes to this card first?'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(d, 'cancel'),
+                child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(d, 'discard'),
+                child: const Text('Discard')),
+            FilledButton(
+                onPressed: () => Navigator.pop(d, 'save'),
+                child: const Text('Save')),
+          ],
+        ),
+      );
+
   // Back arrow + Android system back both route here. Nothing persists unless
   // the user saves, so leaving with edits asks first.
   Future<void> _handleBack() async {
@@ -463,24 +488,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
       widget.onLeave();
       return;
     }
-    final action = await showDialog<String>(
-      context: context,
-      builder: (d) => AlertDialog(
-        title: const Text('Unsaved changes'),
-        content: const Text('Save your changes to this card before leaving?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(d, 'cancel'),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(d, 'discard'),
-              child: const Text('Discard')),
-          FilledButton(
-              onPressed: () => Navigator.pop(d, 'save'),
-              child: const Text('Save')),
-        ],
-      ),
-    );
+    final action = await _promptUnsaved();
     if (action == 'save') {
       await _save();
       widget.onLeave();
@@ -489,6 +497,23 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
       widget.onLeave();
     }
     // cancel / dismissed → stay in the editor
+  }
+
+  /// Create a fresh card (same template + set as the current one) and open it
+  /// in place, without leaving the editor. Unsaved edits prompt first.
+  Future<void> _newCard() async {
+    if (_dirty) {
+      final action = await _promptUnsaved();
+      if (action == null || action == 'cancel') return;
+      if (action == 'save') await _save();
+      // 'discard' → just proceed; this body is replaced when the card switches.
+    }
+    final id = await widget.repo.create(
+      templateId: _working.templateId,
+      templateSnapshot: _working.templateSnapshot,
+      setId: _working.setId,
+    );
+    widget.onOpenCard(id);
   }
 
   // ---- shared chrome ----
@@ -536,6 +561,11 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
                   ),
             ),
             const Spacer(),
+            IconButton(
+              tooltip: 'New card',
+              icon: const Icon(Icons.note_add_outlined),
+              onPressed: _newCard,
+            ),
             if (_dirty)
               TextButton(onPressed: _revert, child: const Text('Cancel')),
             const SizedBox(width: 4),
