@@ -65,6 +65,12 @@ class CardRepository {
 
   Future<void> setSet(String id, String? setId) => _db.updateCardSet(id, setId);
 
+  /// Persist a new order for the cards in [setId] (null => Unassigned).
+  /// [idsInNewOrder] is that set's cards in the order they should appear; the
+  /// renderer's collector numbers follow this order when the set has numbering on.
+  Future<void> reorderInSet(String? setId, List<String> idsInNewOrder) =>
+      _db.reorderCardsInSet(setId, idsInNewOrder);
+
   CardEntry _toEntry(Card r) => CardEntry(
         id: r.id,
         templateId: r.templateId,

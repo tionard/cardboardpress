@@ -1,0 +1,314 @@
+part of 'collection_screen.dart';
+
+// The ROOT browser: folders (sets) as Large or Grid tiles, with search, a
+// density slider (Grid), "New Set", and long-press folder selection. Pure view
+// construction — every state change routes back through the screen State.
+
+extension _RootView on _CollectionScreenState {
+  Widget _buildRoot(List<_Folder> folders, _CardCtx ctx) {
+    final visible = _query.isEmpty
+        ? folders
+        : folders.where((f) => _folderMatches(f, ctx)).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _CollectionHeader(
+          leading: Text('Collection',
+              style: Theme.of(context).textTheme.titleLarge),
+          trailing: [_rootAction()],
+        ),
+        _SearchBar(controller: _searchCtl, hint: 'Search all cards…'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(
+            children: [
+              SegmentedButton<_View>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                      value: _View.large,
+                      icon: Icon(Icons.view_agenda_outlined, size: 18),
+                      label: Text('Large')),
+                  ButtonSegment(
+                      value: _View.grid,
+                      icon: Icon(Icons.grid_view, size: 18),
+                      label: Text('Grid')),
+                ],
+                selected: {_view},
+                onSelectionChanged: (s) => _setView(s.first),
+              ),
+            ],
+          ),
+        ),
+        if (_view == _View.grid)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: LabeledSlider(
+              label: 'Per row',
+              value: _density,
+              min: 2,
+              max: 5,
+              step: 1,
+              decimals: 0,
+              labelWidth: 64,
+              onChanged: _setDensity,
+            ),
+          ),
+        Expanded(
+          child: _view == _View.large
+              ? _largeList(visible, ctx)
+              : _gridList(visible, ctx),
+        ),
+        if (_selecting)
+          _SelectionBar(
+            count: _selected.length,
+            actions: [
+              IconButton(
+                tooltip: 'Delete',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: _selected.isEmpty ? null : _bulkDeleteFolders,
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _rootAction() {
+    if (_selecting) {
+      return TextButton(
+          onPressed: _cancelSelection, child: const Text('Cancel'));
+    }
+    return OutlinedButton.icon(
+      onPressed: _newSet,
+      icon: const Icon(Icons.create_new_folder_outlined, size: 18),
+      label: const Text('New Set'),
+    );
+  }
+
+  bool _folderMatches(_Folder f, _CardCtx ctx) {
+    final q = _query.toLowerCase();
+    if (f.title.toLowerCase().contains(q)) return true;
+    for (final c in f.cards) {
+      if (_cardName(c, ctx).toLowerCase().contains(q)) return true;
+    }
+    return false;
+  }
+
+  List<Widget> _folderThumbs(
+      _Folder f, _CardCtx ctx, double width, int max) {
+    final out = <Widget>[];
+    for (var i = 0; i < f.cards.length && i < max; i++) {
+      out.add(DecodedCardPreview(
+        card: _compose(f, f.cards[i], i, ctx),
+        palette: ctx.palette,
+        imageStore: ctx.imageStore,
+        width: width,
+      ));
+    }
+    return out;
+  }
+
+  // ---- Large ----
+
+  Widget _largeList(List<_Folder> folders, _CardCtx ctx) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [for (final f in folders) _largeFolderTile(f, ctx)],
+    );
+  }
+
+  Widget _largeFolderTile(_Folder f, _CardCtx ctx) {
+    final scheme = Theme.of(context).colorScheme;
+    final selectable = !f.isUnassigned;
+    final selected = _selected.contains(f.key);
+    final dim = _selecting && !selectable;
+
+    final tile = Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FolderCover(thumbs: _folderThumbs(f, ctx, 46, 4), height: 66),
+          const SizedBox(height: 10),
+          _folderMetaRow(f, ctx, scheme),
+        ],
+      ),
+    );
+
+    return Opacity(
+      opacity: dim ? 0.4 : 1,
+      child: _Selectable(
+        selecting: _selecting && selectable,
+        selected: selected,
+        onTap: () {
+          if (_selecting) {
+            if (selectable) _toggleSelected(f.key);
+          } else {
+            _openFolder(f.key);
+          }
+        },
+        onLongPress:
+            (selectable && !_selecting) ? () => _enterSelection(f.key) : null,
+        child: tile,
+      ),
+    );
+  }
+
+  Widget _folderMetaRow(_Folder f, _CardCtx ctx, ColorScheme scheme) {
+    final symbol = f.set?.symbolId == null ? null : ctx.symbols[f.set!.symbolId];
+    return Row(
+      children: [
+        if (f.isUnassigned) ...[
+          const Icon(Icons.lock_outline, size: 16),
+          const SizedBox(width: 6),
+        ],
+        Flexible(
+          child: Text(
+            f.abbr.isEmpty ? f.title : '${f.title} · ${f.abbr}',
+            style: Theme.of(context).textTheme.titleSmall,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text('${f.cards.length}',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant)),
+        if (f.isUnassigned) ...[
+          const SizedBox(width: 8),
+          Text('permanent',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.7))),
+        ],
+        const Spacer(),
+        if (symbol != null)
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: _SetSymbolThumb(imageId: symbol.imageId, size: 20),
+          ),
+        if (f.set != null && !_selecting)
+          IconButton(
+            tooltip: 'Set settings',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.settings_outlined, size: 20),
+            onPressed: () => _openSetSettings(f.set!),
+          ),
+      ],
+    );
+  }
+
+  // ---- Grid ----
+
+  Widget _gridList(List<_Folder> folders, _CardCtx ctx) {
+    return LayoutBuilder(
+      builder: (c, cns) {
+        final cols = _density.round().clamp(2, 5);
+        const gap = 12.0;
+        final tileW = (cns.maxWidth - 32 - gap * (cols - 1)) / cols;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+          child: Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final f in folders)
+                SizedBox(width: tileW, child: _gridFolderTile(f, ctx, tileW)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _gridFolderTile(_Folder f, _CardCtx ctx, double tileW) {
+    final scheme = Theme.of(context).colorScheme;
+    final selectable = !f.isUnassigned;
+    final selected = _selected.contains(f.key);
+    final dim = _selecting && !selectable;
+
+    const innerPad = 8.0;
+    const thumbGap = 6.0;
+    final thumbW = ((tileW - innerPad * 2 - thumbGap) / 2).floorToDouble();
+    final thumbs = _folderThumbs(f, ctx, thumbW, 4);
+
+    final cover = thumbs.isEmpty
+        ? _FolderCover(thumbs: const [], height: thumbW * 1.4 * 2 + thumbGap)
+        : Wrap(spacing: thumbGap, runSpacing: thumbGap, children: thumbs);
+
+    final tile = Container(
+      padding: const EdgeInsets.all(innerPad),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          cover,
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              if (f.isUnassigned) ...[
+                const Icon(Icons.lock_outline, size: 13),
+                const SizedBox(width: 4),
+              ],
+              Expanded(
+                child: Text(
+                  f.title,
+                  style: Theme.of(context).textTheme.labelLarge,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (f.set != null && !_selecting)
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    tooltip: 'Set settings',
+                    icon: const Icon(Icons.settings_outlined, size: 18),
+                    onPressed: () => _openSetSettings(f.set!),
+                  ),
+                ),
+            ],
+          ),
+          Text(
+            f.abbr.isEmpty
+                ? '${f.cards.length} cards'
+                : '${f.abbr} · ${f.cards.length}',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+
+    return Opacity(
+      opacity: dim ? 0.4 : 1,
+      child: _Selectable(
+        selecting: _selecting && selectable,
+        selected: selected,
+        onTap: () {
+          if (_selecting) {
+            if (selectable) _toggleSelected(f.key);
+          } else {
+            _openFolder(f.key);
+          }
+        },
+        onLongPress:
+            (selectable && !_selecting) ? () => _enterSelection(f.key) : null,
+        child: tile,
+      ),
+    );
+  }
+}

@@ -305,6 +305,43 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteCard(String id) =>
       (delete(cards)..where((t) => t.id.equals(id))).go();
 
+  /// Persist a new intra-set card order. [idsInNewOrder] is the target set's
+  /// cards (those with setId == [setId]) in the desired order; every other card
+  /// keeps its slot. We renumber the WHOLE table 0..N-1 in one batch so card
+  /// positions stay distinct — new cards are created at position 0, so an
+  /// untouched collection is full of ties; the first reorder anywhere heals that
+  /// for good while preserving the order the user currently sees.
+  Future<void> reorderCardsInSet(
+      String? setId, List<String> idsInNewOrder) async {
+    final all = await (select(cards)
+          ..orderBy([(t) => OrderingTerm(expression: t.position)]))
+        .get();
+
+    // Guard: the new order must be exactly the set's cards (no more, no less),
+    // or we'd risk dropping/duplicating a slot. Bail harmlessly otherwise.
+    final targetCount = all.where((r) => r.setId == setId).length;
+    if (idsInNewOrder.length != targetCount) return;
+
+    var k = 0;
+    final newOrder = <String>[];
+    for (final row in all) {
+      if (row.setId == setId) {
+        newOrder.add(idsInNewOrder[k++]); // fill the set's slots, in new order
+      } else {
+        newOrder.add(row.id); // everything else stays put
+      }
+    }
+
+    // One transaction, written with the same update-builder updateCardSet uses
+    // (kept deliberately to the APIs already proven in this file).
+    await transaction(() async {
+      for (var i = 0; i < newOrder.length; i++) {
+        await (update(cards)..where((t) => t.id.equals(newOrder[i])))
+            .write(CardsCompanion(position: Value(i)));
+      }
+    });
+  }
+
   Future<void> _seedSampleCards() async {
     final thornwood =
         defaultTemplates().firstWhere((t) => t.id == 't_thornwood').data;

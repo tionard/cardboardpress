@@ -37,6 +37,32 @@ class SetRepository {
     return id;
   }
 
+  /// Update any subset of a set's footer-feeding fields. Only the arguments you
+  /// pass are written (the rest stay `Value.absent()` so an update preserves
+  /// them) — the same partial-update shape the card repository uses.
+  Future<void> update(
+    String id, {
+    String? name,
+    String? abbreviation,
+    int? year,
+    String? owner,
+    bool? numbering,
+  }) =>
+      _db.updateSet(
+        id,
+        SetsCompanion(
+          name: name == null
+              ? const Value.absent()
+              : Value(name.trim().isEmpty ? 'New set' : name.trim()),
+          abbreviation: abbreviation == null
+              ? const Value.absent()
+              : Value(abbreviation.trim()),
+          year: year == null ? const Value.absent() : Value(year),
+          owner: owner == null ? const Value.absent() : Value(owner.trim()),
+          numbering: numbering == null ? const Value.absent() : Value(numbering),
+        ),
+      );
+
   /// Choose (or clear, when [symbolId] is null) this set's set symbol.
   Future<void> setSymbol(String id, String? symbolId) =>
       _db.updateSet(id, SetsCompanion(symbolId: Value(symbolId)));

@@ -1,240 +1,379 @@
 // lib/features/collection/collection_screen.dart
 //
-// Collection: cards grouped into folders (sets). "Unassigned" is the permanent
-// null-setId bucket and leads. You can create cards into a folder, open one to
-// edit, duplicate, delete, or move it between sets; and create new sets.
+// Collection v2 — two levels inside one tab:
 //
-// This is Collection v1 — the structure and CRUD. Polish (Large/Grid toggle,
-// density slider, search, multi-select, drag-reorder, footer numbering) follows.
+//   * ROOT: a browser of folders (sets). "Unassigned" leads and is permanent.
+//     Large / Grid views, a density slider (Grid), search across all folders and
+//     card names, and a top-right "New Set" action. Long-pressing a folder enters
+//     selection mode (the action becomes "Cancel"); selected folders get the
+//     accent ring + check and a docked Delete bar.
+//
+//   * OPENED SET: tap a folder to drill in to its cards. A back chevron, the set
+//     name, a settings cog, search within the set, and a top-right "New Card"
+//     action. Long-pressing a card enters selection mode (Export / Share / Delete
+//     docked bar); each card also has a ⋯ menu (Edit / Duplicate / Move / Export /
+//     Share / Delete).
+//
+// Navigation is an in-tab state switch (like the Template Editor's browser/editor),
+// NOT a pushed route — so we never get a second editor instance fighting over
+// autosave, and Android Back is handled by PopScope (exit selection → close set →
+// leave tab).
+//
+// The screen is one library split across part files: this root holds all state and
+// the action/mutation logic; the parts build the two views and the leaf widgets.
 
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/card_exporter.dart';
+import '../../data/image_store.dart';
 import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../widgets/decoded_card_preview.dart';
+import '../../widgets/labeled_slider.dart';
 import '../customization/symbol_picker.dart';
 
-class CollectionScreen extends ConsumerWidget {
+part 'collection_root.dart';
+part 'collection_set.dart';
+part 'collection_widgets.dart';
+
+/// The permanent "Unassigned" bucket has no row, so it gets a sentinel key when
+/// opened. Real folders are keyed by their set id.
+const String _kUnassignedKey = '__unassigned__';
+
+/// The two ways the root browser lays folders out.
+enum _View { large, grid }
+
+class CollectionScreen extends ConsumerStatefulWidget {
   const CollectionScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CollectionScreen> createState() => _CollectionScreenState();
+}
+
+class _CollectionScreenState extends ConsumerState<CollectionScreen> {
+  // ---- navigation ----
+  // null => root browser; otherwise the key of the opened folder.
+  String? _openKey;
+
+  // ---- root view options ----
+  _View _view = _View.large;
+  double _density = 3; // grid columns (root grid + opened set), 2..5
+
+  // ---- search ----
+  final TextEditingController _searchCtl = TextEditingController();
+  String _query = '';
+
+  // ---- selection ----
+  // While selecting, this holds folder keys (at root) or card ids (in a set).
+  // The two are never active at once, so one set suffices; cleared on navigation.
+  final Set<String> _selected = {};
+  bool _selecting = false;
+
+  // ---- async export guard ----
+  bool _busy = false;
+
+  // ---- reorder mode (opened set only) ----
+  // A dedicated mode (toggled from the set header) so dragging doesn't fight the
+  // long-press that enters selection. _reorderIds is a local mirror of the set's
+  // card order for snappy drags; the persisted order re-emits to match.
+  bool _reordering = false;
+  List<String> _reorderIds = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtl.addListener(() => _setQuery(_searchCtl.text));
+  }
+
+  @override
+  void dispose() {
+    _searchCtl.dispose();
+    super.dispose();
+  }
+
+  // ---- small state transitions (extensions can't call setState directly) ----
+
+  void _setView(_View v) => setState(() => _view = v);
+  void _setDensity(double d) => setState(() => _density = d);
+
+  void _setQuery(String q) {
+    if (q == _query) return;
+    setState(() => _query = q);
+  }
+
+  void _openFolder(String key) {
+    setState(() {
+      _openKey = key;
+      _selecting = false;
+      _selected.clear();
+      _reordering = false;
+      _reorderIds = const [];
+      _searchCtl.clear();
+      _query = '';
+    });
+  }
+
+  void _closeFolder() {
+    setState(() {
+      _openKey = null;
+      _selecting = false;
+      _selected.clear();
+      _reordering = false;
+      _reorderIds = const [];
+      _searchCtl.clear();
+      _query = '';
+    });
+  }
+
+  void _cancelSelection() {
+    setState(() {
+      _selecting = false;
+      _selected.clear();
+    });
+  }
+
+  void _enterSelection(String firstId) {
+    setState(() {
+      _selecting = true;
+      _selected
+        ..clear()
+        ..add(firstId);
+    });
+  }
+
+  void _toggleSelected(String id) {
+    setState(() {
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+        if (_selected.isEmpty) _selecting = false;
+      } else {
+        _selected.add(id);
+      }
+    });
+  }
+
+  void _enterReorder(List<String> ids) {
+    setState(() {
+      _reordering = true;
+      _reorderIds = ids;
+      _selecting = false;
+      _selected.clear();
+      _searchCtl.clear();
+      _query = '';
+    });
+  }
+
+  void _exitReorder() {
+    setState(() {
+      _reordering = false;
+      _reorderIds = const [];
+    });
+  }
+
+  /// Apply a ReorderableListView move to the local mirror and persist it. The
+  /// renderer's collector numbers follow this order (when numbering is on).
+  void _applyReorder(int oldIndex, int newIndex, String? setId) {
+    final ids = List<String>.from(_reorderIds);
+    if (oldIndex < 0 || oldIndex >= ids.length) return;
+    // ReorderableListView reports newIndex as an insertion point; adjust when
+    // moving an item downward.
+    if (newIndex > oldIndex) newIndex -= 1;
+    final moved = ids.removeAt(oldIndex);
+    newIndex = newIndex.clamp(0, ids.length);
+    ids.insert(newIndex, moved);
+    setState(() => _reorderIds = ids);
+    ref.read(cardRepositoryProvider).reorderInSet(setId, ids);
+  }
+
+  // ---- build ----
+
+  @override
+  Widget build(BuildContext context) {
     final cardsAsync = ref.watch(cardsProvider);
     final setsAsync = ref.watch(setsProvider);
-    final templatesMap = ref.watch(templatesMapProvider);
-    final palette = ref.watch(paletteMapProvider);
-    final raritiesMap = ref.watch(raritiesMapProvider);
-    final symbolsMap = ref.watch(symbolsMapProvider);
 
-    return cardsAsync.when(
+    final ctx = _CardCtx(
+      templates: ref.watch(templatesMapProvider),
+      palette: ref.watch(paletteMapProvider),
+      rarities: ref.watch(raritiesMapProvider),
+      symbols: ref.watch(symbolsMapProvider),
+      textSymbols: ref.watch(textSymbolMapProvider),
+      imageStore: ref.read(imageStoreProvider),
+    );
+
+    final body = cardsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Could not load cards:\n$e')),
       data: (cards) => setsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Could not load sets:\n$e')),
-        data: (sets) {
-          // Unassigned first, then each set in order.
-          final folders = <_Folder>[
-            _Folder(
-                set: null,
-                title: 'Unassigned',
-                abbr: '',
-                cards: cards.where((c) => c.setId == null).toList()),
-            for (final s in sets)
-              _Folder(
-                  set: s,
-                  title: s.name,
-                  abbr: s.abbreviation,
-                  cards: cards.where((c) => c.setId == s.id).toList()),
-          ];
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: Row(
-                  children: [
-                    Text('Collection',
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const Spacer(),
-                    OutlinedButton.icon(
-                      onPressed: () => _newSet(context, ref),
-                      icon: const Icon(Icons.create_new_folder_outlined),
-                      label: const Text('New set'),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  children: [
-                    for (final f in folders)
-                      _section(context, ref, f, templatesMap, palette,
-                          raritiesMap, symbolsMap),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
+        data: (sets) => _buildBody(cards, sets, ctx),
       ),
     );
-  }
 
-  Widget _section(
-    BuildContext context,
-    WidgetRef ref,
-    _Folder folder,
-    Map<String, TemplateData> templatesMap,
-    Map<String, ColorValue> palette,
-    Map<String, RarityEntry> raritiesMap,
-    Map<String, SymbolEntry> symbolsMap,
-  ) {
-    final heading = folder.abbr.isEmpty
-        ? folder.title
-        : '${folder.title} · ${folder.abbr}';
-
-    // The set's chosen symbol, if it still resolves (it may have been deleted).
-    final set = folder.set;
-    final chosenSymbol =
-        set?.symbolId == null ? null : symbolsMap[set!.symbolId];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    // Intercept Back while we have somewhere to go inside the tab.
+    return PopScope(
+      canPop: _openKey == null && !_selecting && !_reordering,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_reordering) {
+          _exitReorder();
+        } else if (_selecting) {
+          _cancelSelection();
+        } else if (_openKey != null) {
+          _closeFolder();
+        }
+      },
+      child: SafeArea(
+        bottom: false,
+        child: Stack(
           children: [
-            Text(heading, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(width: 8),
-            Text('${folder.cards.length}',
-                style: Theme.of(context).textTheme.bodySmall),
-            if (chosenSymbol != null) ...[
-              const SizedBox(width: 8),
-              _SetSymbolThumb(imageId: chosenSymbol.imageId, size: 20),
-            ],
-            const Spacer(),
-            if (set != null)
-              TextButton.icon(
-                onPressed: () => _chooseSetSymbol(context, ref, set),
-                icon: const Icon(Icons.star_border, size: 18),
-                label: Text(chosenSymbol == null ? 'Symbol' : 'Change symbol'),
+            body,
+            if (_busy)
+              const Positioned.fill(
+                child: ColoredBox(
+                  color: Color(0x66000000),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               ),
-            TextButton.icon(
-              onPressed: () => _newCard(context, ref, folder.id),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('New card'),
-            ),
           ],
         ),
-        const SizedBox(height: 8),
-        if (folder.cards.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text('No cards in this folder yet.',
-                style: Theme.of(context).textTheme.bodySmall),
-          )
-        else
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              for (var i = 0; i < folder.cards.length; i++)
-                _thumb(context, ref, folder.cards[i], templatesMap, palette,
-                    folder.set, raritiesMap, symbolsMap, i + 1, folder.cards.length),
-            ],
-          ),
-        const Divider(height: 28),
-      ],
-    );
-  }
-
-  Widget _thumb(
-    BuildContext context,
-    WidgetRef ref,
-    CardEntry card,
-    Map<String, TemplateData> templatesMap,
-    Map<String, ColorValue> palette,
-    SetEntry? set,
-    Map<String, RarityEntry> raritiesMap,
-    Map<String, SymbolEntry> symbolsMap,
-    int number,
-    int total,
-  ) {
-    final effective = card.effectiveTemplate(templatesMap);
-    final data = composeCard(
-      effective,
-      content: card.content,
-      foil: card.foil,
-      set: set,
-      rarity: raritiesMap[card.content.rarityId],
-      number: set == null ? null : number,
-      total: set == null ? null : total,
-      symbolImageIds: ref.read(textSymbolMapProvider),
-      symbolsById: symbolsMap,
-    );
-    final name = _cardName(effective, card);
-
-    return SizedBox(
-      width: 92,
-      child: Column(
-        children: [
-          InkWell(
-            onTap: () => _openEditor(ref, card.id),
-            onLongPress: () => _cardMenu(context, ref, card),
-            child: DecodedCardPreview(
-                card: data,
-                palette: palette,
-                imageStore: ref.read(imageStoreProvider),
-                width: 92),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            name.isEmpty ? '(unnamed)' : name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11),
-          ),
-        ],
       ),
     );
   }
 
-  String _cardName(TemplateData t, CardEntry card) {
+  Widget _buildBody(
+      List<CardEntry> cards, List<SetEntry> sets, _CardCtx ctx) {
+    final folders = _folders(cards, sets);
+
+    if (_openKey == null) return _buildRoot(folders, ctx);
+
+    _Folder? open;
+    for (final f in folders) {
+      if (f.key == _openKey) {
+        open = f;
+        break;
+      }
+    }
+    if (open == null) {
+      // The set was deleted while open — fall back to the root next frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _closeFolder();
+      });
+      return const SizedBox.shrink();
+    }
+    return _buildOpenedSet(open, ctx);
+  }
+
+  /// Unassigned first, then each persisted set in order.
+  List<_Folder> _folders(List<CardEntry> cards, List<SetEntry> sets) => [
+        _Folder(
+          key: _kUnassignedKey,
+          set: null,
+          title: 'Unassigned',
+          abbr: '',
+          cards: cards.where((c) => c.setId == null).toList(),
+        ),
+        for (final s in sets)
+          _Folder(
+            key: s.id,
+            set: s,
+            title: s.name,
+            abbr: s.abbreviation,
+            cards: cards.where((c) => c.setId == s.id).toList(),
+          ),
+      ];
+
+  // ---- compose / decode (for thumbnails and export) ----
+
+  /// The card's display name (its Name field's content).
+  String _cardName(CardEntry card, _CardCtx ctx) {
+    final t = card.effectiveTemplate(ctx.templates);
     for (final f in t.fields) {
       if (f.type == FieldType.name) return card.content.text[f.id] ?? '';
     }
     return '';
   }
 
-  void _openEditor(WidgetRef ref, String cardId) {
-    // Select the card and switch to the Card Editor tab — a single editor
-    // instance, never a pushed duplicate (which would fight over autosave).
+  /// Compose [card] (member [index] of [folder]) into a renderable CardData,
+  /// resolving collector number/total only when the set has numbering on.
+  CardData _compose(_Folder folder, CardEntry card, int index, _CardCtx ctx) {
+    final set = folder.set;
+    final numberingOn = set != null && set.numbering;
+    return composeCard(
+      card.effectiveTemplate(ctx.templates),
+      content: card.content,
+      foil: card.foil,
+      set: set,
+      rarity: ctx.rarities[card.content.rarityId],
+      number: numberingOn ? index + 1 : null,
+      total: numberingOn ? folder.cards.length : null,
+      symbolImageIds: ctx.textSymbols,
+      symbolsById: ctx.symbols,
+    );
+  }
+
+  /// Decode every image a composed card references, into the CardRefs the
+  /// exporter needs. (Thumbnails decode themselves via DecodedCardPreview; the
+  /// PNG export path needs its own decode pass.)
+  Future<CardRefs> _decodeRefs(CardData card, _CardCtx ctx) async {
+    final images = <String, ui.Image>{};
+    for (final id in card.imageIdsToDecode()) {
+      if (images.containsKey(id)) continue;
+      final bytes = await ctx.imageStore.load(id);
+      if (bytes == null) continue;
+      final codec = await ui.instantiateImageCodec(bytes);
+      images[id] = (await codec.getNextFrame()).image;
+    }
+    return CardRefs(palette: ctx.palette, images: images);
+  }
+
+  // ---- helpers used by bulk actions ----
+
+  _Folder? _currentFolder() {
+    final cards = ref.read(cardsProvider).maybeWhen(data: (l) => l, orElse: () => const <CardEntry>[]);
+    final sets = ref.read(setsProvider).maybeWhen(data: (l) => l, orElse: () => const <SetEntry>[]);
+    for (final f in _folders(cards, sets)) {
+      if (f.key == _openKey) return f;
+    }
+    return null;
+  }
+
+  // ---- card actions ----
+
+  void _openEditor(String cardId) {
+    // Select the card and switch to the Card Editor tab — one editor instance,
+    // never a pushed duplicate (which would fight over autosave).
     ref.read(currentCardIdProvider.notifier).set(cardId);
     ref.read(selectedTabProvider.notifier).set(kCardEditorTabIndex);
   }
 
-  Future<void> _newCard(
-      BuildContext context, WidgetRef ref, String? setId) async {
+  Future<void> _newCard(String? setId) async {
     final templates = ref.read(templatesProvider).maybeWhen(
           data: (l) => l,
           orElse: () => const <TemplateEntry>[],
         );
-    if (templates.isEmpty) return;
+    if (templates.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Make a template first (Template tab).')));
+      return;
+    }
     final t = templates.first;
     final id = await ref
         .read(cardRepositoryProvider)
         .create(templateId: t.id, templateSnapshot: t.data, setId: setId);
-    _openEditor(ref, id);
+    _openEditor(id);
   }
 
-  void _cardMenu(BuildContext context, WidgetRef ref, CardEntry card) {
+  void _cardMenu(CardEntry card, _Folder folder, int index, _CardCtx ctx) {
+    final isAndroid = defaultTargetPlatform == TargetPlatform.android;
     showModalBottomSheet<void>(
       context: context,
       builder: (sheet) => SafeArea(
@@ -246,7 +385,7 @@ class CollectionScreen extends ConsumerWidget {
               title: const Text('Edit'),
               onTap: () {
                 Navigator.pop(sheet);
-                _openEditor(ref, card.id);
+                _openEditor(card.id);
               },
             ),
             ListTile(
@@ -262,7 +401,25 @@ class CollectionScreen extends ConsumerWidget {
               title: const Text('Move to…'),
               onTap: () {
                 Navigator.pop(sheet);
-                _moveCard(context, ref, card);
+                _moveCard(card);
+              },
+            ),
+            ListTile(
+              leading: Icon(isAndroid
+                  ? Icons.photo_library_outlined
+                  : Icons.download_outlined),
+              title: Text(isAndroid ? 'Export (save to Photos)' : 'Export PNG…'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _exportOne(_compose(folder, card, index, ctx), folder.set);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.ios_share_outlined),
+              title: const Text('Share…'),
+              onTap: () {
+                Navigator.pop(sheet);
+                _shareOne(_compose(folder, card, index, ctx), folder.set, ctx);
               },
             ),
             ListTile(
@@ -270,7 +427,7 @@ class CollectionScreen extends ConsumerWidget {
               title: const Text('Delete'),
               onTap: () {
                 Navigator.pop(sheet);
-                ref.read(cardRepositoryProvider).delete(card.id);
+                _deleteCards([card.id], confirmEvenIfSingle: true);
               },
             ),
           ],
@@ -279,7 +436,7 @@ class CollectionScreen extends ConsumerWidget {
     );
   }
 
-  void _moveCard(BuildContext context, WidgetRef ref, CardEntry card) {
+  void _moveCard(CardEntry card) {
     final sets = ref.read(setsProvider).maybeWhen(
           data: (l) => l,
           orElse: () => const <SetEntry>[],
@@ -315,14 +472,146 @@ class CollectionScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _chooseSetSymbol(
-      BuildContext context, WidgetRef ref, SetEntry set) async {
-    final choice = await pickSymbol(context, ref, currentId: set.symbolId);
-    if (choice == null) return; // cancelled
-    await ref.read(setRepositoryProvider).setSymbol(set.id, choice.id);
+  Future<void> _deleteCards(List<String> ids,
+      {bool confirmEvenIfSingle = false}) async {
+    if (ids.isEmpty) return;
+    final many = ids.length > 1;
+    if (many || confirmEvenIfSingle) {
+      final ok = await _confirm(
+        title: many ? 'Delete ${ids.length} cards?' : 'Delete card?',
+        message: 'This permanently removes '
+            '${many ? 'these cards' : 'this card'}. This cannot be undone.',
+        danger: 'Delete',
+      );
+      if (ok != true) return;
+    }
+    final repo = ref.read(cardRepositoryProvider);
+    for (final id in ids) {
+      await repo.delete(id);
+    }
+    if (mounted && _selecting) _cancelSelection();
   }
 
-  Future<void> _newSet(BuildContext context, WidgetRef ref) async {
+  // ---- bulk card actions (operate on the opened folder's selection) ----
+
+  Future<void> _bulkDeleteCards() => _deleteCards(_selected.toList());
+
+  Future<void> _bulkExport() async {
+    final folder = _currentFolder();
+    if (folder == null) return;
+    final ctx = _ctxNow();
+    final picked = <(_Folder, CardEntry, int)>[];
+    for (var i = 0; i < folder.cards.length; i++) {
+      if (_selected.contains(folder.cards[i].id)) {
+        picked.add((folder, folder.cards[i], i));
+      }
+    }
+    if (picked.isEmpty) return;
+
+    setState(() => _busy = true);
+    var done = 0;
+    String? error;
+    try {
+      for (final (f, card, idx) in picked) {
+        final data = _compose(f, card, idx, ctx);
+        final refs = await _decodeRefs(data, ctx);
+        final abbr = _abbrOf(f.set);
+        final exporter = ref.read(cardExporterProvider);
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          await exporter.saveToGallery(data, refs, setAbbr: abbr);
+        } else {
+          final path = await exporter.exportToFile(data, refs, setAbbr: abbr);
+          if (path == null) break; // user cancelled the Save-as dialog
+        }
+        done++;
+      }
+    } on GalleryAccessDenied {
+      error = 'Photo access was denied — enable it in Settings.';
+    } catch (e) {
+      error = 'Export failed: $e';
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (!mounted) return;
+    final android = defaultTargetPlatform == TargetPlatform.android;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(error ??
+          (android
+              ? 'Saved $done card${done == 1 ? '' : 's'} to your photos'
+              : 'Exported $done card${done == 1 ? '' : 's'}')),
+    ));
+    if (error == null) _cancelSelection();
+  }
+
+  Future<void> _bulkShare() async {
+    final folder = _currentFolder();
+    if (folder == null) return;
+    final ctx = _ctxNow();
+    // share_plus can take multiple files at once, but our exporter shares one at
+    // a time; share them sequentially so the user gets a sheet per card.
+    setState(() => _busy = true);
+    try {
+      for (var i = 0; i < folder.cards.length; i++) {
+        final card = folder.cards[i];
+        if (!_selected.contains(card.id)) continue;
+        final data = _compose(folder, card, i, ctx);
+        await _shareOne(data, folder.set, ctx, silent: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Share failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (mounted) _cancelSelection();
+  }
+
+  // ---- single export / share ----
+
+  Future<void> _exportOne(CardData data, SetEntry? set) async {
+    setState(() => _busy = true);
+    final ctx = _ctxNow();
+    try {
+      final refs = await _decodeRefs(data, ctx);
+      final abbr = _abbrOf(set);
+      final exporter = ref.read(cardExporterProvider);
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final name = await exporter.saveToGallery(data, refs, setAbbr: abbr);
+        _snack('Saved "$name" to your photos');
+      } else {
+        final path = await exporter.exportToFile(data, refs, setAbbr: abbr);
+        _snack(path == null ? 'Export cancelled' : 'Exported to $path');
+      }
+    } on GalleryAccessDenied {
+      _snack('Photo access was denied — enable it in Settings to save cards.');
+    } catch (e) {
+      _snack('Export failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _shareOne(CardData data, SetEntry? set, _CardCtx ctx,
+      {bool silent = false}) async {
+    if (!silent) setState(() => _busy = true);
+    try {
+      final refs = await _decodeRefs(data, ctx);
+      await ref
+          .read(cardExporterProvider)
+          .shareImage(data, refs, setAbbr: _abbrOf(set));
+    } catch (e) {
+      if (!silent) _snack('Share failed: $e');
+      if (silent) rethrow;
+    } finally {
+      if (!silent && mounted) setState(() => _busy = false);
+    }
+  }
+
+  // ---- set / folder actions ----
+
+  Future<void> _newSet() async {
     final nameCtl = TextEditingController();
     final abbrCtl = TextEditingController();
     final create = await showDialog<bool>(
@@ -364,67 +653,181 @@ class CollectionScreen extends ConsumerWidget {
     nameCtl.dispose();
     abbrCtl.dispose();
   }
+
+  void _openSetSettings(SetEntry set) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _SetSettingsSheet(
+        set: set,
+        onDelete: () => _deleteSet(set),
+      ),
+    );
+  }
+
+  /// Single-folder delete with the spec's three-way choice when it has cards.
+  Future<void> _deleteSet(SetEntry set) async {
+    final cards = ref.read(cardsProvider).maybeWhen(data: (l) => l, orElse: () => const <CardEntry>[]);
+    final inSet = cards.where((c) => c.setId == set.id).toList();
+
+    if (inSet.isEmpty) {
+      final ok = await _confirm(
+        title: 'Delete "${set.name}"?',
+        message: 'This empty set will be removed.',
+        danger: 'Delete',
+      );
+      if (ok == true) await ref.read(setRepositoryProvider).delete(set.id);
+      return;
+    }
+
+    if (!mounted) return;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text('Delete "${set.name}"?'),
+        content: Text(
+            'This set holds ${inSet.length} card${inSet.length == 1 ? '' : 's'}. '
+            'Delete the cards too, or keep them by moving them to Unassigned?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialog, 'cancel'),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, 'folder'),
+            child: const Text('Delete folder only'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.pop(dialog, 'all'),
+            child: const Text('Delete all'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null || choice == 'cancel') return;
+
+    final cardRepo = ref.read(cardRepositoryProvider);
+    final setRepo = ref.read(setRepositoryProvider);
+
+    if (choice == 'all') {
+      if (!mounted) return;
+      final sure = await _confirm(
+        title: 'Are you sure?',
+        message:
+            'All ${inSet.length} cards in "${set.name}" will be permanently removed.',
+        danger: 'Delete all',
+      );
+      if (sure != true) return;
+      for (final c in inSet) {
+        await cardRepo.delete(c.id);
+      }
+    } else {
+      // 'folder' — keep the cards, drop them into Unassigned.
+      for (final c in inSet) {
+        await cardRepo.setSet(c.id, null);
+      }
+    }
+    await setRepo.delete(set.id);
+  }
+
+  /// Bulk folder delete (the root selection bar). To avoid destroying cards in
+  /// bulk, this always keeps cards (moves them to Unassigned) and removes the
+  /// folders — the single-folder cog still offers "Delete all".
+  Future<void> _bulkDeleteFolders() async {
+    final ids = _selected.toList();
+    if (ids.isEmpty) return;
+    final cards = ref.read(cardsProvider).maybeWhen(data: (l) => l, orElse: () => const <CardEntry>[]);
+    final affected = cards.where((c) => ids.contains(c.setId)).length;
+
+    final ok = await _confirm(
+      title: 'Delete ${ids.length} set${ids.length == 1 ? '' : 's'}?',
+      message: affected == 0
+          ? 'The selected sets will be removed.'
+          : 'The selected sets will be removed. Their $affected '
+              'card${affected == 1 ? '' : 's'} move to Unassigned (not deleted).',
+      danger: 'Delete',
+    );
+    if (ok != true) return;
+
+    final cardRepo = ref.read(cardRepositoryProvider);
+    final setRepo = ref.read(setRepositoryProvider);
+    for (final id in ids) {
+      for (final c in cards.where((c) => c.setId == id)) {
+        await cardRepo.setSet(c.id, null);
+      }
+      await setRepo.delete(id);
+    }
+    if (mounted) _cancelSelection();
+  }
+
+  Future<void> _chooseSetSymbol(SetEntry set) async {
+    final choice = await pickSymbol(context, ref, currentId: set.symbolId);
+    if (choice == null) return; // cancelled
+    await ref.read(setRepositoryProvider).setSymbol(set.id, choice.id);
+  }
+
+  // ---- small shared helpers ----
+
+  _CardCtx _ctxNow() => _CardCtx(
+        templates: ref.read(templatesMapProvider),
+        palette: ref.read(paletteMapProvider),
+        rarities: ref.read(raritiesMapProvider),
+        symbols: ref.read(symbolsMapProvider),
+        textSymbols: ref.read(textSymbolMapProvider),
+        imageStore: ref.read(imageStoreProvider),
+      );
+
+  String? _abbrOf(SetEntry? set) =>
+      (set != null && set.abbreviation.isNotEmpty) ? set.abbreviation : null;
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<bool?> _confirm({
+    required String title,
+    required String message,
+    required String danger,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () => Navigator.pop(dialog, true),
+            child: Text(danger),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
+/// A folder row in the Collection: a set (or the permanent Unassigned bucket)
+/// plus its member cards in display order.
 class _Folder {
+  final String key; // _kUnassignedKey or the set id
   final SetEntry? set; // null => Unassigned
   final String title;
   final String abbr;
   final List<CardEntry> cards;
-  const _Folder(
-      {required this.set,
-      required this.title,
-      required this.abbr,
-      required this.cards});
+  const _Folder({
+    required this.key,
+    required this.set,
+    required this.title,
+    required this.abbr,
+    required this.cards,
+  });
 
-  String? get id => set?.id;
-}
-
-/// Small thumbnail of a set's chosen symbol, shown in the folder header as a
-/// confirmation that the symbol is assigned. Loads its bytes from the
-/// ImageStore once. (It doesn't render on the card yet — that's Stage 2:
-/// template placement + paintCard.)
-class _SetSymbolThumb extends ConsumerStatefulWidget {
-  final String imageId;
-  final double size;
-  const _SetSymbolThumb({required this.imageId, required this.size});
-
-  @override
-  ConsumerState<_SetSymbolThumb> createState() => _SetSymbolThumbState();
-}
-
-class _SetSymbolThumbState extends ConsumerState<_SetSymbolThumb> {
-  static final Map<String, Uint8List> _cache = {};
-  Uint8List? _bytes;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(covariant _SetSymbolThumb old) {
-    super.didUpdateWidget(old);
-    if (old.imageId != widget.imageId) _load();
-  }
-
-  Future<void> _load() async {
-    final cached = _cache[widget.imageId];
-    if (cached != null) {
-      setState(() => _bytes = cached);
-      return;
-    }
-    final bytes = await ref.read(imageStoreProvider).load(widget.imageId);
-    if (!mounted || bytes == null) return;
-    _cache[widget.imageId] = bytes;
-    setState(() => _bytes = bytes);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_bytes == null) return SizedBox(width: widget.size, height: widget.size);
-    return Image.memory(_bytes!,
-        width: widget.size, height: widget.size, fit: BoxFit.contain);
-  }
+  bool get isUnassigned => set == null;
 }
