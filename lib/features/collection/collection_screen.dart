@@ -512,9 +512,58 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       );
       if (ok != true) return;
     }
+    final all = ref.read(cardsProvider).maybeWhen(
+          data: (l) => l,
+          orElse: () => const <CardEntry>[],
+        );
+    final idSet = ids.toSet();
+    final removed = all.where((c) => idSet.contains(c.id)).toList();
+    final survivors = all.where((c) => !idSet.contains(c.id)).toList();
+
     final repo = ref.read(cardRepositoryProvider);
     await repo.deleteMany(ids);
+    await _cleanupOrphanImages(removed: removed, survivors: survivors);
     if (mounted && _selecting) _cancelSelection();
+  }
+
+  /// Delete image files owned by [removed] cards that nothing else still
+  /// references. We only ever consider the *art* of the just-deleted cards as
+  /// deletion candidates, and we keep any image still referenced by a surviving
+  /// card (duplicates share an art id), a template background, or a symbol — so
+  /// this can never break a live card or wipe a library asset.
+  Future<void> _cleanupOrphanImages({
+    required List<CardEntry> removed,
+    required List<CardEntry> survivors,
+  }) async {
+    if (removed.isEmpty) return;
+
+    final candidates = <String>{};
+    for (final c in removed) {
+      candidates.addAll(c.content.art.values);
+    }
+    if (candidates.isEmpty) return;
+
+    final protected = <String>{};
+    for (final c in survivors) {
+      protected.addAll(c.content.art.values);
+      final bg = c.templateSnapshot.bgImageId;
+      if (bg != null) protected.add(bg);
+    }
+    for (final t in ref.read(templatesMapProvider).values) {
+      final bg = t.bgImageId;
+      if (bg != null) protected.add(bg);
+    }
+    for (final s in ref.read(symbolsMapProvider).values) {
+      protected.add(s.imageId);
+    }
+    protected.addAll(ref.read(textSymbolMapProvider).values);
+
+    final store = ref.read(imageStoreProvider);
+    for (final id in candidates) {
+      if (!protected.contains(id)) {
+        await store.delete(id);
+      }
+    }
   }
 
   // ---- bulk card actions (operate on the opened folder's selection) ----
@@ -745,9 +794,14 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         danger: 'Delete all',
       );
       if (sure != true) return;
-      for (final c in inSet) {
-        await cardRepo.delete(c.id);
-      }
+      final all = ref.read(cardsProvider).maybeWhen(
+            data: (l) => l,
+            orElse: () => const <CardEntry>[],
+          );
+      final inSetIds = inSet.map((c) => c.id).toSet();
+      final survivors = all.where((c) => !inSetIds.contains(c.id)).toList();
+      await cardRepo.deleteMany(inSetIds.toList());
+      await _cleanupOrphanImages(removed: inSet, survivors: survivors);
     } else {
       // 'folder' — keep the cards, drop them into Unassigned.
       for (final c in inSet) {
