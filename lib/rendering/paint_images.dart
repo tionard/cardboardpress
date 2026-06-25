@@ -79,6 +79,70 @@ void _drawImageContain(ui.Canvas canvas, ui.Image img, ui.Rect dst) {
 }
 
 // ---------------------------------------------------------------------------
+// 9-slice frame sprite
+// ---------------------------------------------------------------------------
+
+/// Draws [img] as a 9-slice frame filling [dst]: the four corners stay fixed,
+/// the edges stretch along one axis, and the center stretches both ways. Source
+/// insets come from [spec.slice] (a fraction of the sprite); the DRAWN corner
+/// size is [spec.inset] × card width, clamped to the field so it can't overrun a
+/// small box. With [spec.drawCenter] false the middle patch is skipped, leaving
+/// the field's interior (fill / art) showing through a border-only frame.
+void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
+    NineSliceSpec spec, ui.Size size) {
+  final iw = img.width.toDouble();
+  final ih = img.height.toDouble();
+  if (iw <= 0 || ih <= 0 || dst.width <= 0 || dst.height <= 0) return;
+
+  final sliceF = spec.slice.clamp(0.0, 0.49);
+  final sl = sliceF * iw; // source insets (uniform fraction of the sprite)
+  final st = sliceF * ih;
+  final midSW = iw - sl * 2;
+  final midSH = ih - st * 2;
+
+  final base = spec.inset * size.width;
+  final diX = math.min(base, dst.width / 2); // drawn corner size, clamped
+  final diY = math.min(base, dst.height / 2);
+  final midDW = dst.width - diX * 2;
+  final midDH = dst.height - diY * 2;
+
+  final paint = ui.Paint()..filterQuality = ui.FilterQuality.medium;
+  final l = dst.left, t = dst.top, r = dst.right, b = dst.bottom;
+
+  void patch(double sx, double sy, double sw, double sh, double dx, double dy,
+      double dw, double dh) {
+    if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) return;
+    canvas.drawImageRect(img, ui.Rect.fromLTWH(sx, sy, sw, sh),
+        ui.Rect.fromLTWH(dx, dy, dw, dh), paint);
+  }
+
+  // Corners (never scaled out of proportion — fixed source → fixed dest).
+  patch(0, 0, sl, st, l, t, diX, diY);
+  patch(iw - sl, 0, sl, st, r - diX, t, diX, diY);
+  patch(0, ih - st, sl, st, l, b - diY, diX, diY);
+  patch(iw - sl, ih - st, sl, st, r - diX, b - diY, diX, diY);
+  // Edges (stretch along one axis).
+  patch(sl, 0, midSW, st, l + diX, t, midDW, diY); // top
+  patch(sl, ih - st, midSW, st, l + diX, b - diY, midDW, diY); // bottom
+  patch(0, st, sl, midSH, l, t + diY, diX, midDH); // left
+  patch(iw - sl, st, sl, midSH, r - diX, t + diY, diX, midDH); // right
+  // Center (stretches both ways).
+  if (spec.drawCenter) {
+    patch(sl, st, midSW, midSH, l + diX, t + diY, midDW, midDH);
+  }
+}
+
+/// Resolve and paint a field's optional 9-slice frame, when it has one decoded.
+void _paintFieldFrame(ui.Canvas canvas, ui.Rect rect, FieldSpec field,
+    CardRefs refs, ui.Size size) {
+  final frame = field.frame;
+  if (frame == null || !frame.hasImage) return;
+  final img = refs.resolveImage(frame.imageId);
+  if (img == null) return;
+  _paintNineSlice(canvas, rect, img, frame, size);
+}
+
+// ---------------------------------------------------------------------------
 // Foil
 // ---------------------------------------------------------------------------
 

@@ -155,6 +155,8 @@ void _paintField(
         ..color = shaded;
       canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
     }
+    // A 9-slice frame sits on top of the art (e.g. an ornate border around it).
+    _paintFieldFrame(canvas, rect, field, refs, size);
     return;
   }
 
@@ -178,6 +180,11 @@ void _paintField(
       ..color = shaded;
     canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
   }
+
+  // 2.2b A 9-slice frame sprite, drawn over the fill/outline. Its corners stay
+  //      fixed while edges/center stretch to the field; a border-only frame
+  //      (drawCenter off, or a transparent-centre sprite) lets the fill show.
+  _paintFieldFrame(canvas, rect, field, refs, size);
 
   // 2.x Watermark (a property of the Rules field): a symbol silhouette filled
   //     with a palette colour, centred in the field and drawn BEHIND the text.

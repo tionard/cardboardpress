@@ -174,6 +174,48 @@ extension _TemplateFieldsPane on _TemplateBodyState {
             ]),
           ],
         ]),
+        _section('frame', 'Frame (9-slice)', [
+          Text('A sprite border that scales without distorting its corners.',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 6),
+          Row(children: [
+            const SizedBox(width: 80, child: Text('Sprite')),
+            OutlinedButton.icon(
+              onPressed: () => _pickFrame(f),
+              icon: const Icon(Icons.image_outlined),
+              label: Text(f.frame == null ? 'Choose…' : 'Change…'),
+            ),
+            if (f.frame != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Remove frame',
+                icon: const Icon(Icons.close),
+                onPressed: () => _updateField(f.copyWith(frame: null)),
+              ),
+            ],
+          ]),
+          if (f.frame != null) ...[
+            const SizedBox(height: 4),
+            // Slice = where the sprite is cut (fraction of the sprite); Corner =
+            // how big the fixed corners draw (fraction of card width).
+            _labeledSlider('Slice', f.frame!.slice, 0, 0.49,
+                (v) => _updateField(f.copyWith(frame: f.frame!.copyWith(slice: v)))),
+            _labeledSlider('Corner', f.frame!.inset, 0, 0.2,
+                (v) => _updateField(f.copyWith(frame: f.frame!.copyWith(inset: v)))),
+            Row(children: [
+              const SizedBox(width: 80, child: Text('Fill centre')),
+              Switch(
+                value: f.frame!.drawCenter,
+                onChanged: (v) => _updateField(
+                    f.copyWith(frame: f.frame!.copyWith(drawCenter: v))),
+              ),
+            ]),
+            Text(
+              'Turn off to keep the interior transparent (border only).',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ]),
         if (text != null)
           _section('text', 'Text', [
             _labeledSlider('Size', text.sizeFrac, 0.01, 0.12,

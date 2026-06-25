@@ -59,6 +59,8 @@ class CardData {
       ...watermarkImageIds.values,
     };
     for (final f in fields) {
+      final fr = f.frame;
+      if (fr != null && fr.imageId.isNotEmpty) ids.add(fr.imageId);
       if (f.type != FieldType.cost && f.type != FieldType.rules) continue;
       final content = textContent[f.id];
       if (content == null) continue;

@@ -116,6 +116,45 @@ class WatermarkSpec {
       );
 }
 
+/// A 9-slice (nine-patch) frame sprite for a field's background (spec §3.6): the
+/// sprite's four corners stay fixed while its edges and center stretch, so an
+/// ornate border/bevel never distorts at any field size. [imageId] points into
+/// the ImageStore (user-supplied art, like card art / the template background).
+/// [slice] is the source cut — how far in from each edge of the SPRITE the slice
+/// sits, as a fraction of the sprite (uniform on all four sides). [inset] is the
+/// DRAWN corner size as a fraction of the CARD WIDTH, so corners scale with the
+/// card (preview ↔ print) but NOT with the field's size — that's the whole point
+/// of 9-slice. [drawCenter] paints the stretched middle patch; turn it off for a
+/// border-only frame whose interior stays transparent (fill/art shows through).
+class NineSliceSpec {
+  final String imageId;
+  final double slice; // 0..0.49, fraction of the sprite
+  final double inset; // fraction of card width
+  final bool drawCenter;
+
+  const NineSliceSpec({
+    this.imageId = '',
+    this.slice = 0.33,
+    this.inset = 0.06,
+    this.drawCenter = true,
+  });
+
+  bool get hasImage => imageId.isNotEmpty;
+
+  NineSliceSpec copyWith({
+    String? imageId,
+    double? slice,
+    double? inset,
+    bool? drawCenter,
+  }) =>
+      NineSliceSpec(
+        imageId: imageId ?? this.imageId,
+        slice: slice ?? this.slice,
+        inset: inset ?? this.inset,
+        drawCenter: drawCenter ?? this.drawCenter,
+      );
+}
+
 // ---------------------------------------------------------------------------
 // Footer arrangement (template-level). The footer's VALUES resolve per-card
 // (number/set/rarity/artist/copyright), but their LAYOUT — which components
@@ -210,6 +249,7 @@ class FieldSpec {
   final TextStyleSpec? text; // present on text-bearing fields
   final WatermarkSpec? watermark; // Rules field only; drawn behind the text
   final FooterSpec? footer; // Footer field only; per-zone layout of components
+  final NineSliceSpec? frame; // optional 9-slice sprite drawn over the fill
 
   const FieldSpec({
     required this.id,
@@ -222,6 +262,7 @@ class FieldSpec {
     this.text,
     this.watermark,
     this.footer,
+    this.frame,
   });
 
   FieldSpec copyWith({
@@ -234,6 +275,7 @@ class FieldSpec {
     Object? text = _sentinel,
     Object? watermark = _sentinel,
     Object? footer = _sentinel,
+    Object? frame = _sentinel,
   }) =>
       FieldSpec(
         id: id,
@@ -251,6 +293,9 @@ class FieldSpec {
         footer: identical(footer, _sentinel)
             ? this.footer
             : footer as FooterSpec?,
+        frame: identical(frame, _sentinel)
+            ? this.frame
+            : frame as NineSliceSpec?,
       );
 }
 

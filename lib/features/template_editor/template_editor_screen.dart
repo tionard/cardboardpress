@@ -728,6 +728,23 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     });
   }
 
+  /// Pick a 9-slice sprite for [f]'s frame. Like [_pickBgImage] but the chosen
+  /// image goes on the field's NineSliceSpec; defaults (slice/inset/centre) are
+  /// kept when replacing an existing frame's sprite.
+  Future<void> _pickFrame(FieldSpec f) async {
+    final result = await FilePicker.pickFiles(type: FileType.image);
+    if (result == null) return;
+    final file = result.files.first;
+    final bytes = await file.readAsBytes();
+    final imageId = await widget.imageStore
+        .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
+    final img = await _decode(bytes);
+    if (!mounted) return;
+    setState(() => _images[imageId] = img);
+    final existing = f.frame ?? const NineSliceSpec();
+    _updateField(f.copyWith(frame: existing.copyWith(imageId: imageId)));
+  }
+
   void _removeBgImage() {
     setState(() {
       _working = _working.copyWith(

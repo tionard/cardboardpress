@@ -126,6 +126,13 @@ Map<String, dynamic> _fieldToMap(FieldSpec f) => {
           'a': f.watermark!.alpha,
         },
       if (f.footer != null) 'footer': _footerToMap(f.footer!),
+      if (f.frame != null)
+        'frame': {
+          'img': f.frame!.imageId,
+          'slice': f.frame!.slice,
+          'inset': f.frame!.inset,
+          'center': f.frame!.drawCenter,
+        },
     };
 
 FieldSpec _fieldFromMap(Map m) {
@@ -146,8 +153,16 @@ FieldSpec _fieldFromMap(Map m) {
     text: m['text'] == null ? null : _textFromMap(m['text'] as Map),
     watermark: m['wm'] == null ? null : _watermarkFromMap(m['wm'] as Map),
     footer: m['footer'] == null ? null : _footerFromMap(m['footer'] as Map),
+    frame: m['frame'] == null ? null : _nineSliceFromMap(m['frame'] as Map),
   );
 }
+
+NineSliceSpec _nineSliceFromMap(Map m) => NineSliceSpec(
+      imageId: (m['img'] as String?) ?? '',
+      slice: _d(m['slice'], 0.33),
+      inset: _d(m['inset'], 0.06),
+      drawCenter: _b(m['center'], true),
+    );
 
 WatermarkSpec _watermarkFromMap(Map m) => WatermarkSpec(
       symbolId: (m['sym'] as String?) ?? '',
