@@ -132,6 +132,7 @@ Map<String, dynamic> _fieldToMap(FieldSpec f) => {
           'slice': f.frame!.slice,
           'inset': f.frame!.inset,
           'center': f.frame!.drawCenter,
+          if (f.frame!.tint != null) 'tint': _colorRefToMap(f.frame!.tint!),
         },
     };
 
@@ -162,6 +163,7 @@ NineSliceSpec _nineSliceFromMap(Map m) => NineSliceSpec(
       slice: _d(m['slice'], 0.33),
       inset: _d(m['inset'], 0.06),
       drawCenter: _b(m['center'], true),
+      tint: m['tint'] == null ? null : _colorRefFromMap(m['tint'] as Map),
     );
 
 WatermarkSpec _watermarkFromMap(Map m) => WatermarkSpec(

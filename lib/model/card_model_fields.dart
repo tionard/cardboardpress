@@ -131,12 +131,14 @@ class NineSliceSpec {
   final double slice; // 0..0.49, fraction of the sprite
   final double inset; // fraction of card width
   final bool drawCenter;
+  final ColorRef? tint; // optional recolour of the sprite's opaque pixels
 
   const NineSliceSpec({
     this.imageId = '',
     this.slice = 0.33,
     this.inset = 0.06,
     this.drawCenter = true,
+    this.tint,
   });
 
   bool get hasImage => imageId.isNotEmpty;
@@ -146,12 +148,14 @@ class NineSliceSpec {
     double? slice,
     double? inset,
     bool? drawCenter,
+    Object? tint = _sentinel,
   }) =>
       NineSliceSpec(
         imageId: imageId ?? this.imageId,
         slice: slice ?? this.slice,
         inset: inset ?? this.inset,
         drawCenter: drawCenter ?? this.drawCenter,
+        tint: identical(tint, _sentinel) ? this.tint : tint as ColorRef?,
       );
 }
 

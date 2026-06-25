@@ -742,7 +742,19 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     if (!mounted) return;
     setState(() => _images[imageId] = img);
     final existing = f.frame ?? const NineSliceSpec();
+    // The fill stays dormant (not cleared) — 9-slice mode just doesn't draw it,
+    // so toggling back to Fill keeps the colour. Render decides by mode.
     _updateField(f.copyWith(frame: existing.copyWith(imageId: imageId)));
+  }
+
+  /// Toggle a field's background between flat fill and a 9-slice sprite. The
+  /// "mode" is whether a frame object exists; the fill colour is left intact so
+  /// switching back and forth never loses it.
+  void _setBackgroundMode(FieldSpec f, bool toSprite) {
+    if (toSprite == (f.frame != null)) return;
+    _updateField(toSprite
+        ? f.copyWith(frame: const NineSliceSpec())
+        : f.copyWith(frame: null));
   }
 
   void _removeBgImage() {

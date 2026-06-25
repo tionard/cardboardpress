@@ -89,10 +89,14 @@ void _drawImageContain(ui.Canvas canvas, ui.Image img, ui.Rect dst) {
 /// small box. With [spec.drawCenter] false the middle patch is skipped, leaving
 /// the field's interior (fill / art) showing through a border-only frame.
 void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
-    NineSliceSpec spec, ui.Size size) {
+    NineSliceSpec spec, ui.Size size,
+    {ColorValue? tint, double alpha = 1.0}) {
   final iw = img.width.toDouble();
   final ih = img.height.toDouble();
   if (iw <= 0 || ih <= 0 || dst.width <= 0 || dst.height <= 0) return;
+
+  final a = alpha.clamp(0.0, 1.0);
+  if (a <= 0) return;
 
   final sliceF = spec.slice.clamp(0.0, 0.49);
   final sl = sliceF * iw; // source insets (uniform fraction of the sprite)
@@ -116,6 +120,18 @@ void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
         ui.Rect.fromLTWH(dx, dy, dw, dh), paint);
   }
 
+  // A tint multiplies a palette colour (single or double) onto the sprite,
+  // preserving its shading and respecting alpha — transparent stays transparent.
+  // (Authoring a white/grey sprite and tinting it is the clean recolour path.)
+  // Overall [alpha] fades the whole frame as a unit. Either needs an isolated
+  // layer: the tint so it only multiplies the sprite, the alpha so the patches
+  // fade together rather than overlapping seams double-blending.
+  final tinted = tint != null;
+  final needLayer = tinted || a < 1.0;
+  if (needLayer) {
+    canvas.saveLayer(dst, ui.Paint()..color = ui.Color.fromRGBO(0, 0, 0, a));
+  }
+
   // Corners (never scaled out of proportion — fixed source → fixed dest).
   patch(0, 0, sl, st, l, t, diX, diY);
   patch(iw - sl, 0, sl, st, r - diX, t, diX, diY);
@@ -130,16 +146,33 @@ void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
   if (spec.drawCenter) {
     patch(sl, st, midSW, midSH, l + diX, t + diY, midDW, midDH);
   }
+
+  if (tinted) {
+    final tp = ui.Paint()..blendMode = ui.BlendMode.modulate;
+    final shader = _doubleShader(tint, dst, 1.0);
+    if (shader != null) {
+      tp.shader = shader; // double colour → split gradient
+    } else {
+      tp.color = tint.c1; // single colour
+    }
+    canvas.drawRect(dst, tp);
+  }
+
+  if (needLayer) canvas.restore();
 }
 
 /// Resolve and paint a field's optional 9-slice frame, when it has one decoded.
+/// [field.fillAlpha] doubles as the frame's overall opacity (one "background
+/// opacity" control shared with the flat-fill mode).
 void _paintFieldFrame(ui.Canvas canvas, ui.Rect rect, FieldSpec field,
     CardRefs refs, ui.Size size) {
   final frame = field.frame;
   if (frame == null || !frame.hasImage) return;
   final img = refs.resolveImage(frame.imageId);
   if (img == null) return;
-  _paintNineSlice(canvas, rect, img, frame, size);
+  final tint = frame.tint == null ? null : refs.resolveColor(frame.tint!);
+  _paintNineSlice(canvas, rect, img, frame, size,
+      tint: tint, alpha: field.fillAlpha);
 }
 
 // ---------------------------------------------------------------------------

@@ -128,94 +128,147 @@ extension _TemplateFieldsPane on _TemplateBodyState {
           _labeledSlider('Corner', f.cornerRadius, 0, 0.1,
               (v) => _updateField(f.copyWith(cornerRadius: v))),
         ]),
+        // Background: a single category that toggles between a flat fill and a
+        // 9-slice sprite. The colour swatches + opacity are shared — in Fill
+        // mode they're the fill colour/opacity, in 9-slice mode they're the
+        // image's tint/opacity. Mode-specific extras (outline vs slice/corner/
+        // centre) show below the shared controls. Art has no fill, so it keeps a
+        // plain Outline category instead.
         if (f.type != FieldType.art)
-          _section('fill', 'Fill', [
+          _section('bg', 'Background', [
+            Row(children: [
+              const SizedBox(width: 80, child: Text('Type')),
+              Expanded(
+                child: SegmentedButton<bool>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Fill')),
+                    ButtonSegment(value: true, label: Text('9-slice')),
+                  ],
+                  selected: {f.frame != null},
+                  onSelectionChanged: (s) => _setBackgroundMode(f, s.first),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Text(f.frame != null ? 'Tint' : 'Colour',
+                style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 4),
+            // Shared colour: fill colour (Fill mode) or image tint (9-slice).
             SwatchPicker(
               swatches: widget.swatches,
               use: SwatchUse.card,
-              selectedId: f.fill?.id,
+              selectedId: f.frame != null ? f.frame!.tint?.id : f.fill?.id,
               leading: _noneTile(
-                  f.fill == null, () => _updateField(f.copyWith(fill: null))),
+                  f.frame != null ? f.frame!.tint == null : f.fill == null,
+                  () => f.frame != null
+                      ? _updateField(
+                          f.copyWith(frame: f.frame!.copyWith(tint: null)))
+                      : _updateField(f.copyWith(fill: null))),
               tileBuilder: (s) => _swatch(
                   s.value,
-                  s.id == f.fill?.id,
-                  () => _updateField(
-                      f.copyWith(fill: ColorRef(id: s.id, snapshot: s.value)))),
+                  s.id == (f.frame != null ? f.frame!.tint?.id : f.fill?.id),
+                  () => f.frame != null
+                      ? _updateField(f.copyWith(
+                          frame: f.frame!
+                              .copyWith(tint: ColorRef(id: s.id, snapshot: s.value))))
+                      : _updateField(f.copyWith(
+                          fill: ColorRef(id: s.id, snapshot: s.value)))),
             ),
-            if (f.fill != null)
-              _labeledSlider('Opacity', f.fillAlpha, 0, 1,
-                  (v) => _updateField(f.copyWith(fillAlpha: v))),
-          ]),
-        _section('outline', 'Outline', [
-          Row(children: [
-            const SizedBox(width: 80, child: Text('Enabled')),
-            Switch(
-              value: outline != null,
-              onChanged: (on) => _updateField(
-                  f.copyWith(outline: on ? const OutlineSpec() : null)),
-            ),
-          ]),
-          if (outline != null) ...[
-            _labeledSlider(
-                'Intensity',
-                outline.intensity,
-                0,
-                1,
-                (v) => _updateField(
-                    f.copyWith(outline: outline.copyWith(intensity: v)))),
-            Row(children: [
-              const SizedBox(width: 80, child: Text('Lighter')),
-              Switch(
-                value: outline.lighter,
-                onChanged: (v) => _updateField(
-                    f.copyWith(outline: outline.copyWith(lighter: v))),
-              ),
-            ]),
-          ],
-        ]),
-        _section('frame', 'Frame (9-slice)', [
-          Text('A sprite border that scales without distorting its corners.',
-              style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 6),
-          Row(children: [
-            const SizedBox(width: 80, child: Text('Sprite')),
-            OutlinedButton.icon(
-              onPressed: () => _pickFrame(f),
-              icon: const Icon(Icons.image_outlined),
-              label: Text(f.frame == null ? 'Choose…' : 'Change…'),
-            ),
-            if (f.frame != null) ...[
-              const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Remove frame',
-                icon: const Icon(Icons.close),
-                onPressed: () => _updateField(f.copyWith(frame: null)),
-              ),
+            // Shared opacity: fill opacity (Fill) or overall frame opacity (9-slice).
+            _labeledSlider('Opacity', f.fillAlpha, 0, 1,
+                (v) => _updateField(f.copyWith(fillAlpha: v))),
+            if (f.frame == null) ...[
+              // Fill-mode extra: the outline (a relative shade of the fill).
+              const SizedBox(height: 8),
+              Row(children: [
+                const SizedBox(width: 80, child: Text('Outline')),
+                Switch(
+                  value: outline != null,
+                  onChanged: (on) => _updateField(
+                      f.copyWith(outline: on ? const OutlineSpec() : null)),
+                ),
+              ]),
+              if (outline != null) ...[
+                _labeledSlider(
+                    'Intensity',
+                    outline.intensity,
+                    0,
+                    1,
+                    (v) => _updateField(
+                        f.copyWith(outline: outline.copyWith(intensity: v)))),
+                Row(children: [
+                  const SizedBox(width: 80, child: Text('Lighter')),
+                  Switch(
+                    value: outline.lighter,
+                    onChanged: (v) => _updateField(
+                        f.copyWith(outline: outline.copyWith(lighter: v))),
+                  ),
+                ]),
+              ],
+            ] else ...[
+              // 9-slice-mode extras: the sprite, its slice/corner, fill centre.
+              const SizedBox(height: 8),
+              Row(children: [
+                const SizedBox(width: 80, child: Text('Sprite')),
+                OutlinedButton.icon(
+                  onPressed: () => _pickFrame(f),
+                  icon: const Icon(Icons.image_outlined),
+                  label: Text(f.frame!.hasImage ? 'Change…' : 'Choose…'),
+                ),
+              ]),
+              if (f.frame!.hasImage) ...[
+                // Slice = where the sprite is cut (fraction of the sprite);
+                // Corner = how big the fixed corners draw (fraction of card width).
+                _labeledSlider('Slice', f.frame!.slice, 0, 0.49,
+                    (v) => _updateField(
+                        f.copyWith(frame: f.frame!.copyWith(slice: v)))),
+                _labeledSlider('Corner', f.frame!.inset, 0, 0.2,
+                    (v) => _updateField(
+                        f.copyWith(frame: f.frame!.copyWith(inset: v)))),
+                Row(children: [
+                  const SizedBox(width: 80, child: Text('Fill center')),
+                  Switch(
+                    value: f.frame!.drawCenter,
+                    onChanged: (v) => _updateField(
+                        f.copyWith(frame: f.frame!.copyWith(drawCenter: v))),
+                  ),
+                ]),
+                Text(
+                  'Turn off to keep the interior transparent (border only).',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ],
           ]),
-          if (f.frame != null) ...[
-            const SizedBox(height: 4),
-            // Slice = where the sprite is cut (fraction of the sprite); Corner =
-            // how big the fixed corners draw (fraction of card width).
-            _labeledSlider('Slice', f.frame!.slice, 0, 0.49,
-                (v) => _updateField(f.copyWith(frame: f.frame!.copyWith(slice: v)))),
-            _labeledSlider('Corner', f.frame!.inset, 0, 0.2,
-                (v) => _updateField(f.copyWith(frame: f.frame!.copyWith(inset: v)))),
+        if (f.type == FieldType.art)
+          _section('outline', 'Outline', [
             Row(children: [
-              const SizedBox(width: 80, child: Text('Fill centre')),
+              const SizedBox(width: 80, child: Text('Enabled')),
               Switch(
-                value: f.frame!.drawCenter,
-                onChanged: (v) => _updateField(
-                    f.copyWith(frame: f.frame!.copyWith(drawCenter: v))),
+                value: outline != null,
+                onChanged: (on) => _updateField(
+                    f.copyWith(outline: on ? const OutlineSpec() : null)),
               ),
             ]),
-            Text(
-              'Turn off to keep the interior transparent (border only).',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ]),
+            if (outline != null) ...[
+              _labeledSlider(
+                  'Intensity',
+                  outline.intensity,
+                  0,
+                  1,
+                  (v) => _updateField(
+                      f.copyWith(outline: outline.copyWith(intensity: v)))),
+              Row(children: [
+                const SizedBox(width: 80, child: Text('Lighter')),
+                Switch(
+                  value: outline.lighter,
+                  onChanged: (v) => _updateField(
+                      f.copyWith(outline: outline.copyWith(lighter: v))),
+                ),
+              ]),
+            ],
+          ]),
         if (text != null)
           _section('text', 'Text', [
             _labeledSlider('Size', text.sizeFrac, 0.01, 0.12,

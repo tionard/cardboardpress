@@ -164,14 +164,20 @@ void _paintField(
   // value so it tracks live palette edits too.
   final fill = field.fill == null ? null : refs.resolveColor(field.fill!);
 
-  // 2.1 Background fill (flat for now; 9-slice sprites come later).
-  if (fill != null) {
+  // A 9-slice frame is an ALTERNATIVE background to the flat fill (spec §3.6).
+  // The *mode* is "a frame object exists" (set the moment you toggle to 9-slice,
+  // before an image is even picked) — so the flat fill and its derived outline
+  // step aside even while the sprite slot is still empty (transparent until set).
+  final spriteMode = field.frame != null;
+
+  // 2.1 Background fill (skipped in 9-slice mode).
+  if (fill != null && !spriteMode) {
     _fillRRect(canvas, rrect, fill, field.fillAlpha);
   }
 
   // 2.2 Outline — a relative shade of the fill, so it tracks the fill.
   final outline = field.outline;
-  if (outline != null && fill != null) {
+  if (outline != null && fill != null && !spriteMode) {
     final shaded = _shade(fill.c1, lighter: outline.lighter, t: outline.intensity);
     final strokeW = outline.thickness * size.width;
     final paint = ui.Paint()
