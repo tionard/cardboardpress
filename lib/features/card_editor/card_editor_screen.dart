@@ -31,6 +31,7 @@ import '../../data/image_store.dart';
 import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
+import '../../state/settings.dart';
 import '../../widgets/card_preview.dart';
 import '../../widgets/labeled_slider.dart';
 import '../../widgets/preview_dock.dart';
@@ -89,6 +90,7 @@ class CardEditorScreen extends ConsumerWidget {
           repo: ref.read(cardRepositoryProvider),
           imageStore: ref.read(imageStoreProvider),
           exporter: ref.read(cardExporterProvider),
+          proUnlocked: ref.watch(proUnlockedProvider),
           onLeave: () => ref.read(selectedTabProvider.notifier).set(0),
           active: ref.watch(selectedTabProvider) == kCardEditorTabIndex,
           onOpenCard: (id) =>
@@ -130,6 +132,7 @@ class _CardEditorBody extends StatefulWidget {
   final CardRepository repo;
   final ImageStore imageStore;
   final CardExporter exporter;
+  final bool proUnlocked; // gates export DPI + watermark
   final VoidCallback onLeave; // return to the Collection tab
   final bool active; // is the Card Editor the visible tab? (gates back handling)
   final ValueChanged<String> onOpenCard; // switch the editor to another card id
@@ -149,6 +152,7 @@ class _CardEditorBody extends StatefulWidget {
     required this.repo,
     required this.imageStore,
     required this.exporter,
+    required this.proUnlocked,
     required this.onLeave,
     required this.active,
     required this.onOpenCard,
@@ -167,6 +171,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   bool _suppressDirty = false; // guards controller resync during revert
   _Cat _cat = _Cat.card;
   bool _exporting = false;
+  int _dpi = 300; // requested export DPI (300/600); free is pinned to 300
 
   @override
   void initState() {
@@ -342,7 +347,8 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     try {
       final card = _compose();
       final refs = CardRefs(palette: widget.palette, images: _images);
-      final path = await widget.exporter.exportToFile(card, refs);
+      final path = await widget.exporter
+          .exportToFile(card, refs, dpi: _dpi.toDouble(), proUnlocked: widget.proUnlocked);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(path == null ? 'Export cancelled' : 'Exported to $path')));
@@ -361,7 +367,8 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     try {
       final card = _compose();
       final refs = CardRefs(palette: widget.palette, images: _images);
-      final name = await widget.exporter.saveToGallery(card, refs);
+      final name = await widget.exporter
+          .saveToGallery(card, refs, dpi: _dpi.toDouble(), proUnlocked: widget.proUnlocked);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Saved "$name" to your photos')));
@@ -385,7 +392,8 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     try {
       final card = _compose();
       final refs = CardRefs(palette: widget.palette, images: _images);
-      await widget.exporter.shareImage(card, refs);
+      await widget.exporter
+          .shareImage(card, refs, dpi: _dpi.toDouble(), proUnlocked: widget.proUnlocked);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)

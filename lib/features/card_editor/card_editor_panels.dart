@@ -282,27 +282,59 @@ extension _CardEditorPanels on _CardEditorBodyState {
   }
 
   Widget _exportSettings() {
+    final theme = Theme.of(context);
     final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+    final pro = widget.proUnlocked;
+    // Free is pinned to 300 even if _dpi holds 600 (e.g. Pro toggled off
+    // mid-session); the exporter enforces this too — this is just display.
+    final shownDpi = (!pro && _dpi == 600) ? 300 : _dpi;
     final spinner = _exporting
         ? const SizedBox(
             width: 18,
             height: 18,
             child: CircularProgressIndicator(strokeWidth: 2))
         : null;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Export', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
+        Text('Export', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 12),
+        Text('RESOLUTION',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.primary,
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w600,
+            )),
+        const SizedBox(height: 6),
+        SegmentedButton<int>(
+          showSelectedIcon: false,
+          segments: [
+            const ButtonSegment(value: 300, label: Text('300 DPI')),
+            ButtonSegment(
+              value: 600,
+              label: const Text('600 DPI'),
+              icon: pro ? null : const Icon(Icons.lock_outline, size: 16),
+            ),
+          ],
+          selected: {shownDpi},
+          onSelectionChanged: (sel) {
+            final v = sel.first;
+            if (v == 600 && !pro) {
+              _showProNeeded();
+              return; // keep the free 300 selection
+            }
+            setState(() => _dpi = v);
+          },
+        ),
+        const SizedBox(height: 12),
         Text(
-          isAndroid
-              ? 'Renders this card at 300 dpi (750×1050 px) through the same '
-                  'paintCard the preview uses, so the image matches exactly. '
-                  'Save it to your photos or share it straight from here.'
-              : 'Renders this card at 300 dpi (750×1050 px) through the same '
-                  'paintCard the preview uses, so the PNG matches exactly — '
-                  'including art and colours. You choose where to save it.',
-          style: Theme.of(context).textTheme.bodySmall,
+          pro
+              ? 'Renders at $shownDpi DPI (${_exportDims(shownDpi)}) through the '
+                  'same paintCard the preview uses — watermark-free.'
+              : 'Free exports render at 300 DPI (${_exportDims(300)}) with a '
+                  'watermark. Unlock Pro in Settings for 600 DPI and no watermark.',
+          style: theme.textTheme.bodySmall,
         ),
         const SizedBox(height: 16),
         if (isAndroid) ...[
@@ -325,6 +357,21 @@ extension _CardEditorPanels on _CardEditorBodyState {
           ),
       ],
     );
+  }
+
+  void _showProNeeded() {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('600 DPI and watermark-free exports are a Pro feature — '
+          'unlock it in the Settings tab.'),
+    ));
+  }
+
+  // "W×H px" for the card at [dpi], from the working card's dimensions.
+  String _exportDims(int dpi) {
+    final t = _working.templateSnapshot;
+    final w = (t.widthInches * dpi).round();
+    final h = (t.heightInches * dpi).round();
+    return '$w×$h px';
   }
 }
 

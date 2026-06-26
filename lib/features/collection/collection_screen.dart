@@ -33,6 +33,7 @@ import '../../data/image_store.dart';
 import '../../model/card_model.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
+import '../../state/settings.dart';
 import '../../widgets/decoded_card_preview.dart';
 import '../../widgets/labeled_slider.dart';
 import '../customization/symbol_picker.dart';
@@ -591,9 +592,9 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         final abbr = _abbrOf(f.set);
         final exporter = ref.read(cardExporterProvider);
         if (defaultTargetPlatform == TargetPlatform.android) {
-          await exporter.saveToGallery(data, refs, setAbbr: abbr);
+          await exporter.saveToGallery(data, refs, setAbbr: abbr, proUnlocked: ref.read(proUnlockedProvider));
         } else {
-          final path = await exporter.exportToFile(data, refs, setAbbr: abbr);
+          final path = await exporter.exportToFile(data, refs, setAbbr: abbr, proUnlocked: ref.read(proUnlockedProvider));
           if (path == null) break; // user cancelled the Save-as dialog
         }
         done++;
@@ -651,10 +652,10 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       final abbr = _abbrOf(set);
       final exporter = ref.read(cardExporterProvider);
       if (defaultTargetPlatform == TargetPlatform.android) {
-        final name = await exporter.saveToGallery(data, refs, setAbbr: abbr);
+        final name = await exporter.saveToGallery(data, refs, setAbbr: abbr, proUnlocked: ref.read(proUnlockedProvider));
         _snack('Saved "$name" to your photos');
       } else {
-        final path = await exporter.exportToFile(data, refs, setAbbr: abbr);
+        final path = await exporter.exportToFile(data, refs, setAbbr: abbr, proUnlocked: ref.read(proUnlockedProvider));
         _snack(path == null ? 'Export cancelled' : 'Exported to $path');
       }
     } on GalleryAccessDenied {
@@ -673,7 +674,8 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       final refs = await _decodeRefs(data, ctx);
       await ref
           .read(cardExporterProvider)
-          .shareImage(data, refs, setAbbr: _abbrOf(set));
+          .shareImage(data, refs,
+              setAbbr: _abbrOf(set), proUnlocked: ref.read(proUnlockedProvider));
     } catch (e) {
       if (!silent) _snack('Share failed: $e');
       if (silent) rethrow;

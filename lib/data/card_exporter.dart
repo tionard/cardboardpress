@@ -36,9 +36,12 @@ class CardExporter {
     CardData card,
     CardRefs refs, {
     String? setAbbr,
-    double dpi = 300,
+    double dpi = kProExportDpi,
+    bool proUnlocked = false,
   }) async {
-    final bytes = await exportCardPng(card, refs, dpi: dpi);
+    final q = resolveExportQuality(requestedDpi: dpi, proUnlocked: proUnlocked);
+    final bytes =
+        await exportCardPng(card, refs, dpi: q.dpi, watermark: q.watermark);
     final suggested = exportFileName(_safe(_cardName(card)), setAbbr: setAbbr);
 
     final path = await FilePicker.saveFile(
@@ -63,9 +66,12 @@ class CardExporter {
     CardData card,
     CardRefs refs, {
     String? setAbbr,
-    double dpi = 300,
+    double dpi = kProExportDpi,
+    bool proUnlocked = false,
   }) async {
-    final bytes = await exportCardPng(card, refs, dpi: dpi);
+    final q = resolveExportQuality(requestedDpi: dpi, proUnlocked: proUnlocked);
+    final bytes =
+        await exportCardPng(card, refs, dpi: q.dpi, watermark: q.watermark);
     final fileName = exportFileName(_safe(_cardName(card)), setAbbr: setAbbr);
 
     final granted = await Gal.requestAccess();
@@ -84,9 +90,12 @@ class CardExporter {
     CardData card,
     CardRefs refs, {
     String? setAbbr,
-    double dpi = 300,
+    double dpi = kProExportDpi,
+    bool proUnlocked = false,
   }) async {
-    final bytes = await exportCardPng(card, refs, dpi: dpi);
+    final q = resolveExportQuality(requestedDpi: dpi, proUnlocked: proUnlocked);
+    final bytes =
+        await exportCardPng(card, refs, dpi: q.dpi, watermark: q.watermark);
     final fileName = exportFileName(_safe(_cardName(card)), setAbbr: setAbbr);
 
     // The share sheet needs a real file on disk; the OS cleans up the temp dir.
