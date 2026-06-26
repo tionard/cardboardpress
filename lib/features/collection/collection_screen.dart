@@ -22,7 +22,6 @@
 // The screen is one library split across part files: this root holds all state and
 // the action/mutation logic; the parts build the two views and the leaf widgets.
 
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -839,12 +838,6 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       await setRepo.delete(id);
     }
     if (mounted) _cancelSelection();
-  }
-
-  Future<void> _chooseSetSymbol(SetEntry set) async {
-    final choice = await pickSymbol(context, ref, currentId: set.symbolId);
-    if (choice == null) return; // cancelled
-    await ref.read(setRepositoryProvider).setSymbol(set.id, choice.id);
   }
 
   // ---- small shared helpers ----

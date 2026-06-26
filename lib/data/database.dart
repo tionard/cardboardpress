@@ -122,13 +122,28 @@ class Symbols extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// App-level preferences (theme mode, Pro entitlement, future export defaults).
+/// A tiny key/value store kept INSIDE the database on purpose: it then rides
+/// along in any future library backup, instead of living off in
+/// shared_preferences where a backup would silently miss it. Values are stored
+/// as text; the settings layer (lib/state/settings.dart) parses them. Starts
+/// empty — every setting has a code default, so "no row" just means "default".
+class AppSettings extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
 @DriftDatabase(
-    tables: [PaletteColors, Templates, Cards, Sets, Rarities, TextSymbols, Symbols])
+    tables: [PaletteColors, Templates, Cards, Sets, Rarities, TextSymbols, Symbols,
+    AppSettings])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -191,6 +206,12 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(paletteColors, paletteColors.tagCard);
             await m.addColumn(paletteColors, paletteColors.tagText);
             await m.addColumn(paletteColors, paletteColors.tagSymbol);
+          }
+          if (from < 11) {
+            // v10->v11: app-level preferences (theme mode, Pro entitlement).
+            // A tiny key/value table kept inside the DB so a future library
+            // backup covers it. Starts empty; every setting has a code default.
+            await m.createTable(appSettings);
           }
         },
         beforeOpen: (details) async {
@@ -485,4 +506,21 @@ class AppDatabase extends _$AppDatabase {
     if (rows.isEmpty) return -1;
     return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
   }
+  // ---- app settings (key/value) ----
+
+  /// All settings as a plain map, read once at startup (lib/state/settings.dart).
+  Future<Map<String, String>> readSettings() async {
+    final rows = await select(appSettings).get();
+    return {for (final r in rows) r.key: r.value};
+  }
+
+  /// Reactive view, for anything that wants to observe settings live.
+  Stream<Map<String, String>> watchSettings() => select(appSettings)
+      .watch()
+      .map((rows) => {for (final r in rows) r.key: r.value});
+
+  /// Upsert one setting by key.
+  Future<void> putSetting(String key, String value) =>
+      into(appSettings).insertOnConflictUpdate(
+          AppSettingsCompanion.insert(key: key, value: value));
 }

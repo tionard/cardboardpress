@@ -14,13 +14,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/card_editor/card_editor_screen.dart';
 import '../features/collection/collection_screen.dart';
 import '../features/customization/customization_screen.dart';
-import '../features/profile/profile_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../features/template_editor/template_editor_screen.dart';
 import '../state/providers.dart';
 
-/// Profile is reserved (theme + premium) and stays hidden until decided
-/// (spec §2). Flip this to `true` later to surface it — no other change needed.
-const bool kShowProfile = false;
+/// The Settings tab (formerly the reserved "Profile" tab, spec §2): app theme
+/// + the Pro purchase entry point. Now surfaced. Flip to `false` to hide it
+/// again — no other change needed.
+const bool kShowSettings = true;
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key});
@@ -38,9 +39,9 @@ class AppShell extends ConsumerWidget {
 
   List<_TabDef> get _tabs => [
         ..._coreTabs,
-        if (kShowProfile)
-          const _TabDef(
-              'Profile', Icons.person_outline, Icons.person, ProfileScreen()),
+        if (kShowSettings)
+          const _TabDef('Settings', Icons.settings_outlined, Icons.settings,
+              SettingsScreen()),
       ];
 
   @override
