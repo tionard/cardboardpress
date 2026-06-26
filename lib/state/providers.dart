@@ -162,8 +162,9 @@ final symbolsMapProvider = Provider<Map<String, SymbolEntry>>((ref) {
 
 /// The visible tab index in the app shell, so screens can navigate the shell
 /// (e.g. Collection opening a card in the Card Editor tab). Order matches
-/// AppShell: 0 Collection · 1 Template · 2 Card · 3 Customize.
+/// AppShell: 0 Collection · 1 Template · 2 Card · 3 Customize · 4 Settings.
 const int kCardEditorTabIndex = 2;
+const int kSettingsTabIndex = 4; // Settings is appended (kShowSettings)
 
 class SelectedTab extends Notifier<int> {
   @override

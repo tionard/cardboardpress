@@ -92,6 +92,8 @@ class CardEditorScreen extends ConsumerWidget {
           exporter: ref.read(cardExporterProvider),
           proUnlocked: ref.watch(proUnlockedProvider),
           onLeave: () => ref.read(selectedTabProvider.notifier).set(0),
+          onOpenSettings: () =>
+              ref.read(selectedTabProvider.notifier).set(kSettingsTabIndex),
           active: ref.watch(selectedTabProvider) == kCardEditorTabIndex,
           onOpenCard: (id) =>
               ref.read(currentCardIdProvider.notifier).set(id),
@@ -134,6 +136,7 @@ class _CardEditorBody extends StatefulWidget {
   final CardExporter exporter;
   final bool proUnlocked; // gates export DPI + watermark
   final VoidCallback onLeave; // return to the Collection tab
+  final VoidCallback onOpenSettings; // jump to the Settings tab (Pro upsell)
   final bool active; // is the Card Editor the visible tab? (gates back handling)
   final ValueChanged<String> onOpenCard; // switch the editor to another card id
 
@@ -154,6 +157,7 @@ class _CardEditorBody extends StatefulWidget {
     required this.exporter,
     required this.proUnlocked,
     required this.onLeave,
+    required this.onOpenSettings,
     required this.active,
     required this.onOpenCard,
   });

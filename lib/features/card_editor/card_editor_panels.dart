@@ -360,9 +360,13 @@ extension _CardEditorPanels on _CardEditorBodyState {
   }
 
   void _showProNeeded() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('600 DPI and watermark-free exports are a Pro feature — '
-          'unlock it in the Settings tab.'),
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: const Text('600 DPI and watermark-free exports are a Pro '
+          'feature.'),
+      action: SnackBarAction(
+        label: 'Settings',
+        onPressed: widget.onOpenSettings,
+      ),
     ));
   }
 
