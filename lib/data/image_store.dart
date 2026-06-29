@@ -37,4 +37,32 @@ class ImageStore {
     final file = File(p.join((await _dir()).path, id));
     if (await file.exists()) await file.delete();
   }
+
+  // ---- backup / restore helpers ----
+
+  /// Every stored image file (for backup).
+  Future<List<File>> allFiles() async {
+    final dir = await _dir();
+    final entries = await dir.list().toList();
+    return entries.whereType<File>().toList();
+  }
+
+  /// Write [bytes] under an exact [name] — restore preserves image ids.
+  Future<void> putRaw(String name, List<int> bytes) async {
+    final file = File(p.join((await _dir()).path, name));
+    await file.writeAsBytes(bytes, flush: true);
+  }
+
+  /// Delete every stored image whose filename is not in [keep] (restore's
+  /// replace step, run only after the DB already points at the kept ids).
+  Future<void> retainOnly(Set<String> keep) async {
+    final dir = await _dir();
+    for (final e in await dir.list().toList()) {
+      if (e is File && !keep.contains(p.basename(e.path))) {
+        try {
+          await e.delete();
+        } catch (_) {}
+      }
+    }
+  }
 }

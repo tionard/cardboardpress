@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/database.dart';
 import '../data/image_store.dart';
+import '../data/backup_service.dart';
 import '../data/card_exporter.dart';
 import '../data/card_repository.dart';
 import '../data/palette_repository.dart';
@@ -79,6 +80,11 @@ final imageStoreProvider = Provider<ImageStore>((ref) => ImageStore());
 
 /// Renders + saves a card as PNG (Card Editor export, Collection export later).
 final cardExporterProvider = Provider<CardExporter>((ref) => CardExporter());
+
+final backupServiceProvider = Provider<BackupService>((ref) => BackupService(
+      ref.watch(databaseProvider),
+      ref.watch(imageStoreProvider),
+    ));
 
 /// Data API for sets.
 final setRepositoryProvider = Provider<SetRepository>(

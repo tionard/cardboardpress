@@ -10,11 +10,14 @@
 // that flips the entitlement directly so the locked features can be built and
 // tested before Google Play Billing is wired in.
 
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart'
+    show kDebugMode, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/backup_service.dart';
+import '../../state/providers.dart';
 import '../../state/settings.dart';
 
 /// Shown on the About row and the licenses page. Bump on release; can later be
@@ -42,6 +45,9 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           const _SectionHeader('CardboardPress Pro'),
           _ProCard(unlocked: settings.proUnlocked),
+          const SizedBox(height: 24),
+          const _SectionHeader('Data'),
+          const _DataSection(),
           const SizedBox(height: 24),
           const _SectionHeader('About'),
           const _AboutSection(),
@@ -244,6 +250,140 @@ class _AboutSection extends StatelessWidget {
               content: Text('Repository link copied to clipboard.'),
             ));
           },
+        ),
+      ],
+    );
+  }
+}
+
+class _DataSection extends ConsumerStatefulWidget {
+  const _DataSection();
+  @override
+  ConsumerState<_DataSection> createState() => _DataSectionState();
+}
+
+class _DataSectionState extends ConsumerState<_DataSection> {
+  bool _busy = false;
+
+  Future<void> _backup() async {
+    final service = ref.read(backupServiceProvider);
+    final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+    setState(() => _busy = true);
+    try {
+      if (isAndroid) {
+        final ok = await service.shareBackup();
+        if (ok) _snack('Backup created.');
+      } else {
+        final path = await service.exportToFile();
+        _snack(path == null
+            ? 'Backup cancelled.'
+            : 'Library backed up to $path');
+      }
+    } catch (e) {
+      _snack('Backup failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restore() async {
+    final service = ref.read(backupServiceProvider);
+    setState(() => _busy = true);
+    try {
+      final picked = await service.pickBackup();
+      if (picked == null) return; // cancelled
+      if (!mounted) return;
+      final confirmed = await _confirmReplace(picked.manifest);
+      if (confirmed != true) return;
+      final summary = await service.restore(picked.bytes);
+      _snack('Restored ${summary.cards} cards and '
+          '${summary.templates} templates.');
+    } on BackupError catch (e) {
+      _snack(e.message);
+    } catch (e) {
+      _snack('Restore failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<bool?> _confirmReplace(BackupManifest m) {
+    final d = m.createdAt;
+    String two(int n) => n.toString().padLeft(2, '0');
+    final made = '${two(d.day)}/${two(d.month)}/${d.year}';
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Replace your library?'),
+        content: Text(
+          'This replaces everything currently in CardboardPress with the backup '
+          'from $made (${m.cards} cards, ${m.templates} templates). Your current '
+          'cards, templates and colours will be permanently removed. This cannot '
+          'be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Replace'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.backup_outlined),
+          title: const Text('Back up library'),
+          subtitle:
+              const Text('Save all cards, templates and images to one file.'),
+          trailing: const Icon(Icons.chevron_right),
+          enabled: !_busy,
+          onTap: _busy ? null : _backup,
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.restore_outlined),
+          title: const Text('Restore from backup'),
+          subtitle: const Text('Replace the library with a backup file.'),
+          trailing: const Icon(Icons.chevron_right),
+          enabled: !_busy,
+          onTap: _busy ? null : _restore,
+        ),
+        if (_busy)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 12),
+                Text('Working…', style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        const SizedBox(height: 4),
+        Text(
+          'Backups live only where you put them — CardboardPress has no cloud, '
+          'so keep one somewhere safe. Restoring replaces your current library.',
+          style: theme.textTheme.bodySmall,
         ),
       ],
     );

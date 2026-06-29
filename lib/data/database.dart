@@ -3,7 +3,10 @@
 // The drift database (your EF Core DbContext). Table classes are entities;
 // schemaVersion + migration are explicit, hand-written migrations.
 
+import 'dart:io';
+
 import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
 import '../model/card_model.dart';
@@ -141,6 +144,12 @@ class AppSettings extends Table {
     AppSettings])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
+
+  /// Opens an arbitrary database [file] directly (no isolate, no app-dir
+  /// naming). Used by Backup & Restore to read a snapshot or write one;
+  /// opening an older snapshot here runs the migrations up to the current
+  /// schema automatically.
+  AppDatabase.forFile(File file) : super(NativeDatabase(file));
 
   @override
   int get schemaVersion => 11;
