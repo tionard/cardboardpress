@@ -192,8 +192,8 @@ class FooterItem {
       FooterItem(component ?? this.component, zone ?? this.zone);
 
   @override
-  bool operator ==(Object o) =>
-      o is FooterItem && o.component == component && o.zone == zone;
+  bool operator ==(Object other) =>
+      other is FooterItem && other.component == component && other.zone == zone;
   @override
   int get hashCode => Object.hash(component, zone);
 }

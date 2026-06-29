@@ -326,6 +326,9 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     // (The file is left on disk; orphan cleanup comes with Collection delete.)
   }
 
+  // Called from _CardEditorPanels extension (extensions can't call setState).
+  void _selectDpi(int dpi) => setState(() => _dpi = dpi);
+
   void _setArtTransform(String fieldId, ArtTransform t) {
     _markDirty(() => _working = _working.copyWith(
         content: _working.content.withArtTransform(fieldId, t)));

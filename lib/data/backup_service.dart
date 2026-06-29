@@ -20,8 +20,6 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:archive/archive.dart';
 import 'package:drift/drift.dart';
 import 'package:file_picker/file_picker.dart';
@@ -198,16 +196,14 @@ class BackupService {
   /// UI to confirm. Returns null if the user cancelled. Throws [BackupError]
   /// for a file that isn't a usable CardboardPress backup.
   Future<PickedBackup?> pickBackup() async {
-    final res = await FilePicker.pickFiles(type: FileType.any, withData: true);
+    final res = await FilePicker.pickFiles(type: FileType.any);
     if (res == null || res.files.isEmpty) return null;
     final picked = res.files.single;
-    var bytes = picked.bytes;
-    if (bytes == null && picked.path != null) {
-      bytes = await File(picked.path!).readAsBytes();
-    }
-    if (bytes == null) {
-      throw const BackupError('Could not read the selected file.');
-    }
+    // PlatformFile.readAsBytes() works on both mobile (stream) and desktop
+    // (path-backed). The old .bytes field is deprecated in file_picker 12.x.
+    final bytes = picked.path != null
+        ? await File(picked.path!).readAsBytes()
+        : await picked.readAsBytes();
     final manifest = _readManifest(bytes);
     return PickedBackup(bytes, manifest);
   }

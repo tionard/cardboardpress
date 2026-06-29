@@ -15,11 +15,6 @@ extension _CardEditorPanels on _CardEditorBodyState {
         return _setSettings();
       case _Cat.export:
         return _exportSettings();
-      default:
-        return Center(
-          child: Text('${_catLabels[_cat]} — coming soon',
-              style: Theme.of(context).textTheme.bodyMedium),
-        );
     }
   }
 
@@ -324,7 +319,7 @@ extension _CardEditorPanels on _CardEditorBodyState {
               _showProNeeded();
               return; // keep the free 300 selection
             }
-            setState(() => _dpi = v);
+            _selectDpi(v);
           },
         ),
         const SizedBox(height: 12),
