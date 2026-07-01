@@ -88,14 +88,18 @@ class _ColorPickerView extends ConsumerStatefulWidget {
 }
 
 class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
-  // Working colour held as 8-bit channels (matches storage: ARGB32).
-  late int _a, _r, _g, _b;
+  // Working colour(s), held as Colors. One entry = single colour; two = duo.
+  // The "active" slot is the one the wheel / brightness / alpha / RGB / hex
+  // controls edit. Channels are read/written 8-bit (matches storage: ARGB32).
+  late List<Color> _colors;
+  int _active = 0;
+  MixOrientation _orientation = MixOrientation.vertical;
+  double _mix = 0.3;
 
-  // When non-null the current selection IS this palette swatch, passed through
-  // unmodified (so a duo swatch survives being picked). Any manual edit flips to
-  // a single-colour literal and these go null.
+  // When non-null the working value still equals this palette swatch (picked and
+  // untouched). Any edit — colour, alpha, blend, add/remove c2 — forks to a
+  // literal and this goes null.
   String? _paletteId;
-  ColorValue? _paletteValue;
 
   final _hex = TextEditingController();
   final _hexFocus = FocusNode();
@@ -108,15 +112,11 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
     final init = widget.initial;
     if (init != null) {
       _paletteId = init.id;
-      _paletteValue = init.id != null ? init.snapshot : null;
-      _setChannelsFrom(init.snapshot.c1);
+      _loadValue(init.snapshot);
     } else {
-      _a = 255;
-      _r = 0x9E;
-      _g = 0x9E;
-      _b = 0x9E; // neutral grey, like the customization editor's new colour
+      _colors = [const Color(0xFF9E9E9E)]; // neutral grey default
     }
-    if (!widget.allowAlpha) _a = 255;
+    if (!widget.allowAlpha) _colors = [for (final c in _colors) _opaque(c)];
     _hex.text = _hexString(_a, _r, _g, _b);
     _hexFocus.addListener(_resyncHex);
   }
@@ -132,64 +132,72 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
 
   // --- working-colour derivations ---
 
-  Color get _c1 => Color.fromARGB(_a, _r, _g, _b);
-  HSVColor get _hsv => HSVColor.fromColor(_c1);
+  Color get _activeColor => _colors[_active]; // the colour being edited
+  int get _a => (_activeColor.a * 255).round();
+  int get _r => (_activeColor.r * 255).round();
+  int get _g => (_activeColor.g * 255).round();
+  int get _b => (_activeColor.b * 255).round();
+  HSVColor get _hsv => HSVColor.fromColor(_activeColor);
   bool get _isLiteral => _paletteId == null;
-  ColorValue get _previewValue => _paletteValue ?? ColorValue.single(_c1);
+  bool get _isDuo => _colors.length == 2;
+
+  ColorValue get _workingValue => _isDuo
+      ? ColorValue.duo(_colors[0], _colors[1],
+          orientation: _orientation, mix: _mix)
+      : ColorValue.single(_colors[0]);
+  ColorValue get _previewValue => _workingValue;
 
   ColorRef get _result => _paletteId != null
-      ? ColorRef(id: _paletteId, snapshot: _paletteValue ?? ColorValue.single(_c1))
-      : ColorRef.literal(ColorValue.single(_c1));
+      ? ColorRef(id: _paletteId, snapshot: _workingValue)
+      : ColorRef.literal(_workingValue);
 
-  void _setChannelsFrom(Color c) {
-    _a = (c.a * 255).round();
-    _r = (c.r * 255).round();
-    _g = (c.g * 255).round();
-    _b = (c.b * 255).round();
+  static Color _opaque(Color c) => c.withValues(alpha: 1);
+
+  void _loadValue(ColorValue v) {
+    _colors = v.c2 == null ? [v.c1] : [v.c1, v.c2!];
+    _orientation = v.orientation;
+    _mix = v.mix;
+    _active = 0;
   }
 
   // --- mutations ---
 
-  // A manual edit -> becomes a single-colour literal (drops any duo passthrough).
-  void _editChannels({int? a, int? r, int? g, int? b, bool fromHex = false}) {
+  // Replace the ACTIVE colour and fork to a literal (any edit diverges from a
+  // picked palette swatch). [fromHex] leaves the hex field alone so typing isn't
+  // interrupted mid-entry.
+  void _setActive(Color c, {bool fromHex = false}) {
     setState(() {
-      _a = widget.allowAlpha ? (a ?? _a) : 255;
-      _r = r ?? _r;
-      _g = g ?? _g;
-      _b = b ?? _b;
+      _colors[_active] = widget.allowAlpha ? c : _opaque(c);
       _paletteId = null;
-      _paletteValue = null;
     });
-    // Keep the hex field in step, unless the edit CAME from it (don't fight the
-    // user's cursor mid-type).
     if (!fromHex) _hex.text = _hexString(_a, _r, _g, _b);
   }
 
-  void _setColor(Color c) => _editChannels(
-        a: (c.a * 255).round(),
-        r: (c.r * 255).round(),
-        g: (c.g * 255).round(),
-        b: (c.b * 255).round(),
-      );
+  void _editChannels({int? a, int? r, int? g, int? b, bool fromHex = false}) {
+    final na = widget.allowAlpha ? (a ?? _a) : 255;
+    _setActive(Color.fromARGB(na, r ?? _r, g ?? _g, b ?? _b), fromHex: fromHex);
+  }
 
-  // Wheel: new hue + saturation, keeping the current brightness and alpha.
+  // Wheel: new hue + saturation, keeping the active colour's brightness + alpha.
   void _setHueSat(double hue, double sat) {
-    final v = _hsv.value;
-    _setColor(HSVColor.fromAHSV(_a / 255.0, hue, sat, v).toColor());
+    final h = _hsv;
+    _setActive(HSVColor.fromAHSV(_a / 255.0, hue, sat, h.value).toColor());
   }
 
   // Brightness slider: new value, keeping hue + saturation + alpha.
   void _setValue(double value) {
     final h = _hsv;
-    _setColor(HSVColor.fromAHSV(_a / 255.0, h.hue, h.saturation, value).toColor());
+    _setActive(
+        HSVColor.fromAHSV(_a / 255.0, h.hue, h.saturation, value).toColor());
   }
 
-  // Picking a palette swatch keeps it whole (id + snapshot) — no flattening.
+  // Picking a palette swatch loads it whole (single or duo) and keeps it as a
+  // live reference until edited.
   void _pickSwatch(PaletteSwatch s) {
     setState(() {
       _paletteId = s.id;
-      _paletteValue = s.value;
-      _setChannelsFrom(s.value.c1);
+      _loadValue(s.value);
+      if (!widget.allowAlpha) _colors = [for (final c in _colors) _opaque(c)];
       _saving = false;
     });
     _hex.text = _hexString(_a, _r, _g, _b);
@@ -201,19 +209,55 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
     }
   }
 
+  // --- second colour + blend ---
+
+  void _addC2() {
+    // Seed c2 as a visibly different shade of c1 (flip brightness) so the split
+    // reads immediately, then make it active to edit.
+    final h = HSVColor.fromColor(_colors[0]);
+    final v2 = h.value > 0.5 ? h.value - 0.4 : h.value + 0.4;
+    final c2 = HSVColor.fromAHSV(h.alpha, h.hue, h.saturation, v2.clamp(0.0, 1.0))
+        .toColor();
+    setState(() {
+      _colors = [_colors[0], widget.allowAlpha ? c2 : _opaque(c2)];
+      _active = 1;
+      _paletteId = null;
+    });
+    _hex.text = _hexString(_a, _r, _g, _b);
+  }
+
+  void _removeC2() {
+    setState(() {
+      _colors = [_colors[0]];
+      _active = 0;
+      _paletteId = null;
+    });
+    _hex.text = _hexString(_a, _r, _g, _b);
+  }
+
+  void _setOrientation(MixOrientation o) => setState(() {
+        _orientation = o;
+        _paletteId = null;
+      });
+
+  void _setMix(double v) => setState(() {
+        _mix = v;
+        _paletteId = null;
+      });
+
   Future<void> _saveToPalette() async {
     final id = 'c_${DateTime.now().microsecondsSinceEpoch}';
-    final value = ColorValue.single(_c1);
+    final value = _workingValue;
     final name = _name.text.trim().isEmpty ? 'Unnamed' : _name.text.trim();
-    // Tags default all-on (PaletteSwatch defaults) — filter-not-forbid, matching
-    // the customization editor. The current `use` is therefore always included.
+    // Save-to-palette bakes everything: c1 + its alpha, c2 + its alpha,
+    // orientation, mix (PaletteSwatch already stores a full ColorValue). Tags
+    // default all-on (filter-not-forbid), so the current `use` is included.
     await ref
         .read(paletteRepositoryProvider)
         .add(PaletteSwatch(id: id, name: name, value: value));
     if (!mounted) return;
     setState(() {
       _paletteId = id; // literal -> live palette reference
-      _paletteValue = value;
       _saving = false;
     });
   }
@@ -248,7 +292,9 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               children: [
                 _preview(),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
+                _slotChips(theme),
+                const SizedBox(height: 12),
                 Center(
                   child: _HueWheel(
                     hue: _hsv.hue,
@@ -278,6 +324,10 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
                     labelWidth: 52,
                     onChanged: (v) => _editChannels(a: v.round()),
                   ),
+                if (_isDuo) ...[
+                  const SizedBox(height: 4),
+                  _blendControls(theme),
+                ],
                 const Divider(height: 20),
                 _channel('R', _r, (v) => _editChannels(r: v)),
                 _channel('G', _g, (v) => _editChannels(g: v)),
@@ -347,6 +397,102 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
           ],
         ),
       ),
+    );
+  }
+
+  // The active-slot chips: [1] and either [2] (+ remove) or a "2nd colour"
+  // button. Tapping a chip makes it the target of the wheel / sliders / hex.
+  Widget _slotChips(ThemeData theme) {
+    return Row(
+      children: [
+        _chip(0, theme),
+        const SizedBox(width: 8),
+        if (_isDuo) ...[
+          _chip(1, theme),
+          IconButton(
+            tooltip: 'Remove second colour',
+            visualDensity: VisualDensity.compact,
+            onPressed: _removeC2,
+            icon: const Icon(Icons.remove_circle_outline, size: 20),
+          ),
+        ] else
+          OutlinedButton.icon(
+            onPressed: _addC2,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('2nd colour'),
+          ),
+        const Spacer(),
+      ],
+    );
+  }
+
+  Widget _chip(int i, ThemeData theme) {
+    final active = _active == i;
+    final scheme = theme.colorScheme;
+    return InkWell(
+      onTap: () => setState(() => _active = i),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: _previewDecoration(
+          ColorValue.single(_colors[i]),
+          radius: 8,
+          border: Border.all(
+            color: active ? scheme.primary : scheme.outlineVariant,
+            width: active ? 3 : 1,
+          ),
+        ),
+        child: Text(
+          '${i + 1}',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: _readableOn(_colors[i]),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Blend controls (duo only): orientation + how soft the seam is.
+  Widget _blendControls(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            SizedBox(
+              width: 52,
+              child: Text('Blend', style: theme.textTheme.bodySmall),
+            ),
+            Expanded(
+              child: SegmentedButton<MixOrientation>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                      value: MixOrientation.vertical, label: Text('Vertical')),
+                  ButtonSegment(
+                      value: MixOrientation.horizontal,
+                      label: Text('Horizontal')),
+                ],
+                selected: {_orientation},
+                onSelectionChanged: (s) => _setOrientation(s.first),
+              ),
+            ),
+          ],
+        ),
+        LabeledSlider(
+          label: 'Mix',
+          value: _mix,
+          min: 0,
+          max: 1,
+          step: 0.05,
+          decimals: 2,
+          labelWidth: 52,
+          onChanged: _setMix,
+        ),
+      ],
     );
   }
 
