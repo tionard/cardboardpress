@@ -25,6 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../model/card_model.dart';
 import '../../state/providers.dart';
+import '../../state/recent_colors.dart';
 import '../labeled_slider.dart';
 import '../swatch_picker.dart';
 
@@ -262,12 +263,38 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
     });
   }
 
+  // Commit: record the colour in this tag's recents if it's a literal (palette
+  // swatches already live in the palette), then return it. Awaited so the write
+  // finishes while the notifier is still watched (no set-after-dispose).
+  Future<void> _commit() async {
+    final result = _result;
+    if (result.id == null) {
+      await ref
+          .read(recentColorsProvider.notifier)
+          .add(widget.use, result.snapshot);
+    }
+    if (mounted) Navigator.of(context).pop(result);
+  }
+
+  // Tapping a recent loads it as a literal (recents are always literals).
+  void _pickRecent(ColorValue v) {
+    setState(() {
+      _loadValue(v);
+      if (!widget.allowAlpha) _colors = [for (final c in _colors) _opaque(c)];
+      _paletteId = null;
+      _saving = false;
+    });
+    _hex.text = _hexString(_a, _r, _g, _b);
+  }
+
   // --- build ---
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final paletteAsync = ref.watch(paletteProvider);
+    final recents = ref.watch(recentColorsProvider)[widget.use] ??
+        const <ColorValue>[];
 
     return SafeArea(
       top: false,
@@ -337,6 +364,7 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
                 const SizedBox(height: 12),
                 _saveSection(theme),
                 const Divider(height: 20),
+                if (recents.isNotEmpty) _recentsStrip(theme, recents),
                 Text('Palette', style: theme.textTheme.labelLarge),
                 const SizedBox(height: 8),
                 paletteAsync.when(
@@ -373,7 +401,7 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
                 ),
                 const Spacer(),
                 FilledButton(
-                  onPressed: () => Navigator.of(context).pop(_result),
+                  onPressed: _commit,
                   child: const Text('Use colour'),
                 ),
               ],
@@ -580,6 +608,42 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
           icon: const Icon(Icons.close),
         ),
       ],
+    );
+  }
+
+  Widget _recentsStrip(ThemeData theme, List<ColorValue> recents) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Recent', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 40,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: recents.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) => _recentCell(theme, recents[i]),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _recentCell(ThemeData theme, ColorValue v) {
+    return InkWell(
+      onTap: () => _pickRecent(v),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: _previewDecoration(
+          v,
+          radius: 8,
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
     );
   }
 
