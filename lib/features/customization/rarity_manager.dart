@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../model/card_model.dart';
 import '../../state/providers.dart';
 import '../../widgets/swatch_picker.dart';
+import '../../widgets/color_picker/color_picker.dart';
 
 class RarityManager extends ConsumerWidget {
   const RarityManager({super.key});
@@ -133,22 +134,37 @@ class RarityManager extends ConsumerWidget {
                 Text('Colour (tints the set symbol)',
                     style: Theme.of(ctx).textTheme.bodySmall),
                 const SizedBox(height: 8),
-                SwatchPicker(
-                  swatches: swatches,
-                  use: SwatchUse.symbol,
-                  selectedId: color?.id,
-                  spacing: 8,
-                  leading: _ColorChoice(
-                    value: null,
-                    selected: color == null,
-                    onTap: () => setLocal(() => color = null),
-                  ),
-                  tileBuilder: (s) => _ColorChoice(
-                    value: s.value,
-                    selected: color?.id == s.id,
-                    onTap: () => setLocal(
-                        () => color = ColorRef(id: s.id, snapshot: s.value)),
-                  ),
+                Row(
+                  children: [
+                    // Rarity colour tints the set symbol and carries no
+                    // transparency (settled decision), so the picker's alpha
+                    // slider is suppressed. "None" clears back to the default.
+                    _ColorChoice(
+                      value: color == null
+                          ? null
+                          : CardRefs(
+                                  palette: {
+                                    for (final s in swatches) s.id: s.value
+                                  })
+                              .resolveColor(color!),
+                      selected: false,
+                      onTap: () async {
+                        final picked = await showColorPicker(
+                          ctx,
+                          use: SwatchUse.symbol,
+                          initial: color,
+                          allowAlpha: false,
+                        );
+                        if (picked != null) setLocal(() => color = picked);
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    if (color != null)
+                      TextButton(
+                        onPressed: () => setLocal(() => color = null),
+                        child: const Text('None'),
+                      ),
+                  ],
                 ),
                 if (swatches.isEmpty)
                   Padding(

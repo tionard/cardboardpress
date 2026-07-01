@@ -213,30 +213,42 @@ extension _CardEditorPanels on _CardEditorBodyState {
 
   Widget _colorSettings() {
     final refs = CardRefs(palette: widget.palette);
-    final tintId = _working.content.tint?.id;
     final defaultBase = refs.resolveColor(_effective.baseColor);
+    final tint = _working.content.tint;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Text('Tint', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
-        SwatchPicker(
-          swatches: widget.swatches,
-          use: SwatchUse.card,
-          selectedId: tintId,
-          leading: _SwatchTile(
-            value: defaultBase,
-            label: 'Default',
-            selected: _working.content.tint == null,
-            onTap: _clearTint,
-          ),
-          tileBuilder: (s) => _SwatchTile(
-            value: s.value,
-            label: s.name,
-            selected: s.id == tintId,
-            onTap: () => _setTint(s),
-          ),
+        Row(
+          children: [
+            // A colour well: shows the current tint (or the base as "Default")
+            // and opens the picker popup. The returned ColorRef flows straight
+            // to _setTintRef — a palette pick keeps its id, a hand-built colour
+            // comes back as a literal, and both render through resolveColor. The
+            // use-site Opacity slider below is unchanged (per-colour alpha lives
+            // in the picker; this stays the master dimmer).
+            _SwatchTile(
+              value: tint == null ? defaultBase : refs.resolveColor(tint),
+              label: tint == null ? 'Default' : 'Tint',
+              selected: false,
+              onTap: () async {
+                final picked = await showColorPicker(
+                  context,
+                  use: SwatchUse.card,
+                  initial: tint,
+                );
+                if (picked != null) _setTintRef(picked);
+              },
+            ),
+            const SizedBox(width: 12),
+            if (tint != null)
+              TextButton(
+                onPressed: _clearTint,
+                child: const Text('Use default'),
+              ),
+          ],
         ),
         if (_working.content.tint != null) ...[
           const SizedBox(height: 12),

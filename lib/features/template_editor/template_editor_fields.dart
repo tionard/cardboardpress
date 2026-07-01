@@ -155,25 +155,17 @@ extension _TemplateFieldsPane on _TemplateBodyState {
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 4),
             // Shared colour: fill colour (Fill mode) or image tint (9-slice).
-            SwatchPicker(
-              swatches: widget.swatches,
+            _colorWell(
+              current: f.frame != null ? f.frame!.tint : f.fill,
               use: SwatchUse.card,
-              selectedId: f.frame != null ? f.frame!.tint?.id : f.fill?.id,
-              leading: _noneTile(
-                  f.frame != null ? f.frame!.tint == null : f.fill == null,
-                  () => f.frame != null
-                      ? _updateField(
-                          f.copyWith(frame: f.frame!.copyWith(tint: null)))
-                      : _updateField(f.copyWith(fill: null))),
-              tileBuilder: (s) => _swatch(
-                  s.value,
-                  s.id == (f.frame != null ? f.frame!.tint?.id : f.fill?.id),
-                  () => f.frame != null
-                      ? _updateField(f.copyWith(
-                          frame: f.frame!
-                              .copyWith(tint: ColorRef(id: s.id, snapshot: s.value))))
-                      : _updateField(f.copyWith(
-                          fill: ColorRef(id: s.id, snapshot: s.value)))),
+              onPicked: (ref) => f.frame != null
+                  ? _updateField(
+                      f.copyWith(frame: f.frame!.copyWith(tint: ref)))
+                  : _updateField(f.copyWith(fill: ref)),
+              onClear: () => f.frame != null
+                  ? _updateField(
+                      f.copyWith(frame: f.frame!.copyWith(tint: null)))
+                  : _updateField(f.copyWith(fill: null)),
             ),
             // Shared opacity: fill opacity (Fill) or overall frame opacity (9-slice).
             _labeledSlider('Opacity', f.fillAlpha, 0, 1,
@@ -342,16 +334,11 @@ extension _TemplateFieldsPane on _TemplateBodyState {
             const SizedBox(height: 8),
             Text('Colour', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 6),
-            SwatchPicker(
-              swatches: widget.swatches,
+            _colorWell(
+              current: text.colorRef,
               use: SwatchUse.text,
-              selectedId: text.colorRef.id,
-              tileBuilder: (s) => _swatch(
-                  s.value,
-                  s.id == text.colorRef.id,
-                  () => _updateField(f.copyWith(
-                      text: text.copyWith(
-                          colorRef: ColorRef(id: s.id, snapshot: s.value))))),
+              onPicked: (ref) => _updateField(
+                  f.copyWith(text: text.copyWith(colorRef: ref))),
             ),
             _labeledSlider('Opacity', text.colorAlpha, 0, 1,
                 (v) => _updateField(
@@ -384,16 +371,11 @@ extension _TemplateFieldsPane on _TemplateBodyState {
               const SizedBox(height: 8),
               Text('Colour', style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 6),
-              SwatchPicker(
-                swatches: widget.swatches,
+              _colorWell(
+                current: f.watermark!.color,
                 use: SwatchUse.symbol,
-                selectedId: f.watermark!.color.id,
-                tileBuilder: (s) => _swatch(
-                    s.value,
-                    s.id == f.watermark!.color.id,
-                    () => _updateField(f.copyWith(
-                        watermark: f.watermark!.copyWith(
-                            color: ColorRef(id: s.id, snapshot: s.value))))),
+                onPicked: (ref) => _updateField(f.copyWith(
+                    watermark: f.watermark!.copyWith(color: ref))),
               ),
               _labeledSlider('Opacity', f.watermark!.alpha, 0, 1,
                   (v) => _updateField(

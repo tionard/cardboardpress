@@ -82,9 +82,11 @@ void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
   final textRect = ui.Rect.fromLTWH(left, top, textW, textH);
 
   final shader = _doubleShader(color, textRect, ts.colorAlpha);
+  // Single-colour path: baked alpha × use-site alpha (see _doubleShader). The
+  // double path bakes the same product inside _doubleShader.
   final paragraph = shader != null
       ? layoutAt(fs, fg: ui.Paint()..shader = shader)
-      : layoutAt(fs, col: color.c1.withValues(alpha: ts.colorAlpha));
+      : layoutAt(fs, col: color.c1.withValues(alpha: color.c1.a * ts.colorAlpha));
 
   canvas.drawParagraph(paragraph, ui.Offset(box.left, top));
 }
@@ -104,7 +106,8 @@ void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
 ui.TextStyle _runStyle(
         double fs, bool bold, bool italic, ColorValue color, double alpha) =>
     ui.TextStyle(
-      color: color.c1.withValues(alpha: alpha),
+      // Inline text is single-colour: baked alpha × use-site alpha.
+      color: color.c1.withValues(alpha: color.c1.a * alpha),
       fontWeight: bold ? ui.FontWeight.bold : ui.FontWeight.normal,
       fontStyle: italic ? ui.FontStyle.italic : ui.FontStyle.normal,
       fontSize: fs,

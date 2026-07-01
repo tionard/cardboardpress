@@ -36,6 +36,7 @@ import '../../widgets/card_preview.dart';
 import '../../widgets/labeled_slider.dart';
 import '../../widgets/preview_dock.dart';
 import '../../widgets/swatch_picker.dart';
+import '../../widgets/color_picker/color_picker.dart';
 
 part 'card_editor_panels.dart';
 part 'card_editor_widgets.dart';
@@ -410,10 +411,9 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     }
   }
 
-  void _setTint(PaletteSwatch s) {
-    _markDirty(() => _working = _working.copyWith(
-        content:
-            _working.content.withTint(ColorRef(id: s.id, snapshot: s.value))));
+  void _setTintRef(ColorRef ref) {
+    _markDirty(() =>
+        _working = _working.copyWith(content: _working.content.withTint(ref)));
   }
 
   void _clearTint() {

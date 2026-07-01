@@ -40,7 +40,8 @@ void _paintTintedSymbol(
   if (shader != null) {
     fill.shader = shader;
   } else {
-    fill.color = cv.c1.withValues(alpha: a);
+    // baked alpha × use-site alpha (see _doubleShader).
+    fill.color = cv.c1.withValues(alpha: cv.c1.a * a);
   }
   canvas.drawRect(box, fill);
   canvas.drawImageRect(
