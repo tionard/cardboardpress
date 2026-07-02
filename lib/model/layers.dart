@@ -100,17 +100,25 @@ class ImageAspect {
 
 /// Text on a layer. [literal] null = bound to per-card content (keyed by the
 /// layer id, like today's `textContent`); non-null = fixed text authored on the
-/// template. A text aspect may render a text symbol as well as characters.
+/// template. [inline] true renders through the inline engine (`{tag}` symbols +
+/// `**bold**`/`*italic*` markup) rather than as plain text. A text aspect may
+/// render a text symbol as well as characters.
 class TextAspect {
   final TextStyleSpec style;
   final String? literal;
+  final bool inline;
 
-  const TextAspect({required this.style, this.literal});
+  const TextAspect({required this.style, this.literal, this.inline = false});
 
-  TextAspect copyWith({TextStyleSpec? style, Object? literal = _unset}) =>
+  TextAspect copyWith({
+    TextStyleSpec? style,
+    Object? literal = _unset,
+    bool? inline,
+  }) =>
       TextAspect(
         style: style ?? this.style,
         literal: identical(literal, _unset) ? this.literal : literal as String?,
+        inline: inline ?? this.inline,
       );
 }
 

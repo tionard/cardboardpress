@@ -143,7 +143,12 @@ Layer _fieldToLayer(FieldSpec f) {
     // 9-slice frame; when present the renderer suppresses fill + outline exactly
     // as `spriteMode` does today (fill kept dormant, not dropped).
     border: f.frame,
-    text: f.text == null ? null : TextAspect(style: f.text!),
+    text: f.text == null
+        ? null
+        : TextAspect(
+            style: f.text!,
+            inline: f.type == FieldType.cost || f.type == FieldType.rules,
+          ),
     watermark: f.watermark,
     footer: f.footer,
     exposed: exposed,

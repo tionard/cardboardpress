@@ -156,6 +156,10 @@ List<TemplateEntry> defaultTemplates() => [
 /// A reasonable default layout for a newly-created template.
 TemplateData starterTemplate() => _parchment();
 
+/// The Thornwood sample template (border on by default). Public so the layer
+/// parity test can render the same template through both render paths.
+TemplateData sampleTemplate({bool border = true}) => _thornwood(border: border);
+
 /// Sample card content, keyed by field id.
 CardContent sampleContent() => const CardContent(text: {
       fNameId: 'Thornwood Stag',

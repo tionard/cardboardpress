@@ -25,11 +25,14 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import '../model/card_model.dart';
+import '../model/layers.dart';
+import '../model/layer_migration.dart';
 import '../model/markup.dart';
 
 part 'paint_colors.dart';
 part 'paint_text.dart';
 part 'paint_images.dart';
+part 'paint_card_layers.dart';
 
 /// Draws one card into [canvas], filling a card of [size].
 void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {

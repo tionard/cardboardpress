@@ -317,7 +317,7 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: recents.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (_, i) => _recentCell(theme, recents[i]),
           ),
         ),
