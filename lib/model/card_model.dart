@@ -16,6 +16,7 @@
 
 import 'dart:ui';
 
+import 'layers.dart';
 import 'markup.dart';
 part 'card_model_fields.dart';
 part 'card_model_template.dart';

@@ -306,6 +306,7 @@ CardData composeCard(
     footerValues: footerValues,
     layerOrder: t.layerOrder,
     hiddenLayers: t.hiddenLayers,
+    layers: t.layers,
   );
 }
 

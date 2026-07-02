@@ -222,6 +222,10 @@ Map<String, dynamic> templateToMap(TemplateData t) => {
         },
       if (t.layerOrder.isNotEmpty) 'layerOrder': t.layerOrder,
       if (t.hiddenLayers.isNotEmpty) 'hidden': t.hiddenLayers,
+      // Persisted layer list (Phase 4). Absent key = null = derive from fields,
+      // so every existing template's JSON is unchanged and reloads identically.
+      if (t.layers != null)
+        'layers': [for (final l in t.layers!) _layerToMap(l)],
     };
 
 TemplateData templateFromMap(Map m) => TemplateData(
@@ -244,6 +248,9 @@ TemplateData templateFromMap(Map m) => TemplateData(
       setSymbol: _setSymbolFromMap(m['setSym'] as Map?),
       layerOrder: _strList(m['layerOrder']),
       hiddenLayers: _strList(m['hidden']),
+      layers: m['layers'] == null
+          ? null
+          : [for (final e in (m['layers'] as List)) _layerFromMap(e as Map)],
     );
 
 List<String> _strList(Object? v) =>

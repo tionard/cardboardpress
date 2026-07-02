@@ -41,9 +41,7 @@ part 'paint_card_layers.dart';
 /// renderer below (guarded by the layer render parity test); the layer path is
 /// what the rest of the redesign builds on.
 void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
-  final layers = applyLayerOverlay(
-      cardToLayers(card), card.layerOrder, card.hiddenLayers);
-  paintCardFromLayers(canvas, size, card, layers, refs);
+  paintCardFromLayers(canvas, size, card, effectiveCardLayers(card), refs);
 }
 
 /// The original direct renderer. Retained as the reference the parity test

@@ -87,6 +87,21 @@ List<Layer> applyLayerOverlay(
   return result;
 }
 
+/// The layer list to render/edit for a template. If [t] carries a persisted
+/// [TemplateData.layers] (Phase 4: it's been authored into an explicit list),
+/// that IS the truth — list order = z-order, per-layer visibility applies, and
+/// the arrangement overlay is not consulted. Otherwise derive from the fields +
+/// chrome and apply the lightweight `layerOrder`/`hiddenLayers` overlay (the
+/// pre-Phase-4 behaviour). Existing templates (layers == null) are unchanged.
+List<Layer> effectiveTemplateLayers(TemplateData t) =>
+    t.layers ??
+    applyLayerOverlay(templateToLayers(t), t.layerOrder, t.hiddenLayers);
+
+/// The layer list to render for a composed card — the card-side twin of
+/// [effectiveTemplateLayers]. This is what the renderer walks.
+List<Layer> effectiveCardLayers(CardData c) =>
+    c.layers ?? applyLayerOverlay(cardToLayers(c), c.layerOrder, c.hiddenLayers);
+
 List<Layer> _buildLayers({
   required ColorRef baseColor,
   required String? bgImageId,

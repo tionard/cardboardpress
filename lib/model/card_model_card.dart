@@ -26,6 +26,7 @@ class CardData {
   final Map<FooterComponent, String> footerValues; // derived footer pieces (per card)
   final List<String> layerOrder; // z-order overlay (layer ids); [] = derived
   final List<String> hiddenLayers; // hidden layer ids; [] = all visible
+  final List<Layer>? layers; // persisted layer list; null = derive from fields
 
   const CardData({
     this.widthInches = 2.5,
@@ -50,6 +51,7 @@ class CardData {
     this.footerValues = const {},
     this.layerOrder = const [],
     this.hiddenLayers = const [],
+    this.layers,
   });
 
   /// Every image id the renderer needs decoded: card art, the template
@@ -62,6 +64,20 @@ class CardData {
       ?setSymbolImageId,
       ...watermarkImageIds.values,
     };
+    // Persisted generic layers can carry their own fixed template image (a
+    // decorative picture or a tinted silhouette); decode those too.
+    if (layers != null) {
+      for (final l in layers!) {
+        final img = l.image;
+        if (img != null &&
+            img.source == ImageSource.fixed &&
+            img.imageId.isNotEmpty) {
+          ids.add(img.imageId);
+        }
+        final b = l.border;
+        if (b != null && b.imageId.isNotEmpty) ids.add(b.imageId);
+      }
+    }
     for (final f in fields) {
       final fr = f.frame;
       if (fr != null && fr.imageId.isNotEmpty) ids.add(fr.imageId);

@@ -25,6 +25,16 @@ class TemplateData {
   final List<String> layerOrder;
   final List<String> hiddenLayers;
 
+  // Layer redesign (Phase 4): the persisted, editable layer list — the source
+  // of truth once the template has been authored in the Layers/Fields tabs.
+  // NULL means "derive from [fields] (+ the [layerOrder]/[hiddenLayers] overlay)"
+  // — the pre-Phase-4 behaviour every existing template keeps until it's first
+  // edited into an explicit list. When non-null, list order IS the z-order and
+  // each layer carries its own visibility, so the overlay no longer applies.
+  // Resolve via `effectiveTemplateLayers` / `effectiveCardLayers` (never read
+  // this raw in the renderer). Serialises inside the `spec` JSON — no schema bump.
+  final List<Layer>? layers;
+
   const TemplateData({
     this.widthInches = 2.5,
     this.heightInches = 3.5,
@@ -37,6 +47,7 @@ class TemplateData {
     this.setSymbol = const SetSymbolPlacement(),
     this.layerOrder = const [],
     this.hiddenLayers = const [],
+    this.layers,
   });
 
   TemplateData copyWith({
@@ -51,6 +62,7 @@ class TemplateData {
     SetSymbolPlacement? setSymbol,
     List<String>? layerOrder,
     List<String>? hiddenLayers,
+    Object? layers = _sentinel, // pass null to clear back to derived
   }) =>
       TemplateData(
         widthInches: widthInches ?? this.widthInches,
@@ -65,6 +77,9 @@ class TemplateData {
         setSymbol: setSymbol ?? this.setSymbol,
         layerOrder: layerOrder ?? this.layerOrder,
         hiddenLayers: hiddenLayers ?? this.hiddenLayers,
+        layers: identical(layers, _sentinel)
+            ? this.layers
+            : layers as List<Layer>?,
       );
 }
 
