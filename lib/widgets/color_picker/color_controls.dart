@@ -56,6 +56,10 @@ BoxDecoration _previewDecoration(ColorValue v,
   );
 }
 
+// Black or white, whichever reads better on [bg] — for the slot-number labels.
+Color _readableOn(Color bg) =>
+    bg.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+
 // A neutral checkerboard, drawn behind a translucent preview so its alpha is
 // visible instead of blending invisibly into the surface.
 class _CheckerPainter extends CustomPainter {

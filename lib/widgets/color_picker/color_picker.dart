@@ -1,21 +1,17 @@
 // lib/widgets/color_picker/color_picker.dart
 //
-// A self-contained colour picker popup. Launch it with [showColorPicker]; it
-// resolves to the chosen colour as a ColorRef (a palette pick keeps its
-// id + snapshot so it stays a live reference; a hand-built colour comes back as
-// a ColorRef.literal), or null if the user backs out.
+// The colour picker popup. Launch it with [showColorPicker]; it resolves to the
+// chosen colour as a ColorRef (a palette pick keeps its id + snapshot so it
+// stays a live reference; a hand-built colour comes back as a ColorRef.literal),
+// or null if the user backs out.
 //
-// PHASE 1 — single colour: the palette grid (embeds the existing SwatchPicker) +
-// a hue/saturation wheel, brightness + alpha sliders, an R/G/B row, an 8-digit
-// (RRGGBBAA) hex field, and Save-to-palette. Per-colour alpha is automatic here:
-// the alpha slider just edits the working colour. Duo chips + blend controls
-// land in Phase 3; per-tag recents in Phase 4 — the palette-vs-literal state is
-// already tracked so they slot in additively.
+// The colour-authoring controls (wheel, sliders, chips, blend, hex) live in the
+// reusable [ColorComposer] widget, which this popup embeds and the Customize
+// tab's colour editor also uses. The popup adds what's specific to *choosing*:
+// the palette grid, the per-tag recents strip, Save-to-palette, and the
+// palette-vs-literal tracking that shapes the returned ColorRef.
 //
-// Presentation-agnostic: a bottom sheet on phone and a dialog on desktop
-// (branch in the launcher), matching the app's responsive editors. The
-// customization screen keeps its own colour editor for now; consolidating the
-// two onto these controls is a later, deliberate pass.
+// Presentation-agnostic: a bottom sheet on phone and a dialog on desktop.
 
 import 'dart:math' as math;
 
@@ -25,11 +21,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../model/card_model.dart';
 import '../../state/providers.dart';
+import '../../state/recent_colors.dart';
 import '../labeled_slider.dart';
 import '../swatch_picker.dart';
 
 part 'color_wheel.dart';
 part 'color_controls.dart';
+part 'color_composer.dart';
 
 /// Opens the colour picker and resolves to the chosen [ColorRef], or null if the
 /// user dismissed it (null means "no change" — clearing / "use default" is a
@@ -88,17 +86,13 @@ class _ColorPickerView extends ConsumerStatefulWidget {
 }
 
 class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
-  // Working colour held as 8-bit channels (matches storage: ARGB32).
-  late int _a, _r, _g, _b;
+  // The working colour (single or duo), owned here and edited via ColorComposer.
+  late ColorValue _working;
 
-  // When non-null the current selection IS this palette swatch, passed through
-  // unmodified (so a duo swatch survives being picked). Any manual edit flips to
-  // a single-colour literal and these go null.
+  // When non-null the working value still equals this palette swatch (picked and
+  // untouched). Any composer edit forks to a literal and this goes null.
   String? _paletteId;
-  ColorValue? _paletteValue;
 
-  final _hex = TextEditingController();
-  final _hexFocus = FocusNode();
   bool _saving = false;
   final _name = TextEditingController(text: 'New Color');
 
@@ -108,122 +102,88 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
     final init = widget.initial;
     if (init != null) {
       _paletteId = init.id;
-      _paletteValue = init.id != null ? init.snapshot : null;
-      _setChannelsFrom(init.snapshot.c1);
+      _working = init.snapshot;
     } else {
-      _a = 255;
-      _r = 0x9E;
-      _g = 0x9E;
-      _b = 0x9E; // neutral grey, like the customization editor's new colour
+      _working = const ColorValue.single(Color(0xFF9E9E9E)); // neutral grey
     }
-    if (!widget.allowAlpha) _a = 255;
-    _hex.text = _hexString(_a, _r, _g, _b);
-    _hexFocus.addListener(_resyncHex);
+    if (!widget.allowAlpha) _working = _opaqueValue(_working);
   }
 
   @override
   void dispose() {
-    _hexFocus.removeListener(_resyncHex);
-    _hex.dispose();
-    _hexFocus.dispose();
     _name.dispose();
     super.dispose();
   }
 
-  // --- working-colour derivations ---
-
-  Color get _c1 => Color.fromARGB(_a, _r, _g, _b);
-  HSVColor get _hsv => HSVColor.fromColor(_c1);
   bool get _isLiteral => _paletteId == null;
-  ColorValue get _previewValue => _paletteValue ?? ColorValue.single(_c1);
 
   ColorRef get _result => _paletteId != null
-      ? ColorRef(id: _paletteId, snapshot: _paletteValue ?? ColorValue.single(_c1))
-      : ColorRef.literal(ColorValue.single(_c1));
+      ? ColorRef(id: _paletteId, snapshot: _working)
+      : ColorRef.literal(_working);
 
-  void _setChannelsFrom(Color c) {
-    _a = (c.a * 255).round();
-    _r = (c.r * 255).round();
-    _g = (c.g * 255).round();
-    _b = (c.b * 255).round();
-  }
+  static ColorValue _opaqueValue(ColorValue v) => v.c2 == null
+      ? ColorValue.single(v.c1.withValues(alpha: 1))
+      : ColorValue.duo(v.c1.withValues(alpha: 1), v.c2!.withValues(alpha: 1),
+          orientation: v.orientation, mix: v.mix);
 
-  // --- mutations ---
-
-  // A manual edit -> becomes a single-colour literal (drops any duo passthrough).
-  void _editChannels({int? a, int? r, int? g, int? b, bool fromHex = false}) {
+  // Composer edits fork to a literal.
+  void _onComposerChanged(ColorValue v) {
     setState(() {
-      _a = widget.allowAlpha ? (a ?? _a) : 255;
-      _r = r ?? _r;
-      _g = g ?? _g;
-      _b = b ?? _b;
+      _working = v;
       _paletteId = null;
-      _paletteValue = null;
     });
-    // Keep the hex field in step, unless the edit CAME from it (don't fight the
-    // user's cursor mid-type).
-    if (!fromHex) _hex.text = _hexString(_a, _r, _g, _b);
   }
 
-  void _setColor(Color c) => _editChannels(
-        a: (c.a * 255).round(),
-        r: (c.r * 255).round(),
-        g: (c.g * 255).round(),
-        b: (c.b * 255).round(),
-      );
-
-  // Wheel: new hue + saturation, keeping the current brightness and alpha.
-  void _setHueSat(double hue, double sat) {
-    final v = _hsv.value;
-    _setColor(HSVColor.fromAHSV(_a / 255.0, hue, sat, v).toColor());
-  }
-
-  // Brightness slider: new value, keeping hue + saturation + alpha.
-  void _setValue(double value) {
-    final h = _hsv;
-    _setColor(HSVColor.fromAHSV(_a / 255.0, h.hue, h.saturation, value).toColor());
-  }
-
-  // Picking a palette swatch keeps it whole (id + snapshot) — no flattening.
   void _pickSwatch(PaletteSwatch s) {
     setState(() {
+      _working = widget.allowAlpha ? s.value : _opaqueValue(s.value);
       _paletteId = s.id;
-      _paletteValue = s.value;
-      _setChannelsFrom(s.value.c1);
       _saving = false;
     });
-    _hex.text = _hexString(_a, _r, _g, _b);
   }
 
-  void _resyncHex() {
-    if (!_hexFocus.hasFocus && mounted) {
-      _hex.text = _hexString(_a, _r, _g, _b);
-    }
+  // Tapping a recent loads it as a literal (recents are always literals).
+  void _pickRecent(ColorValue v) {
+    setState(() {
+      _working = widget.allowAlpha ? v : _opaqueValue(v);
+      _paletteId = null;
+      _saving = false;
+    });
   }
 
   Future<void> _saveToPalette() async {
     final id = 'c_${DateTime.now().microsecondsSinceEpoch}';
-    final value = ColorValue.single(_c1);
     final name = _name.text.trim().isEmpty ? 'Unnamed' : _name.text.trim();
-    // Tags default all-on (PaletteSwatch defaults) — filter-not-forbid, matching
-    // the customization editor. The current `use` is therefore always included.
+    // Save-to-palette bakes everything (c1 + alpha, c2 + alpha, orientation,
+    // mix). Tags default all-on (filter-not-forbid), so the current use is in.
     await ref
         .read(paletteRepositoryProvider)
-        .add(PaletteSwatch(id: id, name: name, value: value));
+        .add(PaletteSwatch(id: id, name: name, value: _working));
     if (!mounted) return;
     setState(() {
       _paletteId = id; // literal -> live palette reference
-      _paletteValue = value;
       _saving = false;
     });
   }
 
-  // --- build ---
+  // Commit: record a literal in this tag's recents, then return it. Awaited so
+  // the write finishes while the notifier is still watched.
+  Future<void> _commit() async {
+    final result = _result;
+    if (result.id == null) {
+      await ref
+          .read(recentColorsProvider.notifier)
+          .add(widget.use, result.snapshot);
+    }
+    if (mounted) Navigator.of(context).pop(result);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final paletteAsync = ref.watch(paletteProvider);
+    final recents =
+        ref.watch(recentColorsProvider)[widget.use] ?? const <ColorValue>[];
 
     return SafeArea(
       top: false,
@@ -247,46 +207,15 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               children: [
-                _preview(),
-                const SizedBox(height: 14),
-                Center(
-                  child: _HueWheel(
-                    hue: _hsv.hue,
-                    saturation: _hsv.saturation,
-                    onChanged: _setHueSat,
-                  ),
+                ColorComposer(
+                  value: _working,
+                  allowAlpha: widget.allowAlpha,
+                  onChanged: _onComposerChanged,
                 ),
-                const SizedBox(height: 8),
-                LabeledSlider(
-                  label: 'Bright',
-                  value: _hsv.value,
-                  min: 0,
-                  max: 1,
-                  step: 0.01,
-                  decimals: 2,
-                  labelWidth: 52,
-                  onChanged: _setValue,
-                ),
-                if (widget.allowAlpha)
-                  LabeledSlider(
-                    label: 'Alpha',
-                    value: _a.toDouble(),
-                    min: 0,
-                    max: 255,
-                    step: 1,
-                    decimals: 0,
-                    labelWidth: 52,
-                    onChanged: (v) => _editChannels(a: v.round()),
-                  ),
-                const Divider(height: 20),
-                _channel('R', _r, (v) => _editChannels(r: v)),
-                _channel('G', _g, (v) => _editChannels(g: v)),
-                _channel('B', _b, (v) => _editChannels(b: v)),
-                const SizedBox(height: 10),
-                _hexField(theme),
                 const SizedBox(height: 12),
                 _saveSection(theme),
                 const Divider(height: 20),
+                if (recents.isNotEmpty) _recentsStrip(theme, recents),
                 Text('Palette', style: theme.textTheme.labelLarge),
                 const SizedBox(height: 8),
                 paletteAsync.when(
@@ -323,7 +252,7 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
                 ),
                 const Spacer(),
                 FilledButton(
-                  onPressed: () => Navigator.of(context).pop(_result),
+                  onPressed: _commit,
                   child: const Text('Use colour'),
                 ),
               ],
@@ -331,66 +260,6 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _preview() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        height: 56,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            const CustomPaint(painter: _CheckerPainter()),
-            DecoratedBox(decoration: _previewDecoration(_previewValue)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _channel(String label, int value, ValueChanged<int> onChanged) {
-    return LabeledSlider(
-      label: label,
-      value: value.toDouble(),
-      min: 0,
-      max: 255,
-      step: 1,
-      decimals: 0,
-      labelWidth: 20,
-      onChanged: (d) => onChanged(d.round()),
-    );
-  }
-
-  Widget _hexField(ThemeData theme) {
-    return Row(
-      children: [
-        Text('Hex', style: theme.textTheme.bodySmall),
-        const SizedBox(width: 10),
-        Expanded(
-          child: TextField(
-            controller: _hex,
-            focusNode: _hexFocus,
-            textCapitalization: TextCapitalization.characters,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-F]')),
-              LengthLimitingTextInputFormatter(8),
-            ],
-            decoration: const InputDecoration(
-              prefixText: '#',
-              isDense: true,
-              helperText: 'RRGGBB or RRGGBBAA',
-            ),
-            onChanged: (txt) {
-              final p = _parseHex(txt);
-              if (p != null) {
-                _editChannels(a: p.a, r: p.r, g: p.g, b: p.b, fromHex: true);
-              }
-            },
-          ),
-        ),
-      ],
     );
   }
 
@@ -434,6 +303,42 @@ class _ColorPickerViewState extends ConsumerState<_ColorPickerView> {
           icon: const Icon(Icons.close),
         ),
       ],
+    );
+  }
+
+  Widget _recentsStrip(ThemeData theme, List<ColorValue> recents) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Recent', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 40,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: recents.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) => _recentCell(theme, recents[i]),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _recentCell(ThemeData theme, ColorValue v) {
+    return InkWell(
+      onTap: () => _pickRecent(v),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: _previewDecoration(
+          v,
+          radius: 8,
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
     );
   }
 
