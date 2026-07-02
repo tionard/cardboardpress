@@ -24,6 +24,8 @@ class CardData {
   final ColorRef? setSymbolTint; // rarity colour tinting the set symbol; null => none
   final Map<String, String> watermarkImageIds; // fieldId -> resolved watermark image
   final Map<FooterComponent, String> footerValues; // derived footer pieces (per card)
+  final List<String> layerOrder; // z-order overlay (layer ids); [] = derived
+  final List<String> hiddenLayers; // hidden layer ids; [] = all visible
 
   const CardData({
     this.widthInches = 2.5,
@@ -46,6 +48,8 @@ class CardData {
     this.setSymbolTint,
     this.watermarkImageIds = const {},
     this.footerValues = const {},
+    this.layerOrder = const [],
+    this.hiddenLayers = const [],
   });
 
   /// Every image id the renderer needs decoded: card art, the template

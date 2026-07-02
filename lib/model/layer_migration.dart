@@ -1,23 +1,23 @@
 // lib/model/layer_migration.dart
 //
-// LAYER REDESIGN — Phase 1b-i: the pure migration TemplateData -> List<Layer>.
+// LAYER REDESIGN — deriving a Layer list from the current model.
 //
-// It derives the ordered layer list in the EXACT current draw order, so the
-// parallel renderer (paintCardFromLayers, 1b-ii) reproduces `paintCard`
-// pixel-for-pixel:
+// The list is built in the EXACT current draw order so the layer-driven
+// renderer reproduces `paintCardLegacy` pixel-for-pixel:
 //
 //   base -> [background image] -> tint -> fields (in order) -> set symbol
 //        -> foil -> [outer border]
 //
-// This function is pure template->layout. It moves NO per-card storage: chrome
-// layers (base / bg / tint / set-symbol / foil / border) get reserved ids and
-// carry only what the template knows; their per-card values (tint colour+alpha,
-// foil type, resolved images, rarity tint) are read from the CardData at render
-// time. Field layers KEEP the field's own id, so the per-card maps
-// (textContent, artImageIds, artTransforms, watermarkImageIds) keep resolving
-// with no re-keying.
+// Pure structure->layout. It moves NO per-card storage: chrome layers
+// (base / bg / tint / set-symbol / foil / border) get reserved ids and carry
+// only template-level styling; their per-card values (tint colour+alpha, foil
+// type, resolved images, rarity tint) are read from the CardData at render time
+// by the renderer, keyed on those reserved ids. Field layers KEEP the field's
+// own id, so the per-card maps (textContent / artImageIds / artTransforms /
+// watermarkImageIds) keep resolving with no re-keying.
 //
-// Nothing calls this yet except the 1b parity harness.
+// [templateToLayers] and [cardToLayers] share one builder, so both produce an
+// identical list for the same layout — the live renderer uses [cardToLayers].
 
 import 'dart:ui';
 
@@ -36,7 +36,65 @@ const String kBorderLayerId = '_border';
 const Rect _fullRect = Rect.fromLTRB(0, 0, 1, 1);
 
 /// Ordered layers for a template, in current draw order (index 0 = bottom).
-List<Layer> templateToLayers(TemplateData t) {
+List<Layer> templateToLayers(TemplateData t) => _buildLayers(
+      baseColor: t.baseColor,
+      bgImageId: t.bgImageId,
+      bgTransform: t.bgTransform,
+      fields: t.fields,
+      setSymbol: t.setSymbol,
+      border: t.border,
+    );
+
+/// Ordered layers for a fully-composed card — the same structure as
+/// [templateToLayers] for the card's template. This is what the live renderer
+/// uses; it then reads per-card values from the CardData by the reserved ids.
+List<Layer> cardToLayers(CardData c) => _buildLayers(
+      baseColor: c.baseColor,
+      bgImageId: c.bgImageId,
+      bgTransform: c.bgTransform,
+      fields: c.fields,
+      setSymbol: c.setSymbolPlacement ?? const SetSymbolPlacement(),
+      border: c.border,
+    );
+
+/// Apply the template's arrangement overlay to a derived layer list: hide the
+/// ids in [hidden], then reorder by [order]. Ids in [order] that no longer exist
+/// are ignored; layers not mentioned in [order] (e.g. a newly added field) keep
+/// their derived position, appended after the ordered ones. Empty overlay =
+/// [derived] unchanged (so existing cards render exactly as before).
+List<Layer> applyLayerOverlay(
+    List<Layer> derived, List<String> order, List<String> hidden) {
+  final hiddenSet = hidden.toSet();
+  final visApplied = hiddenSet.isEmpty
+      ? derived
+      : [
+          for (final l in derived)
+            hiddenSet.contains(l.id) ? l.copyWith(visible: false) : l,
+        ];
+
+  if (order.isEmpty) return visApplied;
+
+  final byId = {for (final l in visApplied) l.id: l};
+  final result = <Layer>[];
+  final seen = <String>{};
+  for (final id in order) {
+    final l = byId[id];
+    if (l != null && seen.add(id)) result.add(l);
+  }
+  for (final l in visApplied) {
+    if (!seen.contains(l.id)) result.add(l);
+  }
+  return result;
+}
+
+List<Layer> _buildLayers({
+  required ColorRef baseColor,
+  required String? bgImageId,
+  required ArtTransform bgTransform,
+  required List<FieldSpec> fields,
+  required SetSymbolPlacement setSymbol,
+  required BorderSpec? border,
+}) {
   final layers = <Layer>[];
 
   // base — full-card fill, opaque, bottom.
@@ -44,36 +102,34 @@ List<Layer> templateToLayers(TemplateData t) {
     id: kBaseLayerId,
     name: 'Base',
     frac: _fullRect,
-    fill: FillAspect(color: t.baseColor),
+    fill: FillAspect(color: baseColor),
   ));
 
   // background image (optional) — over base, under tint; as-is cover-fit.
-  if (t.bgImageId != null) {
+  if (bgImageId != null) {
     layers.add(Layer(
       id: kBgLayerId,
       name: 'Background',
       frac: _fullRect,
       image: ImageAspect(
         source: ImageSource.fixed,
-        imageId: t.bgImageId!,
-        transform: t.bgTransform,
+        imageId: bgImageId,
+        transform: bgTransform,
       ),
     ));
   }
 
-  // tint — full-card fill slot; the value + alpha are PER-CARD (read at render).
-  // Exposed to the colour tab. The placeholder colour is ignored by the renderer
-  // for this slot (it uses the card's tint).
+  // tint — full-card fill slot; value + alpha are PER-CARD (read at render).
   layers.add(Layer(
     id: kTintLayerId,
     name: 'Tint',
     frac: _fullRect,
-    fill: FillAspect(color: t.baseColor),
+    fill: FillAspect(color: baseColor),
     exposed: const {ExposedAspect.fill: EditorTab.color},
   ));
 
   // fields — each becomes one layer, KEEPING the field id (zero per-card re-key).
-  for (final f in t.fields) {
+  for (final f in fields) {
     layers.add(_fieldToLayer(f));
   }
 
@@ -82,33 +138,25 @@ List<Layer> templateToLayers(TemplateData t) {
   layers.add(Layer(
     id: kSetSymbolLayerId,
     name: 'Set symbol',
-    visible: t.setSymbol.enabled,
-    frac: t.setSymbol.frac,
+    visible: setSymbol.enabled,
+    frac: setSymbol.frac,
     image: ImageAspect(
       source: ImageSource.setSymbol,
-      alpha: t.setSymbol.alpha,
+      alpha: setSymbol.alpha,
     ),
     exposed: const {ExposedAspect.image: EditorTab.set},
   ));
 
   // foil — full-card overlay slot; the FoilType is PER-CARD (renderer reads
   // card.foil for this slot).
-  layers.add(const Layer(
-    id: kFoilLayerId,
-    name: 'Foil',
-    frac: _fullRect,
-  ));
+  layers.add(const Layer(id: kFoilLayerId, name: 'Foil', frac: _fullRect));
 
   // outer border — pure white/black chrome, drawn OUTSIDE the rounded clip, on
   // top. Present as a top slot so it shows in the Layers list; the renderer
   // special-cases it and reads the template BorderSpec. Not freely reorderable
-  // below content in Phase 1 (outside-clip special case).
-  if (t.border != null) {
-    layers.add(const Layer(
-      id: kBorderLayerId,
-      name: 'Border',
-      frac: _fullRect,
-    ));
+  // below content yet (outside-clip special case).
+  if (border != null) {
+    layers.add(const Layer(id: kBorderLayerId, name: 'Border', frac: _fullRect));
   }
 
   return layers;

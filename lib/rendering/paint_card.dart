@@ -34,8 +34,23 @@ part 'paint_text.dart';
 part 'paint_images.dart';
 part 'paint_card_layers.dart';
 
-/// Draws one card into [canvas], filling a card of [size].
+/// Draws one card into [canvas], filling a card of [size]. THE single public
+/// render entry — the preview, collection thumbnails, and PNG export all call
+/// this. It now renders through the layer path: it derives the card's ordered
+/// layers and draws them. The result is pixel-identical to the legacy direct
+/// renderer below (guarded by the layer render parity test); the layer path is
+/// what the rest of the redesign builds on.
 void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
+  final layers = applyLayerOverlay(
+      cardToLayers(card), card.layerOrder, card.hiddenLayers);
+  paintCardFromLayers(canvas, size, card, layers, refs);
+}
+
+/// The original direct renderer. Retained as the reference the parity test
+/// checks the layer path against during the transition to layers. The app no
+/// longer calls this; it will be removed once the field model is retired.
+void paintCardLegacy(
+    ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
   final w = size.width;
   final radius = card.cornerRadiusFrac * w;
   final cardRect = ui.Offset.zero & size;

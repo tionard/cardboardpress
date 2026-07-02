@@ -304,6 +304,8 @@ CardData composeCard(
     setSymbolTint: rarity?.color,
     watermarkImageIds: watermarkImageIds,
     footerValues: footerValues,
+    layerOrder: t.layerOrder,
+    hiddenLayers: t.hiddenLayers,
   );
 }
 

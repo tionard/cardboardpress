@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'dart:ui';
 
 import 'card_model.dart';
+import 'layers.dart';
 
 // Look up an enum by its .name with a fallback (never throws on bad data).
 T _byName<T extends Enum>(List<T> values, Object? name, T fallback) {
@@ -219,6 +220,8 @@ Map<String, dynamic> templateToMap(TemplateData t) => {
           ],
           'a': t.setSymbol.alpha,
         },
+      if (t.layerOrder.isNotEmpty) 'layerOrder': t.layerOrder,
+      if (t.hiddenLayers.isNotEmpty) 'hidden': t.hiddenLayers,
     };
 
 TemplateData templateFromMap(Map m) => TemplateData(
@@ -239,7 +242,12 @@ TemplateData templateFromMap(Map m) => TemplateData(
               panY: _d((m['bgT'] as Map)['y'], 0.0),
             ),
       setSymbol: _setSymbolFromMap(m['setSym'] as Map?),
+      layerOrder: _strList(m['layerOrder']),
+      hiddenLayers: _strList(m['hidden']),
     );
+
+List<String> _strList(Object? v) =>
+    v is List ? [for (final e in v) '$e'] : const [];
 
 SetSymbolPlacement _setSymbolFromMap(Map? m) {
   if (m == null) return const SetSymbolPlacement();
@@ -302,6 +310,143 @@ String cardContentToJson(CardContent c) => jsonEncode(cardContentToMap(c));
 
 CardContent cardContentFromJson(String s) =>
     cardContentFromMap(jsonDecode(s) as Map<String, dynamic>);
+
+// ---- Layer (layer redesign) ----
+// A template's layer list stored as one JSON column (schema v12). Aspects reuse
+// the same encoders as FieldSpec, so the shapes match the proven ones.
+
+T? _byNameOrNull<T extends Enum>(List<T> values, Object? name) {
+  if (name is! String) return null;
+  for (final v in values) {
+    if (v.name == name) return v;
+  }
+  return null;
+}
+
+Map<String, dynamic> _layerToMap(Layer l) => {
+      'id': l.id,
+      'name': l.name,
+      if (!l.visible) 'hidden': true,
+      'kind': l.kind.name,
+      'frac': [l.frac.left, l.frac.top, l.frac.right, l.frac.bottom],
+      'cr': l.cornerRadius,
+      if (l.fill != null)
+        'fill': {'color': _colorRefToMap(l.fill!.color), 'a': l.fill!.alpha},
+      if (l.image != null)
+        'image': {
+          'src': l.image!.source.name,
+          if (l.image!.imageId.isNotEmpty) 'img': l.image!.imageId,
+          if (l.image!.tint != null) 'tint': _colorRefToMap(l.image!.tint!),
+          'a': l.image!.alpha,
+          if (!l.image!.transform.isIdentity)
+            't': {
+              'z': l.image!.transform.zoom,
+              'x': l.image!.transform.panX,
+              'y': l.image!.transform.panY,
+            },
+        },
+      if (l.border != null)
+        'border': {
+          'img': l.border!.imageId,
+          'slice': l.border!.slice,
+          'inset': l.border!.inset,
+          'center': l.border!.drawCenter,
+          if (l.border!.tint != null) 'tint': _colorRefToMap(l.border!.tint!),
+        },
+      if (l.outline != null) 'outline': _outlineToMap(l.outline!),
+      if (l.foil != FoilType.none) 'foil': l.foil.name,
+      if (l.text != null)
+        'text': {
+          'style': _textToMap(l.text!.style),
+          if (l.text!.literal != null) 'lit': l.text!.literal,
+          if (l.text!.inline) 'inline': true,
+        },
+      if (l.watermark != null)
+        'wm': {
+          'sym': l.watermark!.symbolId,
+          'color': _colorRefToMap(l.watermark!.color),
+          'a': l.watermark!.alpha,
+        },
+      if (l.footer != null) 'footer': _footerToMap(l.footer!),
+      if (l.exposed.isNotEmpty)
+        'exposed': {
+          for (final e in l.exposed.entries) e.key.name: e.value.name,
+        },
+    };
+
+Layer _layerFromMap(Map m) {
+  final raw = (m['frac'] as List?) ?? const [0.0, 0.0, 1.0, 1.0];
+  final f = raw.map((e) => _d(e, 0.0)).toList();
+  final img = m['image'] as Map?;
+  final txt = m['text'] as Map?;
+  final fillM = m['fill'] as Map?;
+  return Layer(
+    id: (m['id'] as String?) ?? 'l_${DateTime.now().microsecondsSinceEpoch}',
+    name: (m['name'] as String?) ?? '',
+    visible: !_b(m['hidden'], false),
+    kind: _byName(LayerKind.values, m['kind'], LayerKind.generic),
+    frac: Rect.fromLTRB(f[0], f[1], f[2], f[3]),
+    cornerRadius: _d(m['cr'], 0.02),
+    fill: fillM == null
+        ? null
+        : FillAspect(
+            color: _colorRefFromMap((fillM['color'] as Map?) ?? const {}),
+            alpha: _d(fillM['a'], 1.0),
+          ),
+    image: img == null
+        ? null
+        : ImageAspect(
+            source: _byName(ImageSource.values, img['src'], ImageSource.fixed),
+            imageId: (img['img'] as String?) ?? '',
+            tint: img['tint'] == null
+                ? null
+                : _colorRefFromMap(img['tint'] as Map),
+            alpha: _d(img['a'], 1.0),
+            transform: img['t'] == null
+                ? const ArtTransform()
+                : ArtTransform(
+                    zoom: _d((img['t'] as Map)['z'], 1.0),
+                    panX: _d((img['t'] as Map)['x'], 0.0),
+                    panY: _d((img['t'] as Map)['y'], 0.0),
+                  ),
+          ),
+    border: m['border'] == null ? null : _nineSliceFromMap(m['border'] as Map),
+    outline: m['outline'] == null ? null : _outlineFromMap(m['outline'] as Map),
+    foil: _byName(FoilType.values, m['foil'], FoilType.none),
+    text: txt == null
+        ? null
+        : TextAspect(
+            style: _textFromMap((txt['style'] as Map?) ?? const {}),
+            literal: txt['lit'] as String?,
+            inline: _b(txt['inline'], false),
+          ),
+    watermark: m['wm'] == null ? null : _watermarkFromMap(m['wm'] as Map),
+    footer: m['footer'] == null ? null : _footerFromMap(m['footer'] as Map),
+    exposed: _exposedFromMap(m['exposed'] as Map?),
+  );
+}
+
+Map<ExposedAspect, EditorTab> _exposedFromMap(Map? m) {
+  if (m == null) return const {};
+  final out = <ExposedAspect, EditorTab>{};
+  for (final e in m.entries) {
+    final aspect = _byNameOrNull(ExposedAspect.values, e.key);
+    if (aspect == null) continue; // drop unknown aspects rather than throw
+    out[aspect] = _byName(EditorTab.values, e.value, EditorTab.card);
+  }
+  return out;
+}
+
+/// A template's layer list <-> JSON (one column in schema v12).
+String layersToJson(List<Layer> layers) =>
+    jsonEncode({'v': 1, 'layers': layers.map(_layerToMap).toList()});
+
+List<Layer> layersFromJson(String s) {
+  final m = jsonDecode(s) as Map<String, dynamic>;
+  return ((m['layers'] as List?) ?? const [])
+      .map((e) => _layerFromMap(e as Map))
+      .toList();
+}
 
 // ---- FoilType <-> stored string ----
 String foilToName(FoilType f) => f.name;

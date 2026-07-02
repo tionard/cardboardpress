@@ -18,7 +18,6 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:cardboardpress/model/card_model.dart';
-import 'package:cardboardpress/model/layer_migration.dart';
 import 'package:cardboardpress/model/sample_card.dart';
 import 'package:cardboardpress/rendering/paint_card.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,18 +52,19 @@ void main() {
   const size = ui.Size(375, 525); // 2.5" x 3.5" @ 150 dpi
   const refs = CardRefs();
 
-  Future<void> expectParity(TemplateData template, CardData card) async {
-    final layers = templateToLayers(template);
+  Future<void> expectParity(CardData card) async {
+    // Legacy direct renderer vs the live paintCard (which now derives layers via
+    // cardToLayers and draws them). Must be pixel-identical.
     final oldPixels =
+        await _renderRgba((c, s) => paintCardLegacy(c, s, card, refs), size);
+    final newPixels =
         await _renderRgba((c, s) => paintCard(c, s, card, refs), size);
-    final newPixels = await _renderRgba(
-        (c, s) => paintCardFromLayers(c, s, card, layers, refs), size);
 
     expect(newPixels.length, equals(oldPixels.length),
         reason: 'rendered dimensions differ');
     final diff = _firstDiff(oldPixels, newPixels);
     expect(diff, equals(-1),
-        reason: 'layer render diverges from paintCard at byte $diff '
+        reason: 'live layer render diverges from legacy at byte $diff '
             '(of ${oldPixels.length})');
   }
 
@@ -79,7 +79,7 @@ void main() {
             foil: foil,
             footerPlaceholder: 'x', // fills footer zones so they render
           );
-          await expectParity(template, card);
+          await expectParity(card);
         });
       }
     }
