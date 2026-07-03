@@ -409,14 +409,29 @@ extension _CardEditorPanels on _CardEditorBodyState {
 
   // ---- Phase 5: exposed-aspect wiring ----
   //
-  // For each layer with any aspect exposed to [tab], the panel gets a compact
-  // block: one control per exposed aspect. Bespoke `art` layers are excluded
-  // from the image row so their full art panel above still owns them.
+  // For each AUTHORED generic layer with any aspect exposed to [tab], the panel
+  // gets a compact block: one control per exposed aspect. System chrome layers
+  // (base/tint/bg/set-symbol/foil/border) and the bespoke kinds (art/rules/
+  // footer) are already fully driven by the dedicated panels above (text fields,
+  // the art panel, the tint well, the set/rarity chips), so they're skipped here
+  // to avoid rendering their controls twice. (This is the step-1 boundary until
+  // the field path is retired and these become the ONLY controls.)
+
+  // While the field path is still alive, the dedicated panels render a control
+  // for every layer that came from a template FIELD (text fields on the Card
+  // tab, the art image, the footer) plus the chrome slots (tint / set symbol).
+  // So the generic exposed-block path must skip anything with a field id or a
+  // reserved id, or those controls appear twice. (Step-1 boundary: once fields
+  // are retired, this path becomes the ONLY source and the filter goes away.)
+  bool _ownedByLegacyPanel(Layer l) =>
+      _kReservedLayerIds.contains(l.id) ||
+      _effective.fields.any((f) => f.id == l.id);
 
   List<_LayerExposureGroup> _exposedByLayer(EditorTab tab) {
     final layers = effectiveTemplateLayers(_effective);
     final out = <_LayerExposureGroup>[];
     for (final l in layers) {
+      if (_ownedByLegacyPanel(l)) continue;
       final aspects = <ExposedAspect>[
         for (final e in l.exposed.entries)
           if (e.value == tab) e.key,
@@ -567,6 +582,17 @@ class _LayerExposureGroup {
   final List<ExposedAspect> aspects;
   _LayerExposureGroup(this.layer, this.aspects);
 }
+
+// System chrome layer ids (base/tint/bg/set-symbol/foil/border) — these are
+// driven by the dedicated panels, not the generic exposed-block path.
+const Set<String> _kReservedLayerIds = {
+  kBaseLayerId,
+  kBgLayerId,
+  kTintLayerId,
+  kSetSymbolLayerId,
+  kFoilLayerId,
+  kBorderLayerId,
+};
 
 String _fieldLabel(FieldType t) =>
     t.name[0].toUpperCase() + t.name.substring(1);
