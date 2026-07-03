@@ -40,6 +40,7 @@ import '../customization/symbol_picker.dart';
 part 'template_editor_widgets.dart';
 part 'template_editor_layout.dart';
 part 'template_editor_fields.dart';
+part 'template_editor_layers.dart';
 
 const Map<String, (double, double)> _sizePresets = {
   'Poker (2.5 × 3.5)': (2.5, 3.5),
@@ -421,6 +422,7 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   bool _dirty = false; // unsaved edits to the working copy
   _Mode _mode = _Mode.layout;
   String? _selectedFieldId;
+  String? _selectedLayerId; // selected layer in the Layers tab (editor-only UI)
   // Which field-editor sections are expanded (keyed by section). Remembered as
   // you move between fields so it doesn't keep snapping shut. Empty = all closed.
   final Set<String> _expandedSections = {};
@@ -558,6 +560,12 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   /// not part of the template data.
   void _selectField(String? id) {
     setState(() => _selectedFieldId = id);
+  }
+
+  /// Select a layer in the Layers tab (or clear with null). Editor-only UI
+  /// state. Extensions route through this since they can't call setState.
+  void _selectLayer(String? id) {
+    setState(() => _selectedLayerId = id);
   }
 
   // ---- custom dimensions ----
@@ -713,6 +721,22 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     }
   }
 
+  /// Pick an image file, store it, decode it for the preview, and return its
+  /// id (or null if cancelled). Shared by the layer image + border pickers; the
+  /// caller decides which model field the id goes on.
+  Future<String?> _pickAndStoreImage() async {
+    final result = await FilePicker.pickFiles(type: FileType.image);
+    if (result == null) return null;
+    final file = result.files.first;
+    final bytes = await file.readAsBytes();
+    final imageId = await widget.imageStore
+        .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
+    final img = await _decode(bytes);
+    if (!mounted) return null;
+    setState(() => _images[imageId] = img);
+    return imageId;
+  }
+
   Future<void> _pickBgImage() async {
     final result = await FilePicker.pickFiles(type: FileType.image);
     if (result == null) return;
@@ -770,147 +794,6 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   }
 
   void _setBgTransform(ArtTransform t) => _update(_d.copyWith(bgTransform: t));
-
-  // ---- Layers pane (Phase 3, drop 2) ----
-  //
-  // A drag-reorderable z-stack over the DERIVED layer list, plus per-layer
-  // visibility. This pane edits ONLY the arrangement overlay
-  // (`_d.layerOrder` / `_d.hiddenLayers`) — the layers themselves are still
-  // derived from the template's fields + chrome, not persisted here. Reordering
-  // writes the full id sequence to `layerOrder`; the eye toggles membership of
-  // `hiddenLayers`. Both go through `_update` (Save/Discard, like the rest of
-  // the editor). The ReorderableListView pattern mirrors the Collection's
-  // card-reorder list (manual drag handles + insertion-point index math).
-
-  Widget _layersPane() {
-    final scheme = Theme.of(context).colorScheme;
-    // The rows the user sees = derived layers with the overlay applied. Index 0
-    // is the BOTTOM of the stack (drawn first); the last row draws on top. That
-    // means the top row of the list is the back of the card — see the caption.
-    final shown =
-        applyLayerOverlay(templateToLayers(_d), _d.layerOrder, _d.hiddenLayers);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Text('Layers', style: Theme.of(context).textTheme.titleSmall),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            'Drag to reorder the draw stack — the top of the list is the back '
-            'of the card, the bottom draws in front. The eye hides a layer '
-            'without deleting it.',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant),
-          ),
-        ),
-        Expanded(
-          child: ReorderableListView.builder(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-            buildDefaultDragHandles: false,
-            itemCount: shown.length,
-            onReorderItem: (oldIndex, newIndex) =>
-                _reorderLayers(shown, oldIndex, newIndex),
-            itemBuilder: (context, i) => _layerRow(shown, i, scheme),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// One row of the Layers list: drag handle · name (+ border caveat) · eye.
-  /// Keyed by the layer id, as ReorderableListView requires.
-  Widget _layerRow(List<Layer> shown, int i, ColorScheme scheme) {
-    final layer = shown[i];
-    final isBorder = layer.id == kBorderLayerId;
-    final visible = layer.visible;
-    return Container(
-      key: ValueKey(layer.id),
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          ReorderableDragStartListener(
-            index: i,
-            child: const Padding(
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.drag_handle),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  layer.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color:
-                            visible ? scheme.onSurface : scheme.onSurfaceVariant,
-                      ),
-                ),
-                if (isBorder)
-                  Text(
-                    'Draws outside the card edge — reordering has no visual '
-                    'effect yet; hiding works.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelSmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: visible ? 'Hide layer' : 'Show layer',
-            icon: Icon(visible ? Icons.visibility : Icons.visibility_off),
-            color: visible ? scheme.onSurfaceVariant : scheme.outline,
-            onPressed: () => _toggleLayerVisible(layer),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Persist the reordered z-stack. Writes the FULL id sequence (top→bottom of
-  /// the list == bottom→top of the z-order, which is what `layerOrder` means) so
-  /// `applyLayerOverlay` reproduces it exactly. Index math mirrors the
-  /// Collection: ReorderableListView reports `newIndex` as an insertion point,
-  /// off by one when moving an item downward.
-  void _reorderLayers(List<Layer> shown, int oldIndex, int newIndex) {
-    final ids = [for (final l in shown) l.id];
-    if (oldIndex < 0 || oldIndex >= ids.length) return;
-    if (newIndex > oldIndex) newIndex -= 1;
-    final moved = ids.removeAt(oldIndex);
-    newIndex = newIndex.clamp(0, ids.length);
-    ids.insert(newIndex, moved);
-    _update(_d.copyWith(layerOrder: ids));
-  }
-
-  /// Toggle a layer's visibility through the `hiddenLayers` overlay: hide it if
-  /// it's currently showing, show it if it's currently hidden. (For the set
-  /// symbol, whose derived visibility also follows the Layout tab's enable
-  /// switch, hiding here works but re-showing a Layout-disabled symbol still
-  /// needs its Layout switch — the eye only drives the overlay.)
-  void _toggleLayerVisible(Layer layer) {
-    final hidden = [..._d.hiddenLayers];
-    if (layer.visible) {
-      if (!hidden.contains(layer.id)) hidden.add(layer.id);
-    } else {
-      hidden.remove(layer.id);
-    }
-    _update(_d.copyWith(hiddenLayers: hidden));
-  }
 
   @override
   Widget build(BuildContext context) {

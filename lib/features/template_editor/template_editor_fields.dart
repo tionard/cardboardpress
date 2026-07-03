@@ -17,11 +17,60 @@ extension _TemplateFieldsPane on _TemplateBodyState {
 
   // ---- Fields pane ----
 
+  Widget _promotedBanner() {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.layers, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('This template uses an explicit layer list',
+                    style: Theme.of(context).textTheme.labelLarge),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Edit its look in the Layers tab. Changes to fields here no longer '
+            'affect how this template renders.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _revertToFields,
+              child: const Text('Revert to fields'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Discard the explicit layer list and go back to rendering from the fields
+  /// (+ overlay). Any added generic layers are dropped; Discard on the editor
+  /// still undoes the whole session if this wasn't intended.
+  void _revertToFields() {
+    _selectLayer(null);
+    _update(_d.copyWith(layers: null));
+  }
+
   Widget _fieldsPane() {
     final sel = _selectedField;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (_d.layers != null) _promotedBanner(),
         Row(
           children: [
             Text('Fields', style: Theme.of(context).textTheme.titleSmall),
