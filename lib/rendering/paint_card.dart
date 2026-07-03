@@ -135,6 +135,17 @@ void paintCardLegacy(
 // Fields
 // ---------------------------------------------------------------------------
 
+/// The stroke colour for an outline. If the spec carries an explicit [color] it
+/// wins (and the outline can render with no fill at all). Otherwise fall back to
+/// the legacy relative shade of [shadeBase] — the fill (or, for art, the card
+/// base). Returns null when there's nothing to draw (no colour and no base).
+ui.Color? _outlineColor(OutlineSpec o, CardRefs refs, ui.Color? shadeBase) {
+  final c = o.color;
+  if (c != null) return refs.resolveColor(c).c1;
+  if (shadeBase == null) return null;
+  return _shade(shadeBase, lighter: o.lighter, t: o.intensity);
+}
+
 void _paintField(
     ui.Canvas canvas, ui.Size size, FieldSpec field, CardData card, CardRefs refs) {
   final rect = ui.Rect.fromLTRB(
@@ -157,19 +168,20 @@ void _paintField(
     } else {
       _paintArtPlaceholder(canvas, rrect, size);
     }
-    // Outline drawn OVER the image so it actually frames the art. With no fill
-    // to shade, the frame shades off the card's base colour.
+    // Outline drawn OVER the image so it actually frames the art. Uses the
+    // outline's explicit colour if set, else shades off the card's base colour.
     final outline = field.outline;
     if (outline != null) {
       final base = refs.resolveColor(card.baseColor).c1;
-      final shaded =
-          _shade(base, lighter: outline.lighter, t: outline.intensity);
-      final strokeW = outline.thickness * size.width;
-      final paint = ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = strokeW
-        ..color = shaded;
-      canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
+      final col = _outlineColor(outline, refs, base);
+      if (col != null) {
+        final strokeW = outline.thickness * size.width;
+        final paint = ui.Paint()
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = strokeW
+          ..color = col;
+        canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
+      }
     }
     // A 9-slice frame sits on top of the art (e.g. an ornate border around it).
     _paintFieldFrame(canvas, rect, field, refs, size);
@@ -191,16 +203,19 @@ void _paintField(
     _fillRRect(canvas, rrect, fill, field.fillAlpha);
   }
 
-  // 2.2 Outline — a relative shade of the fill, so it tracks the fill.
+  // 2.2 Outline — explicit colour if set (draws even with no fill), else a
+  // relative shade of the fill so it tracks the fill. Suppressed in sprite mode.
   final outline = field.outline;
-  if (outline != null && fill != null && !spriteMode) {
-    final shaded = _shade(fill.c1, lighter: outline.lighter, t: outline.intensity);
-    final strokeW = outline.thickness * size.width;
-    final paint = ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = strokeW
-      ..color = shaded;
-    canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
+  if (outline != null && !spriteMode) {
+    final col = _outlineColor(outline, refs, fill?.c1);
+    if (col != null) {
+      final strokeW = outline.thickness * size.width;
+      final paint = ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = strokeW
+        ..color = col;
+      canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
+    }
   }
 
   // 2.2b A 9-slice frame sprite, drawn over the fill/outline. Its corners stay

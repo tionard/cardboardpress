@@ -7,21 +7,33 @@ part of 'card_model.dart';
 /// absolute colour, so it tracks the fill automatically when the fill changes
 /// (spec §3.6).
 class OutlineSpec {
-  final bool lighter; // true => lighter than fill, false => darker
-  final double intensity; // 0..1, how far toward white/black
+  final bool lighter; // legacy: true => lighter than fill, false => darker
+  final double intensity; // legacy: 0..1, how far toward white/black
   final double thickness; // as a fraction of card width
+  // Explicit outline colour. When set, the outline draws in this colour and
+  // renders even with no fill. When null, fall back to the legacy relative
+  // shade of the fill (lighter/intensity) — so pre-existing outlines are
+  // unchanged. New/edited outlines set a colour; the shade path is legacy-only.
+  final ColorRef? color;
 
   const OutlineSpec({
     this.lighter = false,
     this.intensity = 0.4,
     this.thickness = 0.004,
+    this.color,
   });
 
-  OutlineSpec copyWith({bool? lighter, double? intensity, double? thickness}) =>
+  OutlineSpec copyWith({
+    bool? lighter,
+    double? intensity,
+    double? thickness,
+    Object? color = _sentinel,
+  }) =>
       OutlineSpec(
         lighter: lighter ?? this.lighter,
         intensity: intensity ?? this.intensity,
         thickness: thickness ?? this.thickness,
+        color: identical(color, _sentinel) ? this.color : color as ColorRef?,
       );
 }
 

@@ -190,17 +190,19 @@ void _paintGenericLayer(
     }
   }
 
-  // 4. outline — a relative shade of the fill (skipped with no fill / sprite)
+  // 4. outline — explicit colour if set (draws even with no fill), else a
+  //    relative shade of the fill. Suppressed in sprite mode (border present).
   final outline = layer.outline;
-  if (outline != null && fill != null && !spriteMode) {
-    final shaded =
-        _shade(fill.c1, lighter: outline.lighter, t: outline.intensity);
-    final strokeW = outline.thickness * size.width;
-    final paint = ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = strokeW
-      ..color = shaded;
-    canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
+  if (outline != null && !spriteMode) {
+    final col = _outlineColor(outline, refs, fill?.c1);
+    if (col != null) {
+      final strokeW = outline.thickness * size.width;
+      final paint = ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = strokeW
+        ..color = col;
+      canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
+    }
   }
 
   // 5. foil

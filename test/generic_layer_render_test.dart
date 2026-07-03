@@ -158,4 +158,28 @@ void main() {
     expect(_firstDiff(plain, foiled), isNot(-1),
         reason: 'the foil overlay must alter the render');
   });
+
+  test('outline with an explicit colour renders without a fill', () async {
+    const red = ColorRef.literal(ColorValue.single(ui.Color(0xFFFF0000)));
+    CardData card({bool outline = false}) => CardData(
+          baseColor: _white,
+          fields: const [],
+          layers: [
+            _baseFill(_white),
+            Layer(
+              id: 'ol',
+              name: 'Outlined',
+              frac: _mid,
+              outline:
+                  outline ? const OutlineSpec(color: red, thickness: 0.02) : null,
+            ),
+          ],
+        );
+
+    final without = await _render(card(), const CardRefs(), size);
+    final withOutline = await _render(card(outline: true), const CardRefs(), size);
+
+    expect(_firstDiff(without, withOutline), isNot(-1),
+        reason: 'a coloured outline must render even with no fill present');
+  });
 }

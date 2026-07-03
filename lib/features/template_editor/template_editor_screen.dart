@@ -423,6 +423,7 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   _Mode _mode = _Mode.layout;
   String? _selectedFieldId;
   String? _selectedLayerId; // selected layer in the Layers tab (editor-only UI)
+  bool _layersReordering = false; // Layers tab: reorder mode vs edit mode
   // Which field-editor sections are expanded (keyed by section). Remembered as
   // you move between fields so it doesn't keep snapping shut. Empty = all closed.
   final Set<String> _expandedSections = {};
@@ -566,6 +567,12 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   /// state. Extensions route through this since they can't call setState.
   void _selectLayer(String? id) {
     setState(() => _selectedLayerId = id);
+  }
+
+  /// Toggle the Layers tab between edit mode and reorder mode. Extensions can't
+  /// call setState, so they route through this.
+  void _setLayersReordering(bool v) {
+    setState(() => _layersReordering = v);
   }
 
   // ---- custom dimensions ----

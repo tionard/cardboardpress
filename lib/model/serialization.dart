@@ -67,13 +67,18 @@ ColorRef colorRefFromJson(String s) =>
     _colorRefFromMap(jsonDecode(s) as Map<String, dynamic>);
 
 // ---- OutlineSpec ----
-Map<String, dynamic> _outlineToMap(OutlineSpec o) =>
-    {'lighter': o.lighter, 'intensity': o.intensity, 'thickness': o.thickness};
+Map<String, dynamic> _outlineToMap(OutlineSpec o) => {
+      'lighter': o.lighter,
+      'intensity': o.intensity,
+      'thickness': o.thickness,
+      if (o.color != null) 'color': _colorRefToMap(o.color!),
+    };
 
 OutlineSpec _outlineFromMap(Map m) => OutlineSpec(
       lighter: _b(m['lighter'], false),
       intensity: _d(m['intensity'], 0.4),
       thickness: _d(m['thickness'], 0.004),
+      color: m['color'] == null ? null : _colorRefFromMap(m['color'] as Map),
     );
 
 // ---- TextStyleSpec ----

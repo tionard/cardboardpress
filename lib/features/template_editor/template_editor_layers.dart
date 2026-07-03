@@ -19,6 +19,8 @@ const ColorRef _kLayerFillDefault =
     ColorRef.literal(ColorValue.single(Color(0xFF9E9E9E)));
 const ColorRef _kLayerTextDefault =
     ColorRef.literal(ColorValue.single(Color(0xFF1A1A1A)));
+const ColorRef _kOutlineDefault =
+    ColorRef.literal(ColorValue.single(Color(0xFF1A1A1A)));
 
 /// The Layers pane: author the template's z-stack. It shows the effective layer
 /// list, lets you add / remove / reorder / hide / rename / reposition layers,
@@ -44,22 +46,37 @@ extension _TemplateLayersPane on _TemplateBodyState {
 
   Widget _layersPane() {
     final scheme = Theme.of(context).colorScheme;
-    // Effective list: the explicit `_d.layers` once promoted, else the derived
-    // layers with the overlay applied. Index 0 is the BOTTOM of the stack (drawn
-    // first); the last row draws on top — so the top of the list is the back of
-    // the card.
     final shown = effectiveTemplateLayers(_d);
-    final selected = _selectedLayer(shown);
+    return _layersReordering
+        ? _layersReorderView(shown, scheme)
+        : _layersEditView(shown, scheme);
+  }
 
+  // Edit mode: pick a layer (chips) and edit it in a full-height panel. The
+  // reorder list is tucked behind the ↕ button so aspects get the whole space.
+  Widget _layersEditView(List<Layer> shown, ColorScheme scheme) {
+    // Chrome (base/tint/…) is arranged in reorder mode and styled in the Layout
+    // tab, so the edit chips list only the authored/field layers.
+    final editable = [
+      for (final l in shown)
+        if (!_isChromeLayer(l.id)) l,
+    ];
+    final selected = _selectedLayer(shown);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
           child: Row(
             children: [
               Text('Layers', style: Theme.of(context).textTheme.titleSmall),
               const Spacer(),
+              if (shown.length >= 2)
+                IconButton(
+                  tooltip: 'Reorder',
+                  icon: const Icon(Icons.swap_vert),
+                  onPressed: () => _setLayersReordering(true),
+                ),
               ActionChip(
                 avatar: const Icon(Icons.add, size: 18),
                 label: const Text('Add layer'),
@@ -68,12 +85,76 @@ extension _TemplateLayersPane on _TemplateBodyState {
             ],
           ),
         ),
+        if (editable.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Text('Add a layer to start building this template.',
+                style: Theme.of(context).textTheme.bodySmall),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final l in editable)
+                  ChoiceChip(
+                    label: Text(l.name),
+                    selected: l.id == _selectedLayerId,
+                    onSelected: (_) => _selectLayer(l.id),
+                  ),
+              ],
+            ),
+          ),
+        const Divider(height: 1),
+        Expanded(
+          child: (selected == null || _isChromeLayer(selected.id))
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      editable.isEmpty
+                          ? 'No editable layers yet.'
+                          : 'Select a layer to edit it.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  child: _selectedLayerEditor(selected, scheme),
+                ),
+        ),
+      ],
+    );
+  }
+
+  // Reorder mode: drag the whole stack (chrome included); aspect controls are
+  // hidden, mirroring the Collection's card-reorder view. 'Done' returns to edit.
+  Widget _layersReorderView(List<Layer> shown, ColorScheme scheme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+          child: Row(
+            children: [
+              Text('Reorder layers',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              TextButton(
+                onPressed: () => _setLayersReordering(false),
+                child: const Text('Done'),
+              ),
+            ],
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Text(
-            'Drag to reorder the draw stack — the top of the list is the back '
-            'of the card, the bottom draws in front. Tap a layer to edit it; '
-            'the eye hides it without deleting it.',
+            'Drag the handles to reorder — the top of the list is the back of '
+            'the card, the bottom draws in front. The eye hides a layer.',
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
@@ -81,7 +162,6 @@ extension _TemplateLayersPane on _TemplateBodyState {
           ),
         ),
         Expanded(
-          flex: selected == null ? 1 : 3,
           child: ReorderableListView.builder(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
             buildDefaultDragHandles: false,
@@ -91,27 +171,16 @@ extension _TemplateLayersPane on _TemplateBodyState {
             itemBuilder: (context, i) => _layerRow(shown, i, scheme),
           ),
         ),
-        if (selected != null) ...[
-          const Divider(height: 1),
-          Expanded(
-            flex: 4,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: _selectedLayerEditor(selected, scheme),
-            ),
-          ),
-        ],
       ],
     );
   }
 
-  /// One row: drag handle · name (+ any note, tap to select) · eye · delete.
+  /// One reorder-mode row: drag handle · name (+ any note) · eye.
   /// Keyed by the layer id, as ReorderableListView requires.
   Widget _layerRow(List<Layer> shown, int i, ColorScheme scheme) {
     final layer = shown[i];
     final isBorder = layer.id == kBorderLayerId;
     final isChrome = _isChromeLayer(layer.id);
-    final selected = layer.id == _selectedLayerId;
     final visible = layer.visible;
 
     final note = isBorder
@@ -125,11 +194,8 @@ extension _TemplateLayersPane on _TemplateBodyState {
       key: ValueKey(layer.id),
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        color: selected
-            ? scheme.secondaryContainer
-            : scheme.surfaceContainerLow,
+        color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
-        border: selected ? Border.all(color: scheme.primary) : null,
       ),
       child: Row(
         children: [
@@ -141,33 +207,30 @@ extension _TemplateLayersPane on _TemplateBodyState {
             ),
           ),
           Expanded(
-            child: InkWell(
-              onTap: () => _selectLayer(selected ? null : layer.id),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    layer.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: visible
+                              ? scheme.onSurface
+                              : scheme.onSurfaceVariant,
+                        ),
+                  ),
+                  if (note != null)
                     Text(
-                      layer.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: visible
-                                ? scheme.onSurface
-                                : scheme.onSurfaceVariant,
-                          ),
+                      note,
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
-                    if (note != null)
-                      Text(
-                        note,
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                  ],
-                ),
+                ],
               ),
             ),
           ),
@@ -177,23 +240,17 @@ extension _TemplateLayersPane on _TemplateBodyState {
             color: visible ? scheme.onSurfaceVariant : scheme.outline,
             onPressed: () => _toggleLayerVisible(layer),
           ),
-          if (!isChrome)
-            IconButton(
-              tooltip: 'Remove layer',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () => _removeLayer(layer.id),
-            ),
         ],
       ),
     );
   }
 
-  /// The selected layer's editor. Chrome layers only get a note (their look is
-  /// the Layout tab's job); other layers get rename + geometry. The per-aspect
-  /// appearance controls (fill / image / border / outline / foil / text) land in
-  /// the next drop.
+  /// The selected layer's editor: a header row (visibility · rename · delete)
+  /// plus a collapsible Position & size section and the per-aspect sections.
+  /// Chrome layers only get a note (their look is the Layout tab's job).
   Widget _selectedLayerEditor(Layer layer, ColorScheme scheme) {
     final isChrome = _isChromeLayer(layer.id);
+    final visible = layer.visible;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -205,11 +262,22 @@ extension _TemplateLayersPane on _TemplateBodyState {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall),
             ),
+            IconButton(
+              tooltip: visible ? 'Hide layer' : 'Show layer',
+              icon: Icon(visible ? Icons.visibility : Icons.visibility_off),
+              onPressed: () => _toggleLayerVisible(layer),
+            ),
             if (!isChrome)
               IconButton(
                 tooltip: 'Rename',
                 icon: const Icon(Icons.edit_outlined),
                 onPressed: () => _renameLayer(layer),
+              ),
+            if (!isChrome)
+              IconButton(
+                tooltip: 'Remove layer',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => _removeLayer(layer.id),
               ),
           ],
         ),
@@ -224,24 +292,23 @@ extension _TemplateLayersPane on _TemplateBodyState {
                 ?.copyWith(color: scheme.onSurfaceVariant),
           )
         else ...[
-          Text('Position & size',
-              style: Theme.of(context).textTheme.labelLarge),
-          _labeledSlider('Left', layer.frac.left, 0, 1,
-              (v) => _setLayerFrac(layer, l: v),
-              step: 0.01),
-          _labeledSlider(
-              'Top', layer.frac.top, 0, 1, (v) => _setLayerFrac(layer, t: v),
-              step: 0.01),
-          _labeledSlider('Right', layer.frac.right, 0, 1,
-              (v) => _setLayerFrac(layer, r: v),
-              step: 0.01),
-          _labeledSlider('Bottom', layer.frac.bottom, 0, 1,
-              (v) => _setLayerFrac(layer, b: v),
-              step: 0.01),
-          const SizedBox(height: 8),
-          _labeledSlider('Corner', layer.cornerRadius, 0, 0.1,
-              (v) => _setLayerCorner(layer, v)),
-          const SizedBox(height: 12),
+          _section('l_geo', 'Position & size', [
+            _labeledSlider('Left', layer.frac.left, 0, 1,
+                (v) => _setLayerFrac(layer, l: v),
+                step: 0.01),
+            _labeledSlider(
+                'Top', layer.frac.top, 0, 1, (v) => _setLayerFrac(layer, t: v),
+                step: 0.01),
+            _labeledSlider('Right', layer.frac.right, 0, 1,
+                (v) => _setLayerFrac(layer, r: v),
+                step: 0.01),
+            _labeledSlider('Bottom', layer.frac.bottom, 0, 1,
+                (v) => _setLayerFrac(layer, b: v),
+                step: 0.01),
+            const SizedBox(height: 8),
+            _labeledSlider('Corner', layer.cornerRadius, 0, 0.1,
+                (v) => _setLayerCorner(layer, v)),
+          ]),
           ..._layerAspectSections(layer),
         ],
       ],
@@ -393,23 +460,31 @@ extension _TemplateLayersPane on _TemplateBodyState {
         _aspectToggle(
             'Enabled',
             outline != null,
-            (on) => _updateLayer(id,
-                (l) => l.copyWith(outline: on ? const OutlineSpec() : null))),
+            (on) => _updateLayer(
+                id,
+                (l) => l.copyWith(
+                    outline: on
+                        ? const OutlineSpec(color: _kOutlineDefault)
+                        : null))),
         if (outline != null) ...[
+          const SizedBox(height: 8),
+          Text('Colour', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 6),
+          _colorWell(
+            current: outline.color,
+            use: SwatchUse.card,
+            onPicked: (r) => _updateLayer(
+                id, (l) => l.copyWith(outline: l.outline?.copyWith(color: r))),
+          ),
           _labeledSlider(
-              'Intensity',
-              outline.intensity,
+              'Thickness',
+              outline.thickness,
               0,
-              1,
+              0.02,
               (v) => _updateLayer(id,
-                  (l) => l.copyWith(outline: l.outline?.copyWith(intensity: v)))),
-          _aspectToggle(
-              'Lighter',
-              outline.lighter,
-              (v) => _updateLayer(id,
-                  (l) => l.copyWith(outline: l.outline?.copyWith(lighter: v)))),
-          if (fill == null)
-            Text('Outline shades the fill — add a Fill for it to show.',
+                  (l) => l.copyWith(outline: l.outline?.copyWith(thickness: v)))),
+          if (outline.color == null && fill == null)
+            Text('This outline shades the fill — pick a colour, or add a Fill.',
                 style: Theme.of(context).textTheme.bodySmall),
         ],
       ]),
