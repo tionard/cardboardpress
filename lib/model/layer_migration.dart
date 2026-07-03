@@ -99,8 +99,35 @@ List<Layer> effectiveTemplateLayers(TemplateData t) =>
 
 /// The layer list to render for a composed card — the card-side twin of
 /// [effectiveTemplateLayers]. This is what the renderer walks.
-List<Layer> effectiveCardLayers(CardData c) =>
-    c.layers ?? applyLayerOverlay(cardToLayers(c), c.layerOrder, c.hiddenLayers);
+List<Layer> effectiveCardLayers(CardData c) {
+  final base = c.layers ??
+      applyLayerOverlay(cardToLayers(c), c.layerOrder, c.hiddenLayers);
+  if (c.fillColors.isEmpty &&
+      c.outlineColors.isEmpty &&
+      c.cardHiddenLayers.isEmpty) {
+    return base;
+  }
+  // Bake the card's exposed per-card overrides (fill / outline colour, and
+  // per-card visibility) onto the layers here — so the renderer stays a single
+  // untouched path that just draws whatever it's handed.
+  return [for (final l in base) _applyCardOverrides(l, c)];
+}
+
+Layer _applyCardOverrides(Layer l, CardData c) {
+  var out = l;
+  final fc = c.fillColors[l.id];
+  if (fc != null && out.fill != null) {
+    out = out.copyWith(fill: out.fill!.copyWith(color: fc));
+  }
+  final oc = c.outlineColors[l.id];
+  if (oc != null && out.outline != null) {
+    out = out.copyWith(outline: out.outline!.copyWith(color: oc));
+  }
+  if (out.visible && c.cardHiddenLayers.contains(l.id)) {
+    out = out.copyWith(visible: false);
+  }
+  return out;
+}
 
 List<Layer> _buildLayers({
   required ColorRef baseColor,

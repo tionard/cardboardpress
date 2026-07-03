@@ -182,4 +182,23 @@ void main() {
     expect(_firstDiff(without, withOutline), isNot(-1),
         reason: 'a coloured outline must render even with no fill present');
   });
+
+  test('per-card fill override repaints the layer', () async {
+    const red = ColorRef.literal(ColorValue.single(ui.Color(0xFFFF0000)));
+    CardData card({bool override = false}) => CardData(
+          baseColor: _white,
+          fields: const [],
+          layers: [
+            _baseFill(_white),
+            Layer(id: 'box', name: 'Box', frac: _mid, fill: FillAspect(color: _grey)),
+          ],
+          fillColors: override ? const {'box': red} : const {},
+        );
+
+    final base = await _render(card(), const CardRefs(), size);
+    final overridden = await _render(card(override: true), const CardRefs(), size);
+
+    expect(_firstDiff(base, overridden), isNot(-1),
+        reason: 'a per-card fill override must change the render');
+  });
 }

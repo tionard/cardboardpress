@@ -27,6 +27,9 @@ class CardData {
   final List<String> layerOrder; // z-order overlay (layer ids); [] = derived
   final List<String> hiddenLayers; // hidden layer ids; [] = all visible
   final List<Layer>? layers; // persisted layer list; null = derive from fields
+  final Map<String, ColorRef> fillColors; // layerId -> per-card fill override
+  final Map<String, ColorRef> outlineColors; // layerId -> per-card outline colour
+  final Set<String> cardHiddenLayers; // layerIds this card hides (per-card)
 
   const CardData({
     this.widthInches = 2.5,
@@ -52,6 +55,9 @@ class CardData {
     this.layerOrder = const [],
     this.hiddenLayers = const [],
     this.layers,
+    this.fillColors = const {},
+    this.outlineColors = const {},
+    this.cardHiddenLayers = const {},
   });
 
   /// Every image id the renderer needs decoded: card art, the template
@@ -135,6 +141,9 @@ class CardContent {
   final double tintAlpha; // 0..1 opacity of the tint over the base
   final String artist; // per-card; rendered by the Footer
   final String? rarityId; // live rarity reference (footer abbreviation)
+  final Map<String, ColorRef> fillColors; // layerId -> per-card fill override
+  final Map<String, ColorRef> outlineColors; // layerId -> per-card outline colour
+  final Set<String> cardHiddenLayers; // layerIds this card hides (per-card)
 
   const CardContent({
     this.text = const {},
@@ -144,6 +153,9 @@ class CardContent {
     this.tintAlpha = 1.0,
     this.artist = '',
     this.rarityId,
+    this.fillColors = const {},
+    this.outlineColors = const {},
+    this.cardHiddenLayers = const {},
   });
 
   CardContent _copy({
@@ -154,6 +166,9 @@ class CardContent {
     double? tintAlpha,
     String? artist,
     Object? rarityId = _sentinel,
+    Map<String, ColorRef>? fillColors,
+    Map<String, ColorRef>? outlineColors,
+    Set<String>? cardHiddenLayers,
   }) =>
       CardContent(
         text: text ?? this.text,
@@ -164,7 +179,31 @@ class CardContent {
         artist: artist ?? this.artist,
         rarityId:
             identical(rarityId, _sentinel) ? this.rarityId : rarityId as String?,
+        fillColors: fillColors ?? this.fillColors,
+        outlineColors: outlineColors ?? this.outlineColors,
+        cardHiddenLayers: cardHiddenLayers ?? this.cardHiddenLayers,
       );
+
+  /// Show/hide a layer on this card only (per-card visibility override).
+  CardContent withLayerHidden(String layerId, bool hidden) {
+    final next = Set<String>.from(cardHiddenLayers);
+    hidden ? next.add(layerId) : next.remove(layerId);
+    return _copy(cardHiddenLayers: next);
+  }
+
+  /// Set (or clear, when [ref] is null) the per-card fill colour for a layer.
+  CardContent withFillColor(String layerId, ColorRef? ref) {
+    final next = Map<String, ColorRef>.from(fillColors);
+    ref == null ? next.remove(layerId) : next[layerId] = ref;
+    return _copy(fillColors: next);
+  }
+
+  /// Set (or clear, when [ref] is null) the per-card outline colour for a layer.
+  CardContent withOutlineColor(String layerId, ColorRef? ref) {
+    final next = Map<String, ColorRef>.from(outlineColors);
+    ref == null ? next.remove(layerId) : next[layerId] = ref;
+    return _copy(outlineColors: next);
+  }
 
   CardContent withText(String fieldId, String value) {
     final next = Map<String, String>.from(text);

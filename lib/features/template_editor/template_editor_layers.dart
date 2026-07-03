@@ -292,6 +292,8 @@ extension _TemplateLayersPane on _TemplateBodyState {
                 ?.copyWith(color: scheme.onSurfaceVariant),
           )
         else ...[
+          _exposeControl(layer.id, ExposedAspect.visible, layer.exposed),
+          const SizedBox(height: 8),
           _section('l_geo', 'Position & size', [
             _labeledSlider('Left', layer.frac.left, 0, 1,
                 (v) => _setLayerFrac(layer, l: v),
@@ -351,6 +353,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
           _labeledSlider('Opacity', fill.alpha, 0, 1,
               (v) => _updateLayer(id,
                   (l) => l.copyWith(fill: l.fill?.copyWith(alpha: v)))),
+          _exposeControl(id, ExposedAspect.fill, layer.exposed),
         ],
       ]),
       _section('l_image', 'Image', [
@@ -410,6 +413,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
           _labeledSlider('Opacity', image.alpha, 0, 1,
               (v) => _updateLayer(id,
                   (l) => l.copyWith(image: l.image?.copyWith(alpha: v)))),
+          _exposeControl(id, ExposedAspect.image, layer.exposed),
         ],
       ]),
       _section('l_border', 'Border (9-slice)', [
@@ -486,6 +490,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
           if (outline.color == null && fill == null)
             Text('This outline shades the fill — pick a colour, or add a Fill.',
                 style: Theme.of(context).textTheme.bodySmall),
+          _exposeControl(id, ExposedAspect.outlineColor, layer.exposed),
         ],
       ]),
       _section('l_foil', 'Foil', [
@@ -640,6 +645,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
           1,
           (v) => _updateLayer(id,
               (l) => l.copyWith(text: l.text?.copyWith(style: s.copyWith(colorAlpha: v))))),
+      _exposeControl(id, ExposedAspect.text, layer.exposed),
     ];
   }
 
@@ -648,6 +654,58 @@ extension _TemplateLayersPane on _TemplateBodyState {
         SizedBox(width: 80, child: Text(label)),
         Switch(value: value, onChanged: onChanged),
       ]);
+
+  // ---- exposure routing (Phase 4 tail) ----
+  //
+  // Each aspect can be "exposed" to one Card-Editor tab, meaning the card gets a
+  // per-card control for it (wired up in Phase 5). Empty = template-only.
+
+  static String _tabLabel(EditorTab t) => switch (t) {
+        EditorTab.card => 'Card',
+        EditorTab.art => 'Art',
+        EditorTab.color => 'Colour',
+        EditorTab.set => 'Set',
+        EditorTab.export => 'Export',
+      };
+
+  Widget _exposeControl(
+      String layerId, ExposedAspect aspect, Map<ExposedAspect, EditorTab> exposed) {
+    final current = exposed[aspect]; // null = template-only
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          const SizedBox(width: 80, child: Text('Expose to')),
+          Expanded(
+            child: DropdownButton<EditorTab?>(
+              isExpanded: true,
+              value: current,
+              items: [
+                const DropdownMenuItem<EditorTab?>(
+                    value: null, child: Text('Template only')),
+                for (final t in EditorTab.values)
+                  DropdownMenuItem<EditorTab?>(
+                      value: t, child: Text(_tabLabel(t))),
+              ],
+              onChanged: (t) => _setExposed(layerId, aspect, t),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _setExposed(String layerId, ExposedAspect aspect, EditorTab? tab) {
+    _updateLayer(layerId, (l) {
+      final m = Map<ExposedAspect, EditorTab>.from(l.exposed);
+      if (tab == null) {
+        m.remove(aspect);
+      } else {
+        m[aspect] = tab;
+      }
+      return l.copyWith(exposed: m);
+    });
+  }
 
   TextAspect _defaultTextAspect() => const TextAspect(
         style: TextStyleSpec(

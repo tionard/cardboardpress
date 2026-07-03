@@ -307,6 +307,9 @@ CardData composeCard(
     layerOrder: t.layerOrder,
     hiddenLayers: t.hiddenLayers,
     layers: t.layers,
+    fillColors: content.fillColors,
+    outlineColors: content.outlineColors,
+    cardHiddenLayers: content.cardHiddenLayers,
   );
 }
 

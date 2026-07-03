@@ -294,6 +294,15 @@ Map<String, dynamic> cardContentToMap(CardContent c) => {
       if (c.tintAlpha != 1.0) 'tintA': c.tintAlpha,
       if (c.artist.isNotEmpty) 'artist': c.artist,
       if (c.rarityId != null) 'rarityId': c.rarityId,
+      if (c.fillColors.isNotEmpty)
+        'fillC': {
+          for (final e in c.fillColors.entries) e.key: _colorRefToMap(e.value),
+        },
+      if (c.outlineColors.isNotEmpty)
+        'outC': {
+          for (final e in c.outlineColors.entries) e.key: _colorRefToMap(e.value),
+        },
+      if (c.cardHiddenLayers.isNotEmpty) 'hideL': c.cardHiddenLayers.toList(),
     };
 
 CardContent cardContentFromMap(Map m) {
@@ -315,7 +324,20 @@ CardContent cardContentFromMap(Map m) {
     tintAlpha: _d(m['tintA'], 1.0),
     artist: (m['artist'] as String?) ?? '',
     rarityId: m['rarityId'] as String?,
+    fillColors: _colorRefMap(m['fillC']),
+    outlineColors: _colorRefMap(m['outC']),
+    cardHiddenLayers: {
+      for (final e in ((m['hideL'] as List?) ?? const [])) e.toString(),
+    },
   );
+}
+
+Map<String, ColorRef> _colorRefMap(Object? raw) {
+  final m = (raw as Map?) ?? const {};
+  return {
+    for (final e in m.entries)
+      e.key.toString(): _colorRefFromMap(e.value as Map),
+  };
 }
 
 String cardContentToJson(CardContent c) => jsonEncode(cardContentToMap(c));
