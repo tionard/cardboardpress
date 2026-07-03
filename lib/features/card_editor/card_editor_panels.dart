@@ -19,6 +19,7 @@ extension _CardEditorPanels on _CardEditorBodyState {
   }
 
   Widget _cardSettings() {
+    final tabGroups = _exposedByLayer(EditorTab.card);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -34,6 +35,8 @@ extension _CardEditorPanels on _CardEditorBodyState {
           ),
           const SizedBox(height: 14),
         ],
+        for (final g in tabGroups)
+          ..._exposedLayerBlock(g, EditorTab.card),
         Text(
           'Each field autosaves as you type and the preview updates live. The '
           'Footer is omitted — it shows values derived from the set and rarity. '
@@ -45,9 +48,20 @@ extension _CardEditorPanels on _CardEditorBodyState {
   }
 
   Widget _artSettings() {
+    final tabGroups = _exposedByLayer(EditorTab.art);
     final artId = _artFieldId;
     if (artId == null) {
-      return const Center(child: Text('This template has no Art field.'));
+      if (tabGroups.isEmpty) {
+        return const Center(child: Text('This template has no Art field.'));
+      }
+      // No bespoke Art field but layers expose image aspects to this tab.
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          for (final g in tabGroups)
+            ..._exposedLayerBlock(g, EditorTab.art),
+        ],
+      );
     }
     final imageId = _working.content.art[artId];
     final img = imageId == null ? null : _images[imageId];
@@ -109,6 +123,8 @@ extension _CardEditorPanels on _CardEditorBodyState {
           'credit is per-card content shown by the Footer.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        for (final g in tabGroups)
+          ..._exposedLayerBlock(g, EditorTab.art),
       ],
     );
   }
@@ -207,6 +223,8 @@ extension _CardEditorPanels on _CardEditorBodyState {
           'changing these updates it live.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        for (final g in _exposedByLayer(EditorTab.set))
+          ..._exposedLayerBlock(g, EditorTab.set),
       ],
     );
   }
@@ -284,6 +302,8 @@ extension _CardEditorPanels on _CardEditorBodyState {
           'sheen over the whole card.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        for (final g in _exposedByLayer(EditorTab.color))
+          ..._exposedLayerBlock(g, EditorTab.color),
       ],
     );
   }
@@ -362,6 +382,8 @@ extension _CardEditorPanels on _CardEditorBodyState {
             icon: spinner ?? const Icon(Icons.download_outlined),
             label: Text(_exporting ? 'Exporting…' : 'Export PNG…'),
           ),
+        for (final g in _exposedByLayer(EditorTab.export))
+          ..._exposedLayerBlock(g, EditorTab.export),
       ],
     );
   }
@@ -384,6 +406,166 @@ extension _CardEditorPanels on _CardEditorBodyState {
     final h = (t.heightInches * dpi).round();
     return '$w×$h px';
   }
+
+  // ---- Phase 5: exposed-aspect wiring ----
+  //
+  // For each layer with any aspect exposed to [tab], the panel gets a compact
+  // block: one control per exposed aspect. Bespoke `art` layers are excluded
+  // from the image row so their full art panel above still owns them.
+
+  List<_LayerExposureGroup> _exposedByLayer(EditorTab tab) {
+    final layers = effectiveTemplateLayers(_effective);
+    final out = <_LayerExposureGroup>[];
+    for (final l in layers) {
+      final aspects = <ExposedAspect>[
+        for (final e in l.exposed.entries)
+          if (e.value == tab) e.key,
+      ];
+      if (aspects.isEmpty) continue;
+      out.add(_LayerExposureGroup(l, aspects));
+    }
+    return out;
+  }
+
+  List<Widget> _exposedLayerBlock(_LayerExposureGroup g, EditorTab tab) {
+    final scheme = Theme.of(context).colorScheme;
+    return [
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(g.layer.name, style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            for (final a in g.aspects) ...[
+              _exposedAspectControl(g.layer, a),
+              const SizedBox(height: 8),
+            ],
+          ],
+        ),
+      ),
+    ];
+  }
+
+  Widget _exposedAspectControl(Layer layer, ExposedAspect aspect) {
+    switch (aspect) {
+      case ExposedAspect.text:
+        return TextField(
+          controller: _exposedTextController(layer.id, layer.text?.literal ?? ''),
+          decoration: const InputDecoration(
+            labelText: 'Text',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+        );
+      case ExposedAspect.image:
+        // Bespoke `art` kind is already fully handled by the Art panel above;
+        // don't offer a duplicate row for it.
+        if (layer.kind == LayerKind.art) {
+          return const SizedBox.shrink();
+        }
+        final imageId = _working.content.art[layer.id];
+        return Row(children: [
+          Expanded(
+            child: Text(
+              imageId == null ? 'No image set' : 'Image set',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          TextButton(
+            onPressed: () => _pickLayerImageOverride(layer.id),
+            child: Text(imageId == null ? 'Pick…' : 'Change…'),
+          ),
+          if (imageId != null)
+            TextButton(
+              onPressed: () => _removeLayerImageOverride(layer.id),
+              child: const Text('Remove'),
+            ),
+        ]);
+      case ExposedAspect.fill:
+        return _exposedColorRow(
+          label: 'Fill',
+          current: _working.content.fillColors[layer.id],
+          templateDefault: layer.fill?.color,
+          onPicked: (r) => _setLayerFill(layer.id, r),
+          onClear: () => _setLayerFill(layer.id, null),
+        );
+      case ExposedAspect.outlineColor:
+        return _exposedColorRow(
+          label: 'Outline',
+          current: _working.content.outlineColors[layer.id],
+          templateDefault: layer.outline?.color,
+          onPicked: (r) => _setLayerOutline(layer.id, r),
+          onClear: () => _setLayerOutline(layer.id, null),
+        );
+      case ExposedAspect.visible:
+        final hidden = _working.content.cardHiddenLayers.contains(layer.id);
+        return Row(children: [
+          const Expanded(child: Text('Visible')),
+          Switch(
+            value: !hidden,
+            onChanged: (v) => _setLayerHidden(layer.id, !v),
+          ),
+        ]);
+    }
+  }
+
+  Widget _exposedColorRow({
+    required String label,
+    required ColorRef? current,
+    required ColorRef? templateDefault,
+    required ValueChanged<ColorRef> onPicked,
+    required VoidCallback onClear,
+  }) {
+    final refs = CardRefs(palette: widget.palette);
+    final effective = current ?? templateDefault;
+    return Row(children: [
+      SizedBox(width: 80, child: Text(label)),
+      _SwatchTile(
+        value: effective == null
+            ? const ColorValue.single(Color(0xFF9E9E9E))
+            : refs.resolveColor(effective),
+        label: current == null ? 'Default' : label,
+        selected: false,
+        onTap: () async {
+          final picked = await showColorPicker(
+            context,
+            use: SwatchUse.card,
+            initial: current,
+          );
+          if (picked != null) onPicked(picked);
+        },
+      ),
+      if (current != null)
+        TextButton(onPressed: onClear, child: const Text('Use default')),
+    ]);
+  }
+
+  TextEditingController _exposedTextController(String layerId, String initial) {
+    final existing = _exposedTextControllers[layerId];
+    if (existing != null) return existing;
+    final c = TextEditingController(text: _working.content.text[layerId] ?? initial);
+    c.addListener(() {
+      final v = c.text;
+      if ((_working.content.text[layerId] ?? '') == v) return;
+      _markDirty(() => _working = _working.copyWith(
+          content: _working.content.withText(layerId, v)));
+    });
+    _exposedTextControllers[layerId] = c;
+    return c;
+  }
+}
+
+/// One layer's exposed aspects for a given tab. Rendered as a titled block.
+class _LayerExposureGroup {
+  final Layer layer;
+  final List<ExposedAspect> aspects;
+  _LayerExposureGroup(this.layer, this.aspects);
 }
 
 String _fieldLabel(FieldType t) =>

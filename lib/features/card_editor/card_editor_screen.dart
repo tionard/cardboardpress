@@ -29,6 +29,8 @@ import '../../data/card_exporter.dart';
 import '../../data/card_repository.dart';
 import '../../data/image_store.dart';
 import '../../model/card_model.dart';
+import '../../model/layer_migration.dart';
+import '../../model/layers.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../state/settings.dart';
@@ -171,6 +173,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   late CardEntry _working;
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, ui.Image> _images = {}; // imageId -> decoded image
+  final Map<String, TextEditingController> _exposedTextControllers = {};
   late final TextEditingController _artist;
   bool _dirty = false; // unsaved edits to the working copy
   bool _suppressDirty = false; // guards controller resync during revert
@@ -194,6 +197,9 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     // of being re-inserted when this editor body is torn down.)
     _artist.dispose();
     for (final c in _controllers.values) {
+      c.dispose();
+    }
+    for (final c in _exposedTextControllers.values) {
       c.dispose();
     }
     super.dispose();
@@ -442,9 +448,32 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   }
 
   void _setRarity(String? rarityId) {
-    _markDirty(() => _working =
-        _working.copyWith(content: _working.content.withRarity(rarityId)));
+    _markDirty(() => _working = _working.copyWith(
+        content: _working.content.withRarity(rarityId)));
   }
+
+  // ---- Phase 5: per-card layer-aspect mutators ----
+
+  void _setLayerFill(String layerId, ColorRef? ref) {
+    _markDirty(() => _working = _working.copyWith(
+        content: _working.content.withFillColor(layerId, ref)));
+  }
+
+  void _setLayerOutline(String layerId, ColorRef? ref) {
+    _markDirty(() => _working = _working.copyWith(
+        content: _working.content.withOutlineColor(layerId, ref)));
+  }
+
+  void _setLayerHidden(String layerId, bool hidden) {
+    _markDirty(() => _working = _working.copyWith(
+        content: _working.content.withLayerHidden(layerId, hidden)));
+  }
+
+  /// Pick an image for a per-card image-aspect override, routed via [_pickArt]
+  /// (same store/decoding path — the `art` map is keyed by layer id, matching
+  /// the existing `art` bespoke kind).
+  Future<void> _pickLayerImageOverride(String layerId) => _pickArt(layerId);
+  void _removeLayerImageOverride(String layerId) => _removeArt(layerId);
 
   // ---- save / cancel / leave ----
 
