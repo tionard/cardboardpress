@@ -208,19 +208,20 @@ void _paintGenericLayer(
   // 5. foil
   _paintFoil(canvas, rect, rrect, layer.foil);
 
-  // 6. text — per-card content keyed by layer id, else the layer's literal.
-  //    Inline renders single-line (as the old Cost did); a per-aspect max-lines
-  //    control arrives with the authoring UI (Drop C).
+  // 6. text — per-card content keyed by layer id, else the layer's fixed text;
+  //    in template preview an empty result falls back to the placeholder. The
+  //    multiline flag drives inline wrapping (plain text wraps to the box).
   final ta = layer.text;
   if (ta != null) {
-    final s = card.textContent[layer.id] ?? ta.literal ?? '';
+    var s = card.textContent[layer.id] ?? ta.literal ?? '';
+    if (s.isEmpty && refs.showPlaceholders) s = ta.placeholder;
     if (s.isNotEmpty) {
       canvas.save();
       canvas.clipRRect(rrect);
       final color = refs.resolveColor(ta.style.colorRef);
       if (ta.inline) {
         _paintInline(canvas, rect, tokenizeInline(s), ta.style, size, color,
-            card, refs, maxLines: 1);
+            card, refs, maxLines: ta.multiline ? null : 1);
       } else {
         _paintText(canvas, rect, s, ta.style, size, color);
       }

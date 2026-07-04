@@ -114,7 +114,15 @@ class CardRefs {
   /// (paintCard is synchronous, so it never loads/decodes images itself).
   final Map<String, Image> images;
 
-  const CardRefs({this.palette = const {}, this.images = const {}});
+  /// Template-preview only: when true, a text aspect with no resolved content
+  /// falls back to its [TextAspect.placeholder] so the author can size/position.
+  /// Real card renders and exports leave this false.
+  final bool showPlaceholders;
+
+  const CardRefs(
+      {this.palette = const {},
+      this.images = const {},
+      this.showPlaceholders = false});
 
   /// Live value if the referenced colour still exists, else the snapshot.
   ColorValue resolveColor(ColorRef ref) {

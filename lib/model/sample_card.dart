@@ -8,6 +8,7 @@
 import 'dart:ui';
 
 import 'card_model.dart';
+import 'layers.dart';
 
 // Stable field ids for the default layout.
 const fNameId = 'f_name';
@@ -173,10 +174,49 @@ CardContent sampleContent() => const CardContent(text: {
 /// Builds the Footer's derived text (spec §3): collector number, set
 /// abbreviation, rarity abbreviation, artist, copyright — joined in a fixed
 /// arrangement for now. Only present parts are shown.
+/// The per-card string for a bound [TextSource]. Empty when unresolved (e.g. no
+/// set assigned yet); in [preview] mode, representative placeholders fill in so
+/// the author can position bound layers. Reuses the footer-derivation rules.
+String _resolveTextSource(
+  TextSource src, {
+  required String cardName,
+  required String artist,
+  SetEntry? set,
+  RarityEntry? rarity,
+  int? number,
+  int? total,
+  bool preview = false,
+}) {
+  String orPreview(String v, String sample) =>
+      v.isNotEmpty ? v : (preview ? sample : '');
+  switch (src) {
+    case TextSource.free:
+      return '';
+    case TextSource.cardName:
+      return orPreview(cardName, 'Card Name');
+    case TextSource.setName:
+      return orPreview(set?.name ?? '', 'Core Set');
+    case TextSource.setAbbrev:
+      return orPreview(set?.abbreviation ?? '', 'CORE');
+    case TextSource.collectorNumber:
+      return (set != null && set.numbering && number != null && total != null)
+          ? '${number.toString().padLeft(3, '0')}/$total'
+          : (preview ? '001/XXX' : '');
+    case TextSource.rarityName:
+      return orPreview(rarity?.name ?? '', 'Rare');
+    case TextSource.rarityAbbrev:
+      return orPreview(rarity?.abbreviation ?? '', 'R');
+    case TextSource.artist:
+      return artist.isNotEmpty ? 'Illus. $artist' : (preview ? 'Illus. Name' : '');
+    case TextSource.copyright:
+      if (set == null) return preview ? '© 2026' : '';
+      return set.owner.isEmpty ? '© ${set.year}' : '© ${set.year} ${set.owner}';
+  }
+}
+
 /// The footer's individual pieces, derived per-card. An empty string means
 /// there's nothing to show for that component (e.g. no set assigned yet).
-Map<FooterComponent, String> deriveFooterValues({
-  required String artist,
+Map<FooterComponent, String> deriveFooterValues({  required String artist,
   SetEntry? set,
   RarityEntry? rarity,
   int? number,
@@ -267,6 +307,25 @@ CardData composeCard(
   final text = Map<String, String>.from(content.text);
   for (final f in t.fields) {
     if (f.type == FieldType.footer) text[f.id] = footer;
+  }
+  // Authored layers can bind a text aspect to a derived per-card value (footer
+  // decomposition). Resolve those here so the renderer just reads textContent.
+  final layers = t.layers;
+  if (layers != null) {
+    for (final l in layers) {
+      final ta = l.text;
+      if (ta == null || ta.source == TextSource.free) continue;
+      text[l.id] = _resolveTextSource(
+        ta.source,
+        cardName: content.text[fNameId] ?? '',
+        artist: content.artist,
+        set: set,
+        rarity: rarity,
+        number: number,
+        total: total,
+        preview: footerPlaceholder != null,
+      );
+    }
   }
 
   // Resolve the set's chosen set symbol to its image id (null if the set has

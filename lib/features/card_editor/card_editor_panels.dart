@@ -470,8 +470,13 @@ extension _CardEditorPanels on _CardEditorBodyState {
   Widget _exposedAspectControl(Layer layer, ExposedAspect aspect) {
     switch (aspect) {
       case ExposedAspect.text:
+        // Bound text is derived per-card (not typed), so it isn't editable here.
+        if (layer.text?.source != TextSource.free) {
+          return const SizedBox.shrink();
+        }
         return TextField(
           controller: _exposedTextController(layer.id, layer.text?.literal ?? ''),
+          maxLines: layer.text?.multiline == true ? 4 : 1,
           decoration: const InputDecoration(
             labelText: 'Text',
             isDense: true,

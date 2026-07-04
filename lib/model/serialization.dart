@@ -393,7 +393,10 @@ Map<String, dynamic> _layerToMap(Layer l) => {
         'text': {
           'style': _textToMap(l.text!.style),
           if (l.text!.literal != null) 'lit': l.text!.literal,
+          if (l.text!.placeholder.isNotEmpty) 'ph': l.text!.placeholder,
+          if (l.text!.source != TextSource.free) 'src': l.text!.source.name,
           if (l.text!.inline) 'inline': true,
+          if (l.text!.multiline) 'ml': true,
         },
       if (l.watermark != null)
         'wm': {
@@ -452,7 +455,10 @@ Layer _layerFromMap(Map m) {
         : TextAspect(
             style: _textFromMap((txt['style'] as Map?) ?? const {}),
             literal: txt['lit'] as String?,
+            placeholder: (txt['ph'] as String?) ?? '',
+            source: _byName(TextSource.values, txt['src'], TextSource.free),
             inline: _b(txt['inline'], false),
+            multiline: _b(txt['ml'], false),
           ),
     watermark: m['wm'] == null ? null : _watermarkFromMap(m['wm'] as Map),
     footer: m['footer'] == null ? null : _footerFromMap(m['footer'] as Map),

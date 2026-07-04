@@ -103,22 +103,53 @@ class ImageAspect {
 /// template. [inline] true renders through the inline engine (`{tag}` symbols +
 /// `**bold**`/`*italic*` markup) rather than as plain text. A text aspect may
 /// render a text symbol as well as characters.
+/// Where a text aspect's real content comes from. [free] = typed per-card (when
+/// exposed) or the fixed [TextAspect.literal] string; every other value binds to
+/// a derived per-card value, resolved at compose time (footer decomposition).
+enum TextSource {
+  free,
+  cardName,
+  setName,
+  setAbbrev,
+  collectorNumber,
+  rarityName,
+  rarityAbbrev,
+  artist,
+  copyright,
+}
+
 class TextAspect {
   final TextStyleSpec style;
-  final String? literal;
-  final bool inline;
+  final String? literal; // fixed/free text (used when source == free)
+  final String placeholder; // template-preview-only dummy text; never on a card
+  final TextSource source;
+  final bool inline; // parse {symbols} / **bold**
+  final bool multiline; // wrap to multiple lines (also drives card-editor field)
 
-  const TextAspect({required this.style, this.literal, this.inline = false});
+  const TextAspect({
+    required this.style,
+    this.literal,
+    this.placeholder = '',
+    this.source = TextSource.free,
+    this.inline = false,
+    this.multiline = false,
+  });
 
   TextAspect copyWith({
     TextStyleSpec? style,
     Object? literal = _unset,
+    String? placeholder,
+    TextSource? source,
     bool? inline,
+    bool? multiline,
   }) =>
       TextAspect(
         style: style ?? this.style,
         literal: identical(literal, _unset) ? this.literal : literal as String?,
+        placeholder: placeholder ?? this.placeholder,
+        source: source ?? this.source,
         inline: inline ?? this.inline,
+        multiline: multiline ?? this.multiline,
       );
 }
 

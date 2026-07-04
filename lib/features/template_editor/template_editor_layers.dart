@@ -526,20 +526,62 @@ extension _TemplateLayersPane on _TemplateBodyState {
     final id = layer.id;
     final s = text.style;
     final literal = text.literal ?? '';
+    final placeholder = text.placeholder;
     return [
       Row(children: [
-        const SizedBox(width: 80, child: Text('Content')),
+        const SizedBox(width: 80, child: Text('Source')),
         Expanded(
-          child: Text(literal.isEmpty ? '(empty)' : literal,
+          child: DropdownButton<TextSource>(
+            isExpanded: true,
+            value: text.source,
+            items: [
+              for (final src in TextSource.values)
+                DropdownMenuItem(value: src, child: Text(_textSourceLabel(src))),
+            ],
+            onChanged: (src) => _updateLayer(id,
+                (l) => l.copyWith(text: l.text?.copyWith(source: src))),
+          ),
+        ),
+      ]),
+      if (text.source == TextSource.free)
+        Row(children: [
+          const SizedBox(width: 80, child: Text('Fixed text')),
+          Expanded(
+            child: Text(literal.isEmpty ? '(empty)' : literal,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall),
+          ),
+          TextButton(
+              onPressed: () => _editLayerText(layer), child: const Text('Edit…')),
+        ]),
+      Row(children: [
+        const SizedBox(width: 80, child: Text('Placeholder')),
+        Expanded(
+          child: Text(placeholder.isEmpty ? '(none)' : placeholder,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall),
         ),
         TextButton(
-            onPressed: () => _editLayerText(layer), child: const Text('Edit…')),
+            onPressed: () => _editLayerPlaceholder(layer),
+            child: const Text('Edit…')),
       ]),
       Row(children: [
-        const SizedBox(width: 80, child: Text('Inline')),
+        const SizedBox(width: 80, child: Text('Multiline')),
+        Switch(
+          value: text.multiline,
+          onChanged: (v) => _updateLayer(
+              id, (l) => l.copyWith(text: l.text?.copyWith(multiline: v))),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text('Wrap to multiple lines (and a multi-line card field).',
+              style: Theme.of(context).textTheme.bodySmall),
+        ),
+      ]),
+      Row(children: [
+        const SizedBox(width: 80, child: Text('Markup')),
         Switch(
           value: text.inline,
           onChanged: (v) => _updateLayer(
@@ -547,7 +589,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text('Parse {symbols} and **bold**; single line.',
+          child: Text('Parse {symbols} and **bold** / *italic*.',
               style: Theme.of(context).textTheme.bodySmall),
         ),
       ]),
@@ -743,6 +785,49 @@ extension _TemplateLayersPane on _TemplateBodyState {
     _updateLayer(
         layer.id, (l) => l.copyWith(text: l.text?.copyWith(literal: value)));
   }
+
+  Future<void> _editLayerPlaceholder(Layer layer) async {
+    final ctl = TextEditingController(text: layer.text?.placeholder ?? '');
+    final value = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Placeholder text'),
+        content: TextField(
+          controller: ctl,
+          autofocus: true,
+          minLines: 1,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            labelText: 'Placeholder',
+            hintText: 'Dummy text shown only in the template preview',
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctl.text),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    ctl.dispose();
+    if (value == null) return;
+    _updateLayer(layer.id,
+        (l) => l.copyWith(text: l.text?.copyWith(placeholder: value)));
+  }
+
+  static String _textSourceLabel(TextSource s) => switch (s) {
+        TextSource.free => 'Free text',
+        TextSource.cardName => 'Card name',
+        TextSource.setName => 'Set name',
+        TextSource.setAbbrev => 'Set abbreviation',
+        TextSource.collectorNumber => 'Collector number',
+        TextSource.rarityName => 'Rarity name',
+        TextSource.rarityAbbrev => 'Rarity abbreviation',
+        TextSource.artist => 'Artist',
+        TextSource.copyright => 'Copyright',
+      };
 
   /// Pick a fixed picture for the layer's image aspect (resets its zoom/pan).
   Future<void> _pickLayerImage(Layer layer) async {

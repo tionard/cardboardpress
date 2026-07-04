@@ -906,7 +906,10 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
         children: [
           CardPreview(
               card: card,
-              refs: CardRefs(palette: widget.palette, images: _images),
+              refs: CardRefs(
+                  palette: widget.palette,
+                  images: _images,
+                  showPlaceholders: true),
               width: w),
           if (_mode == _Mode.fields && sel != null)
             Positioned(
