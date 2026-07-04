@@ -469,6 +469,11 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
         content: _working.content.withLayerHidden(layerId, hidden)));
   }
 
+  void _setLayerFoil(String layerId, FoilType foil) {
+    _markDirty(() => _working = _working.copyWith(
+        content: _working.content.withLayerFoil(layerId, foil)));
+  }
+
   /// Pick an image for a per-card image-aspect override, routed via [_pickArt]
   /// (same store/decoding path — the `art` map is keyed by layer id, matching
   /// the existing `art` bespoke kind).

@@ -104,7 +104,8 @@ List<Layer> effectiveCardLayers(CardData c) {
       applyLayerOverlay(cardToLayers(c), c.layerOrder, c.hiddenLayers);
   if (c.fillColors.isEmpty &&
       c.outlineColors.isEmpty &&
-      c.cardHiddenLayers.isEmpty) {
+      c.cardHiddenLayers.isEmpty &&
+      c.foilOverrides.isEmpty) {
     return base;
   }
   // Bake the card's exposed per-card overrides (fill / outline colour, and
@@ -126,6 +127,8 @@ Layer _applyCardOverrides(Layer l, CardData c) {
   if (out.visible && c.cardHiddenLayers.contains(l.id)) {
     out = out.copyWith(visible: false);
   }
+  final fo = c.foilOverrides[l.id];
+  if (fo != null) out = out.copyWith(foil: fo);
   return out;
 }
 

@@ -28,7 +28,7 @@ enum EditorTab { card, art, color, set, export }
 
 /// A per-card-editable facet of a layer. A layer exposes zero or more of these,
 /// each routed to one [EditorTab]; empty exposure = template-only (no card slot).
-enum ExposedAspect { text, fill, image, outlineColor, visible }
+enum ExposedAspect { text, fill, image, outlineColor, foil, visible }
 
 /// Where an image aspect gets its picture. `fixed` = a template-level ImageStore
 /// id ([ImageAspect.imageId]); `setSymbol` = resolved from the card's set at
@@ -103,11 +103,10 @@ class ImageAspect {
 /// template. [inline] true renders through the inline engine (`{tag}` symbols +
 /// `**bold**`/`*italic*` markup) rather than as plain text. A text aspect may
 /// render a text symbol as well as characters.
-/// Where a text aspect's real content comes from. [free] = typed per-card (when
-/// exposed) or the fixed [TextAspect.literal] string; every other value binds to
-/// a derived per-card value, resolved at compose time (footer decomposition).
+/// A bound, derived text value, resolved per-card at compose time. A text aspect
+/// composes an ordered list of these (joined by its separator); an empty list
+/// means the text is free (typed per-card when the aspect is exposed to a tab).
 enum TextSource {
-  free,
   cardName,
   setName,
   setAbbrev,
@@ -120,34 +119,39 @@ enum TextSource {
 
 class TextAspect {
   final TextStyleSpec style;
-  final String? literal; // fixed/free text (used when source == free)
   final String placeholder; // template-preview-only dummy text; never on a card
-  final TextSource source;
+  // Ordered bound sources joined by [separator] (e.g. a footer line
+  // "001/XXX · CORE · R"). Empty = free text: typed per-card when exposed, else
+  // nothing. Every part shares this aspect's styling.
+  final List<TextSource> parts;
+  final String separator; // joins resolved parts; padded with spaces if non-empty
   final bool inline; // parse {symbols} / **bold**
   final bool multiline; // wrap to multiple lines (also drives card-editor field)
 
   const TextAspect({
     required this.style,
-    this.literal,
     this.placeholder = '',
-    this.source = TextSource.free,
+    this.parts = const [],
+    this.separator = '·',
     this.inline = false,
     this.multiline = false,
   });
 
+  bool get isBound => parts.isNotEmpty;
+
   TextAspect copyWith({
     TextStyleSpec? style,
-    Object? literal = _unset,
     String? placeholder,
-    TextSource? source,
+    List<TextSource>? parts,
+    String? separator,
     bool? inline,
     bool? multiline,
   }) =>
       TextAspect(
         style: style ?? this.style,
-        literal: identical(literal, _unset) ? this.literal : literal as String?,
         placeholder: placeholder ?? this.placeholder,
-        source: source ?? this.source,
+        parts: parts ?? this.parts,
+        separator: separator ?? this.separator,
         inline: inline ?? this.inline,
         multiline: multiline ?? this.multiline,
       );

@@ -213,7 +213,7 @@ void _paintGenericLayer(
   //    multiline flag drives inline wrapping (plain text wraps to the box).
   final ta = layer.text;
   if (ta != null) {
-    var s = card.textContent[layer.id] ?? ta.literal ?? '';
+    var s = card.textContent[layer.id] ?? '';
     if (s.isEmpty && refs.showPlaceholders) s = ta.placeholder;
     if (s.isNotEmpty) {
       canvas.save();

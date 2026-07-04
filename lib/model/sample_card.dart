@@ -190,8 +190,6 @@ String _resolveTextSource(
   String orPreview(String v, String sample) =>
       v.isNotEmpty ? v : (preview ? sample : '');
   switch (src) {
-    case TextSource.free:
-      return '';
     case TextSource.cardName:
       return orPreview(cardName, 'Card Name');
     case TextSource.setName:
@@ -308,23 +306,28 @@ CardData composeCard(
   for (final f in t.fields) {
     if (f.type == FieldType.footer) text[f.id] = footer;
   }
-  // Authored layers can bind a text aspect to a derived per-card value (footer
-  // decomposition). Resolve those here so the renderer just reads textContent.
+  // Authored layers can compose text from ordered bound sources (footer
+  // decomposition). Resolve + join here so the renderer just reads textContent.
   final layers = t.layers;
   if (layers != null) {
     for (final l in layers) {
       final ta = l.text;
-      if (ta == null || ta.source == TextSource.free) continue;
-      text[l.id] = _resolveTextSource(
-        ta.source,
-        cardName: content.text[fNameId] ?? '',
-        artist: content.artist,
-        set: set,
-        rarity: rarity,
-        number: number,
-        total: total,
-        preview: footerPlaceholder != null,
-      );
+      if (ta == null || ta.parts.isEmpty) continue;
+      final joiner = ta.separator.isEmpty ? ' ' : ' ${ta.separator} ';
+      final resolved = [
+        for (final p in ta.parts)
+          _resolveTextSource(
+            p,
+            cardName: content.text[fNameId] ?? '',
+            artist: content.artist,
+            set: set,
+            rarity: rarity,
+            number: number,
+            total: total,
+            preview: footerPlaceholder != null,
+          ),
+      ].where((s) => s.isNotEmpty);
+      text[l.id] = resolved.join(joiner);
     }
   }
 
@@ -369,6 +372,7 @@ CardData composeCard(
     fillColors: content.fillColors,
     outlineColors: content.outlineColors,
     cardHiddenLayers: content.cardHiddenLayers,
+    foilOverrides: content.foilOverrides,
   );
 }
 

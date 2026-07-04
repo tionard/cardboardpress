@@ -470,12 +470,12 @@ extension _CardEditorPanels on _CardEditorBodyState {
   Widget _exposedAspectControl(Layer layer, ExposedAspect aspect) {
     switch (aspect) {
       case ExposedAspect.text:
-        // Bound text is derived per-card (not typed), so it isn't editable here.
-        if (layer.text?.source != TextSource.free) {
+        // Bound text is composed from sources (derived), so it isn't typed here.
+        if (layer.text?.isBound ?? false) {
           return const SizedBox.shrink();
         }
         return TextField(
-          controller: _exposedTextController(layer.id, layer.text?.literal ?? ''),
+          controller: _exposedTextController(layer.id, ''),
           maxLines: layer.text?.multiline == true ? 4 : 1,
           decoration: const InputDecoration(
             labelText: 'Text',
@@ -530,6 +530,24 @@ extension _CardEditorPanels on _CardEditorBodyState {
           Switch(
             value: !hidden,
             onChanged: (v) => _setLayerHidden(layer.id, !v),
+          ),
+        ]);
+      case ExposedAspect.foil:
+        final current =
+            _working.content.foilOverrides[layer.id] ?? layer.foil;
+        return Row(children: [
+          const SizedBox(width: 80, child: Text('Foil')),
+          Expanded(
+            child: SegmentedButton<FoilType>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: FoilType.none, label: Text('None')),
+                ButtonSegment(value: FoilType.holo, label: Text('Holo')),
+                ButtonSegment(value: FoilType.gold, label: Text('Gold')),
+              ],
+              selected: {current},
+              onSelectionChanged: (s) => _setLayerFoil(layer.id, s.first),
+            ),
           ),
         ]);
     }

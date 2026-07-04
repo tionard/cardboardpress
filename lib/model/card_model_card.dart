@@ -30,6 +30,7 @@ class CardData {
   final Map<String, ColorRef> fillColors; // layerId -> per-card fill override
   final Map<String, ColorRef> outlineColors; // layerId -> per-card outline colour
   final Set<String> cardHiddenLayers; // layerIds this card hides (per-card)
+  final Map<String, FoilType> foilOverrides; // layerId -> per-card foil
 
   const CardData({
     this.widthInches = 2.5,
@@ -58,6 +59,7 @@ class CardData {
     this.fillColors = const {},
     this.outlineColors = const {},
     this.cardHiddenLayers = const {},
+    this.foilOverrides = const {},
   });
 
   /// Every image id the renderer needs decoded: card art, the template
@@ -152,6 +154,7 @@ class CardContent {
   final Map<String, ColorRef> fillColors; // layerId -> per-card fill override
   final Map<String, ColorRef> outlineColors; // layerId -> per-card outline colour
   final Set<String> cardHiddenLayers; // layerIds this card hides (per-card)
+  final Map<String, FoilType> foilOverrides; // layerId -> per-card foil
 
   const CardContent({
     this.text = const {},
@@ -164,6 +167,7 @@ class CardContent {
     this.fillColors = const {},
     this.outlineColors = const {},
     this.cardHiddenLayers = const {},
+    this.foilOverrides = const {},
   });
 
   CardContent _copy({
@@ -177,6 +181,7 @@ class CardContent {
     Map<String, ColorRef>? fillColors,
     Map<String, ColorRef>? outlineColors,
     Set<String>? cardHiddenLayers,
+    Map<String, FoilType>? foilOverrides,
   }) =>
       CardContent(
         text: text ?? this.text,
@@ -190,7 +195,17 @@ class CardContent {
         fillColors: fillColors ?? this.fillColors,
         outlineColors: outlineColors ?? this.outlineColors,
         cardHiddenLayers: cardHiddenLayers ?? this.cardHiddenLayers,
+        foilOverrides: foilOverrides ?? this.foilOverrides,
       );
+
+  /// Set (or clear, when [foil] is null) the per-card foil for a layer.
+  CardContent withLayerFoil(String layerId, FoilType? foil) {
+    final next = Map<String, FoilType>.from(foilOverrides);
+    (foil == null || foil == FoilType.none)
+        ? next.remove(layerId)
+        : next[layerId] = foil;
+    return _copy(foilOverrides: next);
+  }
 
   /// Show/hide a layer on this card only (per-card visibility override).
   CardContent withLayerHidden(String layerId, bool hidden) {

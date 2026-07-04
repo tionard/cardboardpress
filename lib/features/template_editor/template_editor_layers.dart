@@ -480,6 +480,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
               child: SegmentedButton<FoilType>(
                 showSelectedIcon: false,
                 segments: const [
+                  ButtonSegment(value: FoilType.none, label: Text('None')),
                   ButtonSegment(value: FoilType.holo, label: Text('Holo')),
                   ButtonSegment(value: FoilType.gold, label: Text('Gold')),
                 ],
@@ -489,6 +490,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
               ),
             ),
           ]),
+          _exposeControl(id, ExposedAspect.foil, layer.exposed),
           _removeAspectRow(
               () => _updateLayer(id, (l) => l.copyWith(foil: FoilType.none))),
         ]),
@@ -562,36 +564,22 @@ extension _TemplateLayersPane on _TemplateBodyState {
   List<Widget> _textAspectControls(Layer layer, TextAspect text) {
     final id = layer.id;
     final s = text.style;
-    final literal = text.literal ?? '';
     final placeholder = text.placeholder;
+    final partsSummary = text.parts.isEmpty
+        ? 'Free text (typed on the card)'
+        : text.parts.map(_textSourceLabel).join(' ${text.separator} ');
     return [
       Row(children: [
-        const SizedBox(width: 80, child: Text('Source')),
+        const SizedBox(width: 80, child: Text('Sources')),
         Expanded(
-          child: DropdownButton<TextSource>(
-            isExpanded: true,
-            value: text.source,
-            items: [
-              for (final src in TextSource.values)
-                DropdownMenuItem(value: src, child: Text(_textSourceLabel(src))),
-            ],
-            onChanged: (src) => _updateLayer(id,
-                (l) => l.copyWith(text: l.text?.copyWith(source: src))),
-          ),
+          child: Text(partsSummary,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall),
         ),
+        TextButton(
+            onPressed: () => _editTextParts(layer), child: const Text('Edit…')),
       ]),
-      if (text.source == TextSource.free)
-        Row(children: [
-          const SizedBox(width: 80, child: Text('Fixed text')),
-          Expanded(
-            child: Text(literal.isEmpty ? '(empty)' : literal,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall),
-          ),
-          TextButton(
-              onPressed: () => _editLayerText(layer), child: const Text('Edit…')),
-        ]),
       Row(children: [
         const SizedBox(width: 80, child: Text('Placeholder')),
         Expanded(
@@ -789,38 +777,110 @@ extension _TemplateLayersPane on _TemplateBodyState {
   TextAspect _defaultTextAspect() => const TextAspect(
         style: TextStyleSpec(
             sizeFrac: 0.04, vAlign: VAlign.middle, colorRef: _kLayerTextDefault),
-        literal: '',
       );
 
-  Future<void> _editLayerText(Layer layer) async {
-    final ctl = TextEditingController(text: layer.text?.literal ?? '');
-    final value = await showDialog<String>(
+  /// Two-list picker: available sources (chips, tap to add) + the chosen,
+  /// reorderable list, plus a Separator field. Duplicates aren't allowed, so
+  /// chosen entries key cleanly by value for the reorderable list.
+  Future<void> _editTextParts(Layer layer) async {
+    final chosen = List<TextSource>.from(layer.text?.parts ?? const []);
+    final sepCtl = TextEditingController(text: layer.text?.separator ?? '·');
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Layer text'),
-        content: TextField(
-          controller: ctl,
-          autofocus: true,
-          minLines: 1,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            labelText: 'Text',
-            hintText: 'Fixed text drawn on this layer',
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctl.text),
-              child: const Text('Save')),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final available = [
+            for (final src in TextSource.values)
+              if (!chosen.contains(src)) src,
+          ];
+          return AlertDialog(
+            title: const Text('Text sources'),
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const SizedBox(width: 90, child: Text('Separator')),
+                    Expanded(
+                      child: TextField(
+                        controller: sepCtl,
+                        decoration: const InputDecoration(
+                            isDense: true, hintText: '· (leave blank for none)'),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 12),
+                  Text('Available', style: Theme.of(ctx).textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (available.isEmpty)
+                        Text('All sources added',
+                            style: Theme.of(ctx).textTheme.bodySmall),
+                      for (final src in available)
+                        ActionChip(
+                          avatar: const Icon(Icons.add, size: 16),
+                          label: Text(_textSourceLabel(src)),
+                          onPressed: () => setLocal(() => chosen.add(src)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text('In this text (drag to reorder)',
+                      style: Theme.of(ctx).textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    height: 200,
+                    child: chosen.isEmpty
+                        ? Center(
+                            child: Text('Empty = free text (typed on the card)',
+                                style: Theme.of(ctx).textTheme.bodySmall))
+                        : ReorderableListView.builder(
+                            itemCount: chosen.length,
+                            onReorderItem: (o, n) => setLocal(() {
+                              if (n > o) n -= 1;
+                              final m = chosen.removeAt(o);
+                              chosen.insert(n.clamp(0, chosen.length), m);
+                            }),
+                            itemBuilder: (c, i) => ListTile(
+                              key: ValueKey(chosen[i]),
+                              dense: true,
+                              leading: const Icon(Icons.drag_handle),
+                              title: Text(_textSourceLabel(chosen[i])),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.close, size: 18),
+                                onPressed: () =>
+                                    setLocal(() => chosen.removeAt(i)),
+                              ),
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Save')),
+            ],
+          );
+        },
       ),
     );
-    ctl.dispose();
-    if (value == null) return; // cancelled
+    final sep = sepCtl.text;
+    sepCtl.dispose();
+    if (saved != true) return;
     _updateLayer(
-        layer.id, (l) => l.copyWith(text: l.text?.copyWith(literal: value)));
+        layer.id,
+        (l) => l.copyWith(
+            text: l.text?.copyWith(parts: chosen, separator: sep)));
   }
 
   Future<void> _editLayerPlaceholder(Layer layer) async {
@@ -855,7 +915,6 @@ extension _TemplateLayersPane on _TemplateBodyState {
   }
 
   static String _textSourceLabel(TextSource s) => switch (s) {
-        TextSource.free => 'Free text',
         TextSource.cardName => 'Card name',
         TextSource.setName => 'Set name',
         TextSource.setAbbrev => 'Set abbreviation',

@@ -303,6 +303,8 @@ Map<String, dynamic> cardContentToMap(CardContent c) => {
           for (final e in c.outlineColors.entries) e.key: _colorRefToMap(e.value),
         },
       if (c.cardHiddenLayers.isNotEmpty) 'hideL': c.cardHiddenLayers.toList(),
+      if (c.foilOverrides.isNotEmpty)
+        'foilO': {for (final e in c.foilOverrides.entries) e.key: e.value.name},
     };
 
 CardContent cardContentFromMap(Map m) {
@@ -328,6 +330,10 @@ CardContent cardContentFromMap(Map m) {
     outlineColors: _colorRefMap(m['outC']),
     cardHiddenLayers: {
       for (final e in ((m['hideL'] as List?) ?? const [])) e.toString(),
+    },
+    foilOverrides: {
+      for (final e in ((m['foilO'] as Map?) ?? const {}).entries)
+        e.key.toString(): _byName(FoilType.values, e.value, FoilType.none),
     },
   );
 }
@@ -392,9 +398,10 @@ Map<String, dynamic> _layerToMap(Layer l) => {
       if (l.text != null)
         'text': {
           'style': _textToMap(l.text!.style),
-          if (l.text!.literal != null) 'lit': l.text!.literal,
           if (l.text!.placeholder.isNotEmpty) 'ph': l.text!.placeholder,
-          if (l.text!.source != TextSource.free) 'src': l.text!.source.name,
+          if (l.text!.parts.isNotEmpty)
+            'parts': [for (final p in l.text!.parts) p.name],
+          if (l.text!.separator != '·') 'sep': l.text!.separator,
           if (l.text!.inline) 'inline': true,
           if (l.text!.multiline) 'ml': true,
         },
@@ -454,9 +461,12 @@ Layer _layerFromMap(Map m) {
         ? null
         : TextAspect(
             style: _textFromMap((txt['style'] as Map?) ?? const {}),
-            literal: txt['lit'] as String?,
             placeholder: (txt['ph'] as String?) ?? '',
-            source: _byName(TextSource.values, txt['src'], TextSource.free),
+            parts: [
+              for (final p in ((txt['parts'] as List?) ?? const []))
+                _byName(TextSource.values, p, TextSource.cardName),
+            ],
+            separator: (txt['sep'] as String?) ?? '·',
             inline: _b(txt['inline'], false),
             multiline: _b(txt['ml'], false),
           ),
