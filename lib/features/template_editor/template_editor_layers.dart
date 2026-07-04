@@ -317,7 +317,12 @@ extension _TemplateLayersPane on _TemplateBodyState {
     );
   }
 
-  // ---- per-aspect appearance (C2a: fill / outline / foil / text) ----
+  // ---- per-aspect appearance ----
+  //
+  // A layer starts with just geometry; aspects are added on demand from the
+  // "+ Add aspect" menu, and each present aspect has a Remove. Fill/Image/
+  // Outline/Text also carry the per-aspect "Editing" control (template vs a
+  // card-editor tab). Foil/Border have no per-card exposure (yet).
 
   List<Widget> _layerAspectSections(Layer layer) {
     final id = layer.id;
@@ -327,18 +332,8 @@ extension _TemplateLayersPane on _TemplateBodyState {
     final outline = layer.outline;
     final text = layer.text;
     return [
-      _section('l_fill', 'Fill', [
-        _aspectToggle(
-            'Enabled',
-            fill != null,
-            (on) => _updateLayer(
-                id,
-                (l) => l.copyWith(
-                    fill: on
-                        ? const FillAspect(color: _kLayerFillDefault)
-                        : null))),
-        if (fill != null) ...[
-          const SizedBox(height: 8),
+      if (fill != null)
+        _section('l_fill', 'Fill', [
           Text('Colour', style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 6),
           _colorWell(
@@ -354,15 +349,11 @@ extension _TemplateLayersPane on _TemplateBodyState {
               (v) => _updateLayer(id,
                   (l) => l.copyWith(fill: l.fill?.copyWith(alpha: v)))),
           _exposeControl(id, ExposedAspect.fill, layer.exposed),
-        ],
-      ]),
-      _section('l_image', 'Image', [
-        _aspectToggle(
-            'Enabled',
-            image != null,
-            (on) => _updateLayer(id,
-                (l) => l.copyWith(image: on ? const ImageAspect() : null))),
-        if (image != null) ...[
+          _removeAspectRow(
+              () => _updateLayer(id, (l) => l.copyWith(fill: null))),
+        ]),
+      if (image != null)
+        _section('l_image', 'Image', [
           Row(children: [
             const SizedBox(width: 80, child: Text('Source')),
             Expanded(
@@ -414,15 +405,11 @@ extension _TemplateLayersPane on _TemplateBodyState {
               (v) => _updateLayer(id,
                   (l) => l.copyWith(image: l.image?.copyWith(alpha: v)))),
           _exposeControl(id, ExposedAspect.image, layer.exposed),
-        ],
-      ]),
-      _section('l_border', 'Border (9-slice)', [
-        _aspectToggle(
-            'Enabled',
-            border != null,
-            (on) => _updateLayer(id,
-                (l) => l.copyWith(border: on ? const NineSliceSpec() : null))),
-        if (border != null) ...[
+          _removeAspectRow(
+              () => _updateLayer(id, (l) => l.copyWith(image: null))),
+        ]),
+      if (border != null)
+        _section('l_border', 'Border (9-slice)', [
           Text('A sprite frame. While on, it replaces the flat fill.',
               style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 6),
@@ -458,20 +445,11 @@ extension _TemplateLayersPane on _TemplateBodyState {
                   id, (l) => l.copyWith(border: l.border?.copyWith(tint: null))),
             ),
           ],
-        ],
-      ]),
-      _section('l_outline', 'Outline', [
-        _aspectToggle(
-            'Enabled',
-            outline != null,
-            (on) => _updateLayer(
-                id,
-                (l) => l.copyWith(
-                    outline: on
-                        ? const OutlineSpec(color: _kOutlineDefault)
-                        : null))),
-        if (outline != null) ...[
-          const SizedBox(height: 8),
+          _removeAspectRow(
+              () => _updateLayer(id, (l) => l.copyWith(border: null))),
+        ]),
+      if (outline != null)
+        _section('l_outline', 'Outline', [
           Text('Colour', style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 6),
           _colorWell(
@@ -491,35 +469,94 @@ extension _TemplateLayersPane on _TemplateBodyState {
             Text('This outline shades the fill — pick a colour, or add a Fill.',
                 style: Theme.of(context).textTheme.bodySmall),
           _exposeControl(id, ExposedAspect.outlineColor, layer.exposed),
-        ],
-      ]),
-      _section('l_foil', 'Foil', [
-        Row(children: [
-          const SizedBox(width: 80, child: Text('Style')),
-          Expanded(
-            child: SegmentedButton<FoilType>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: FoilType.none, label: Text('None')),
-                ButtonSegment(value: FoilType.holo, label: Text('Holo')),
-                ButtonSegment(value: FoilType.gold, label: Text('Gold')),
-              ],
-              selected: {layer.foil},
-              onSelectionChanged: (s) =>
-                  _updateLayer(id, (l) => l.copyWith(foil: s.first)),
-            ),
-          ),
+          _removeAspectRow(
+              () => _updateLayer(id, (l) => l.copyWith(outline: null))),
         ]),
-      ]),
-      _section('l_text', 'Text', [
-        _aspectToggle(
-            'Enabled',
-            text != null,
-            (on) => _updateLayer(id,
-                (l) => l.copyWith(text: on ? _defaultTextAspect() : null))),
-        if (text != null) ..._textAspectControls(layer, text),
-      ]),
+      if (layer.foil != FoilType.none)
+        _section('l_foil', 'Foil', [
+          Row(children: [
+            const SizedBox(width: 80, child: Text('Style')),
+            Expanded(
+              child: SegmentedButton<FoilType>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: FoilType.holo, label: Text('Holo')),
+                  ButtonSegment(value: FoilType.gold, label: Text('Gold')),
+                ],
+                selected: {layer.foil},
+                onSelectionChanged: (s) =>
+                    _updateLayer(id, (l) => l.copyWith(foil: s.first)),
+              ),
+            ),
+          ]),
+          _removeAspectRow(
+              () => _updateLayer(id, (l) => l.copyWith(foil: FoilType.none))),
+        ]),
+      if (text != null)
+        _section('l_text', 'Text', [
+          ..._textAspectControls(layer, text),
+          _removeAspectRow(
+              () => _updateLayer(id, (l) => l.copyWith(text: null))),
+        ]),
+      const SizedBox(height: 8),
+      _addAspectMenu(layer),
     ];
+  }
+
+  /// A right-aligned "Remove" button ending an aspect section.
+  Widget _removeAspectRow(VoidCallback onRemove) => Align(
+        alignment: Alignment.centerRight,
+        child: TextButton.icon(
+          onPressed: onRemove,
+          icon: const Icon(Icons.close, size: 16),
+          label: const Text('Remove'),
+        ),
+      );
+
+  /// "+ Add aspect" — lists only the aspects this layer doesn't have yet.
+  Widget _addAspectMenu(Layer layer) {
+    final absent = <String, String>{
+      if (layer.fill == null) 'fill': 'Fill',
+      if (layer.image == null) 'image': 'Image',
+      if (layer.border == null) 'border': 'Border (9-slice)',
+      if (layer.outline == null) 'outline': 'Outline',
+      if (layer.foil == FoilType.none) 'foil': 'Foil',
+      if (layer.text == null) 'text': 'Text',
+    };
+    if (absent.isEmpty) {
+      return Text('All aspects added.',
+          style: Theme.of(context).textTheme.bodySmall);
+    }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: PopupMenuButton<String>(
+        onSelected: (a) => _addAspect(layer, a),
+        itemBuilder: (ctx) => [
+          for (final e in absent.entries)
+            PopupMenuItem(value: e.key, child: Text(e.value)),
+        ],
+        child: const Chip(
+          avatar: Icon(Icons.add, size: 18),
+          label: Text('Add aspect'),
+        ),
+      ),
+    );
+  }
+
+  void _addAspect(Layer layer, String a) {
+    _updateLayer(
+        layer.id,
+        (l) => switch (a) {
+              'fill' =>
+                l.copyWith(fill: const FillAspect(color: _kLayerFillDefault)),
+              'image' => l.copyWith(image: const ImageAspect()),
+              'border' => l.copyWith(border: const NineSliceSpec()),
+              'outline' =>
+                l.copyWith(outline: const OutlineSpec(color: _kOutlineDefault)),
+              'foil' => l.copyWith(foil: FoilType.holo),
+              'text' => l.copyWith(text: _defaultTextAspect()),
+              _ => l,
+            });
   }
 
   List<Widget> _textAspectControls(Layer layer, TextAspect text) {
@@ -717,17 +754,17 @@ extension _TemplateLayersPane on _TemplateBodyState {
       padding: const EdgeInsets.only(top: 6),
       child: Row(
         children: [
-          const SizedBox(width: 80, child: Text('Expose to')),
+          const SizedBox(width: 80, child: Text('Editing')),
           Expanded(
             child: DropdownButton<EditorTab?>(
               isExpanded: true,
               value: current,
               items: [
                 const DropdownMenuItem<EditorTab?>(
-                    value: null, child: Text('Template only')),
+                    value: null, child: Text('In template')),
                 for (final t in EditorTab.values)
                   DropdownMenuItem<EditorTab?>(
-                      value: t, child: Text(_tabLabel(t))),
+                      value: t, child: Text('Card · ${_tabLabel(t)} tab')),
               ],
               onChanged: (t) => _setExposed(layerId, aspect, t),
             ),
@@ -896,11 +933,11 @@ extension _TemplateLayersPane on _TemplateBodyState {
         .where((l) => !_isChromeLayer(l.id) && l.kind == LayerKind.generic)
         .length;
     final id = 'l_${DateTime.now().microsecondsSinceEpoch}';
+    // Starts with geometry only — appearance is added from "+ Add aspect".
     final layer = Layer(
       id: id,
       name: 'Layer ${count + 1}',
       frac: const Rect.fromLTRB(0.3, 0.4, 0.7, 0.6),
-      fill: const FillAspect(color: _kLayerFillDefault),
     );
     _editLayers((ls) => [...ls, layer]);
     _selectLayer(id);
