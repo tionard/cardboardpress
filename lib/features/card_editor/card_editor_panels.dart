@@ -533,8 +533,8 @@ extension _CardEditorPanels on _CardEditorBodyState {
           ),
         ]);
       case ExposedAspect.foil:
-        final current =
-            _working.content.foilOverrides[layer.id] ?? layer.foil;
+        final override = _working.content.foilOverrides[layer.id];
+        final current = override ?? layer.foil ?? FoilType.none;
         return Row(children: [
           const SizedBox(width: 80, child: Text('Foil')),
           Expanded(
@@ -549,6 +549,10 @@ extension _CardEditorPanels on _CardEditorBodyState {
               onSelectionChanged: (s) => _setLayerFoil(layer.id, s.first),
             ),
           ),
+          if (override != null)
+            TextButton(
+                onPressed: () => _setLayerFoil(layer.id, null),
+                child: const Text('Use default')),
         ]);
     }
   }

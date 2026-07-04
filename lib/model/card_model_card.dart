@@ -199,11 +199,11 @@ class CardContent {
       );
 
   /// Set (or clear, when [foil] is null) the per-card foil for a layer.
+  /// Per-card foil override for a layer. [foil] == null clears it back to the
+  /// template's value; [FoilType.none] is a real, stored "no foil on this card".
   CardContent withLayerFoil(String layerId, FoilType? foil) {
     final next = Map<String, FoilType>.from(foilOverrides);
-    (foil == null || foil == FoilType.none)
-        ? next.remove(layerId)
-        : next[layerId] = foil;
+    foil == null ? next.remove(layerId) : next[layerId] = foil;
     return _copy(foilOverrides: next);
   }
 

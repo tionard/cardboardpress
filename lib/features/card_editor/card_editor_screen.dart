@@ -469,7 +469,7 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
         content: _working.content.withLayerHidden(layerId, hidden)));
   }
 
-  void _setLayerFoil(String layerId, FoilType foil) {
+  void _setLayerFoil(String layerId, FoilType? foil) {
     _markDirty(() => _working = _working.copyWith(
         content: _working.content.withLayerFoil(layerId, foil)));
   }

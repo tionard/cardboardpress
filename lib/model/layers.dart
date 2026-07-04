@@ -177,7 +177,7 @@ class Layer {
   final ImageAspect? image;
   final NineSliceSpec? border; // 9-slice frame (reused type)
   final OutlineSpec? outline; // relative-shade outline (reused type)
-  final FoilType foil; // none = no foil aspect
+  final FoilType? foil; // null = no foil aspect; a present aspect can be none
   final TextAspect? text;
   final WatermarkSpec? watermark; // Rules watermark (reused type; see 1b notes)
   final FooterSpec? footer; // footer kind (reused type)
@@ -197,7 +197,7 @@ class Layer {
     this.image,
     this.border,
     this.outline,
-    this.foil = FoilType.none,
+    this.foil,
     this.text,
     this.watermark,
     this.footer,
@@ -214,7 +214,7 @@ class Layer {
     Object? image = _unset,
     Object? border = _unset,
     Object? outline = _unset,
-    FoilType? foil,
+    Object? foil = _unset,
     Object? text = _unset,
     Object? watermark = _unset,
     Object? footer = _unset,
@@ -233,7 +233,7 @@ class Layer {
             identical(border, _unset) ? this.border : border as NineSliceSpec?,
         outline:
             identical(outline, _unset) ? this.outline : outline as OutlineSpec?,
-        foil: foil ?? this.foil,
+        foil: identical(foil, _unset) ? this.foil : foil as FoilType?,
         text: identical(text, _unset) ? this.text : text as TextAspect?,
         watermark: identical(watermark, _unset)
             ? this.watermark

@@ -330,6 +330,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
     final image = layer.image;
     final border = layer.border;
     final outline = layer.outline;
+    final foil = layer.foil;
     final text = layer.text;
     return [
       if (fill != null)
@@ -472,7 +473,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
           _removeAspectRow(
               () => _updateLayer(id, (l) => l.copyWith(outline: null))),
         ]),
-      if (layer.foil != FoilType.none)
+      if (foil != null)
         _section('l_foil', 'Foil', [
           Row(children: [
             const SizedBox(width: 80, child: Text('Style')),
@@ -484,7 +485,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
                   ButtonSegment(value: FoilType.holo, label: Text('Holo')),
                   ButtonSegment(value: FoilType.gold, label: Text('Gold')),
                 ],
-                selected: {layer.foil},
+                selected: {foil},
                 onSelectionChanged: (s) =>
                     _updateLayer(id, (l) => l.copyWith(foil: s.first)),
               ),
@@ -492,7 +493,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
           ]),
           _exposeControl(id, ExposedAspect.foil, layer.exposed),
           _removeAspectRow(
-              () => _updateLayer(id, (l) => l.copyWith(foil: FoilType.none))),
+              () => _updateLayer(id, (l) => l.copyWith(foil: null))),
         ]),
       if (text != null)
         _section('l_text', 'Text', [
@@ -522,7 +523,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
       if (layer.image == null) 'image': 'Image',
       if (layer.border == null) 'border': 'Border (9-slice)',
       if (layer.outline == null) 'outline': 'Outline',
-      if (layer.foil == FoilType.none) 'foil': 'Foil',
+      if (layer.foil == null) 'foil': 'Foil',
       if (layer.text == null) 'text': 'Text',
     };
     if (absent.isEmpty) {

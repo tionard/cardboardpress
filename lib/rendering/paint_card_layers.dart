@@ -65,7 +65,8 @@ void paintCardFromLayers(
         // takes the new generic sub-order drawer. No field-derived layer has
         // either aspect, so existing cards are byte-for-byte unchanged.
         if (layer.kind == LayerKind.generic &&
-            (layer.image != null || layer.foil != FoilType.none)) {
+            (layer.image != null ||
+                (layer.foil != null && layer.foil != FoilType.none))) {
           _paintGenericLayer(canvas, size, layer, card, refs);
         } else {
           _paintField(canvas, size, _layerToFieldSpec(layer), card, refs);
@@ -206,7 +207,7 @@ void _paintGenericLayer(
   }
 
   // 5. foil
-  _paintFoil(canvas, rect, rrect, layer.foil);
+  _paintFoil(canvas, rect, rrect, layer.foil ?? FoilType.none);
 
   // 6. text — per-card content keyed by layer id, else the layer's fixed text;
   //    in template preview an empty result falls back to the placeholder. The

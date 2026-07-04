@@ -394,7 +394,7 @@ Map<String, dynamic> _layerToMap(Layer l) => {
           if (l.border!.tint != null) 'tint': _colorRefToMap(l.border!.tint!),
         },
       if (l.outline != null) 'outline': _outlineToMap(l.outline!),
-      if (l.foil != FoilType.none) 'foil': l.foil.name,
+      if (l.foil != null) 'foil': l.foil!.name,
       if (l.text != null)
         'text': {
           'style': _textToMap(l.text!.style),
@@ -456,7 +456,9 @@ Layer _layerFromMap(Map m) {
           ),
     border: m['border'] == null ? null : _nineSliceFromMap(m['border'] as Map),
     outline: m['outline'] == null ? null : _outlineFromMap(m['outline'] as Map),
-    foil: _byName(FoilType.values, m['foil'], FoilType.none),
+    foil: m['foil'] == null
+        ? null
+        : _byName(FoilType.values, m['foil'], FoilType.none),
     text: txt == null
         ? null
         : TextAspect(
