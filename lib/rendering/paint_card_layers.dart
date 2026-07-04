@@ -33,15 +33,6 @@ void paintCardFromLayers(
   for (final layer in layers) {
     if (!layer.visible) continue;
     switch (layer.id) {
-      case kBaseLayerId:
-        _fillRRect(canvas, cardRRect, refs.resolveColor(card.baseColor), 1.0);
-      case kBgLayerId:
-        {
-          final bgImg = refs.resolveImage(card.bgImageId);
-          if (bgImg != null) {
-            _paintArtImage(canvas, cardRRect, bgImg, card.bgTransform);
-          }
-        }
       case kTintLayerId:
         {
           final tint = card.tint;
@@ -57,13 +48,11 @@ void paintCardFromLayers(
       case kBorderLayerId:
         break; // the outer border is drawn outside the clip, below
       default:
-        // Field-derived layers (art/rules/footer + generic text/fill/outline/
-        // border) rebuild their FieldSpec and use the real dispatcher, so their
-        // rendering stays pixel-identical to the legacy path. Only a GENERIC
-        // layer carrying an aspect the field model has no slot for — a fixed
-        // image (decorative / silhouette / set symbol) or a per-layer foil —
-        // takes the new generic sub-order drawer. No field-derived layer has
-        // either aspect, so existing cards are byte-for-byte unchanged.
+        // Chrome that's been collapsed to generic layers (base fill, background
+        // image) and authored generic layers render through the generic path.
+        // A fill/text-only layer still uses the FieldSpec dispatcher (identical
+        // to the legacy field draw); a layer carrying an image or an active foil
+        // takes the generic sub-order drawer.
         if (layer.kind == LayerKind.generic &&
             (layer.image != null ||
                 (layer.foil != null && layer.foil != FoilType.none))) {

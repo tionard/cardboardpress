@@ -38,6 +38,7 @@ const Rect _fullRect = Rect.fromLTRB(0, 0, 1, 1);
 /// Ordered layers for a template, in current draw order (index 0 = bottom).
 List<Layer> templateToLayers(TemplateData t) => _buildLayers(
       baseColor: t.baseColor,
+      cornerRadiusFrac: t.cornerRadiusFrac,
       bgImageId: t.bgImageId,
       bgTransform: t.bgTransform,
       fields: t.fields,
@@ -50,6 +51,7 @@ List<Layer> templateToLayers(TemplateData t) => _buildLayers(
 /// uses; it then reads per-card values from the CardData by the reserved ids.
 List<Layer> cardToLayers(CardData c) => _buildLayers(
       baseColor: c.baseColor,
+      cornerRadiusFrac: c.cornerRadiusFrac,
       bgImageId: c.bgImageId,
       bgTransform: c.bgTransform,
       fields: c.fields,
@@ -134,6 +136,7 @@ Layer _applyCardOverrides(Layer l, CardData c) {
 
 List<Layer> _buildLayers({
   required ColorRef baseColor,
+  required double cornerRadiusFrac,
   required String? bgImageId,
   required ArtTransform bgTransform,
   required List<FieldSpec> fields,
@@ -142,11 +145,14 @@ List<Layer> _buildLayers({
 }) {
   final layers = <Layer>[];
 
-  // base — full-card fill, opaque, bottom.
+  // base — full-card fill, opaque, bottom. Its corner radius matches the card's
+  // so the generic fill draws the same rounded rect the old chrome did (a square
+  // clipped to the card would differ in edge antialiasing).
   layers.add(Layer(
     id: kBaseLayerId,
     name: 'Base',
     frac: _fullRect,
+    cornerRadius: cornerRadiusFrac,
     fill: FillAspect(color: baseColor),
   ));
 
@@ -156,6 +162,7 @@ List<Layer> _buildLayers({
       id: kBgLayerId,
       name: 'Background',
       frac: _fullRect,
+      cornerRadius: cornerRadiusFrac,
       image: ImageAspect(
         source: ImageSource.fixed,
         imageId: bgImageId,
