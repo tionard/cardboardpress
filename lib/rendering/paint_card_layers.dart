@@ -33,18 +33,8 @@ void paintCardFromLayers(
   for (final layer in layers) {
     if (!layer.visible) continue;
     switch (layer.id) {
-      case kTintLayerId:
-        {
-          final tint = card.tint;
-          if (tint != null) {
-            _fillRRect(
-                canvas, cardRRect, refs.resolveColor(tint), card.tintAlpha);
-          }
-        }
       case kSetSymbolLayerId:
         _paintSetSymbolChrome(canvas, size, card, refs);
-      case kFoilLayerId:
-        _paintFoil(canvas, cardRect, cardRRect, card.foil);
       case kBorderLayerId:
         break; // the outer border is drawn outside the clip, below
       default:

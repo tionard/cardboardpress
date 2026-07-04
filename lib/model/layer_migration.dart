@@ -100,24 +100,35 @@ List<Layer> effectiveTemplateLayers(TemplateData t) =>
     applyLayerOverlay(templateToLayers(t), t.layerOrder, t.hiddenLayers);
 
 /// The layer list to render for a composed card — the card-side twin of
-/// [effectiveTemplateLayers]. This is what the renderer walks.
+/// [effectiveTemplateLayers]. This is what the renderer walks. Per-card values
+/// are baked onto the layers here so the renderer stays a single untouched path:
+/// chrome slots (tint) read the CardData fields, and authored generic layers get
+/// their per-card overrides (fill/outline colour, visibility, foil).
 List<Layer> effectiveCardLayers(CardData c) {
   final base = c.layers ??
       applyLayerOverlay(cardToLayers(c), c.layerOrder, c.hiddenLayers);
-  if (c.fillColors.isEmpty &&
-      c.outlineColors.isEmpty &&
-      c.cardHiddenLayers.isEmpty &&
-      c.foilOverrides.isEmpty) {
-    return base;
-  }
-  // Bake the card's exposed per-card overrides (fill / outline colour, and
-  // per-card visibility) onto the layers here — so the renderer stays a single
-  // untouched path that just draws whatever it's handed.
-  return [for (final l in base) _applyCardOverrides(l, c)];
+  return [for (final l in base) _resolveCardLayer(l, c)];
 }
 
-Layer _applyCardOverrides(Layer l, CardData c) {
+Layer _resolveCardLayer(Layer l, CardData c) {
   var out = l;
+
+  // Chrome baked from per-card CardData fields. Tint: a full-card fill whose
+  // colour+alpha are the card's tint; absent tint hides the slot (nothing drawn,
+  // matching the old special-case that only filled when a tint was set).
+  if (l.id == kTintLayerId) {
+    final tint = c.tint;
+    return tint == null
+        ? out.copyWith(visible: false)
+        : out.copyWith(fill: FillAspect(color: tint, alpha: c.tintAlpha));
+  }
+  if (l.id == kFoilLayerId) {
+    // The card-level foil (Color tab) baked onto the foil slot; none draws
+    // nothing, exactly like the old special-case.
+    return out.copyWith(foil: c.foil);
+  }
+
+  // Per-card overrides on authored generic layers.
   final fc = c.fillColors[l.id];
   if (fc != null && out.fill != null) {
     out = out.copyWith(fill: out.fill!.copyWith(color: fc));
@@ -171,11 +182,13 @@ List<Layer> _buildLayers({
     ));
   }
 
-  // tint — full-card fill slot; value + alpha are PER-CARD (read at render).
+  // tint — full-card fill slot; value + alpha are PER-CARD (baked in
+  // effectiveCardLayers). cornerRadius matches the card for exact AA.
   layers.add(Layer(
     id: kTintLayerId,
     name: 'Tint',
     frac: _fullRect,
+    cornerRadius: cornerRadiusFrac,
     fill: FillAspect(color: baseColor),
     exposed: const {ExposedAspect.fill: EditorTab.color},
   ));
@@ -201,7 +214,12 @@ List<Layer> _buildLayers({
 
   // foil — full-card overlay slot; the FoilType is PER-CARD (renderer reads
   // card.foil for this slot).
-  layers.add(const Layer(id: kFoilLayerId, name: 'Foil', frac: _fullRect));
+  layers.add(Layer(
+    id: kFoilLayerId,
+    name: 'Foil',
+    frac: _fullRect,
+    cornerRadius: cornerRadiusFrac,
+  ));
 
   // outer border — pure white/black chrome, drawn OUTSIDE the rounded clip, on
   // top. Present as a top slot so it shows in the Layers list; the renderer
