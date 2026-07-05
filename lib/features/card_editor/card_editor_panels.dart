@@ -610,13 +610,11 @@ class _LayerExposureGroup {
   _LayerExposureGroup(this.layer, this.aspects);
 }
 
-// System chrome layer ids (base/tint/bg/set-symbol/foil/border) — these are
-// driven by the dedicated panels, not the generic exposed-block path.
+// System chrome layer ids still driven by dedicated panels (tint/foil in the
+// Color tab) or drawn specially (border). Base/background/set-symbol are now
+// ordinary generic layers.
 const Set<String> _kReservedLayerIds = {
-  kBaseLayerId,
-  kBgLayerId,
   kTintLayerId,
-  kSetSymbolLayerId,
   kFoilLayerId,
   kBorderLayerId,
 };

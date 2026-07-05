@@ -33,8 +33,6 @@ void paintCardFromLayers(
   for (final layer in layers) {
     if (!layer.visible) continue;
     switch (layer.id) {
-      case kSetSymbolLayerId:
-        _paintSetSymbolChrome(canvas, size, card, refs);
       case kBorderLayerId:
         break; // the outer border is drawn outside the clip, below
       default:
@@ -68,27 +66,6 @@ void paintCardFromLayers(
           ? const ui.Color(0xFF000000)
           : const ui.Color(0xFFFFFFFF);
     canvas.drawRRect(cardRRect.deflate(stroke / 2), paint);
-  }
-}
-
-// The set-symbol chrome block, lifted verbatim from paintCard.
-void _paintSetSymbolChrome(
-    ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
-  final ssp = card.setSymbolPlacement;
-  final ssImg = refs.resolveImage(card.setSymbolImageId);
-  if (ssp != null && ssp.enabled && ssImg != null) {
-    final dst = ui.Rect.fromLTRB(
-      ssp.frac.left * size.width,
-      ssp.frac.top * size.height,
-      ssp.frac.right * size.width,
-      ssp.frac.bottom * size.height,
-    );
-    final tint = card.setSymbolTint;
-    if (tint != null) {
-      _paintTintedSymbol(canvas, ssImg, dst, refs.resolveColor(tint), ssp.alpha);
-    } else {
-      _paintSetSymbol(canvas, ssImg, dst, ssp.alpha);
-    }
   }
 }
 

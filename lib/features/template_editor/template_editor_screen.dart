@@ -812,7 +812,6 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
           child: SegmentedButton<_Mode>(
             segments: const [
               ButtonSegment(value: _Mode.layout, label: Text('Layout')),
-              ButtonSegment(value: _Mode.fields, label: Text('Fields')),
               ButtonSegment(value: _Mode.layers, label: Text('Layers')),
             ],
             selected: {_mode},

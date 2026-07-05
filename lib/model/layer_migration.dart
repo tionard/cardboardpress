@@ -199,7 +199,8 @@ List<Layer> _buildLayers({
   }
 
   // set symbol — template-placed image, source=setSymbol (rarity-tinted per
-  // card). visible mirrors the placement's enabled flag.
+  // card, resolved from the card's set). Not exposed: the picture comes from the
+  // set, not per-card. Editable as a normal generic layer (placement/size).
   layers.add(Layer(
     id: kSetSymbolLayerId,
     name: 'Set symbol',
@@ -209,7 +210,6 @@ List<Layer> _buildLayers({
       source: ImageSource.setSymbol,
       alpha: setSymbol.alpha,
     ),
-    exposed: const {ExposedAspect.image: EditorTab.set},
   ));
 
   // foil — full-card overlay slot; the FoilType is PER-CARD (renderer reads

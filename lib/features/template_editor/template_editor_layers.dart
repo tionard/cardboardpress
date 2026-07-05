@@ -3,13 +3,12 @@ part of 'template_editor_screen.dart';
 // Reserved chrome layer ids: system layers the user can reorder and hide, but
 // not delete or rename. Their *appearance* is driven by the template's dedicated
 // fields (base colour, border, set-symbol placement, …) and edited in the Layout
-// tab — even after promotion, the renderer pulls those from the card, not from
-// the materialised chrome layer — so this pane only arranges them.
+// Reserved layer ids that still can't be edited as generic layers. Base,
+// background and set-symbol are now ordinary generic layers (editable here).
+// Tint and foil still hold per-card values in dedicated CardData fields, and the
+// border draws outside the clip — so those three stay system-only for now.
 const Set<String> _kChromeLayerIds = {
-  kBaseLayerId,
-  kBgLayerId,
   kTintLayerId,
-  kSetSymbolLayerId,
   kFoilLayerId,
   kBorderLayerId,
 };
