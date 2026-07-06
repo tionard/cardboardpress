@@ -17,8 +17,7 @@ class _HueWheel extends StatelessWidget {
     required this.hue,
     required this.saturation,
     required this.onChanged,
-    this.diameter = 200,
-  });
+  }) : diameter = 200;
 
   // Map a local touch point to (hue, saturation) about the wheel centre.
   void _report(Offset local) {

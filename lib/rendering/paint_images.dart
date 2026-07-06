@@ -162,20 +162,6 @@ void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
   if (needLayer) canvas.restore();
 }
 
-/// Resolve and paint a field's optional 9-slice frame, when it has one decoded.
-/// [field.fillAlpha] doubles as the frame's overall opacity (one "background
-/// opacity" control shared with the flat-fill mode).
-void _paintFieldFrame(ui.Canvas canvas, ui.Rect rect, FieldSpec field,
-    CardRefs refs, ui.Size size) {
-  final frame = field.frame;
-  if (frame == null || !frame.hasImage) return;
-  final img = refs.resolveImage(frame.imageId);
-  if (img == null) return;
-  final tint = frame.tint == null ? null : refs.resolveColor(frame.tint!);
-  _paintNineSlice(canvas, rect, img, frame, size,
-      tint: tint, alpha: field.fillAlpha);
-}
-
 // ---------------------------------------------------------------------------
 // Foil
 // ---------------------------------------------------------------------------

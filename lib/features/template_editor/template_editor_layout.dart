@@ -26,10 +26,6 @@ extension _TemplateLayoutPane on _TemplateBodyState {
           onPicked: (ref) => _update(_d.copyWith(baseColor: ref)),
         ),
         const SizedBox(height: 20),
-        _bgImageSection(),
-        const SizedBox(height: 20),
-        _setSymbolSection(),
-        const SizedBox(height: 20),
         Row(children: [
           Text('Border', style: Theme.of(context).textTheme.titleSmall),
           const Spacer(),

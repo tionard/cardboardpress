@@ -77,7 +77,7 @@ const _full = ui.Rect.fromLTRB(0, 0, 1, 1);
 const _mid = ui.Rect.fromLTRB(0.3, 0.3, 0.7, 0.7);
 
 // A plain full-card fill layer used as the backdrop. It has neither an image nor
-// a foil aspect, so it renders through the unchanged _paintField path.
+// a foil aspect (renders through the generic layer path).
 Layer _baseFill(ColorRef c) =>
     Layer(id: 'base', name: 'Base', frac: _full, fill: FillAspect(color: c));
 

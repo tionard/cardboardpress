@@ -89,8 +89,9 @@ void main() {
       expect(base.fill, isNotNull, reason: 'base keeps its fill aspect');
 
       final tint = got.firstWhere((l) => l.id == kTintLayerId);
-      expect(tint.exposed[ExposedAspect.fill], equals(EditorTab.color),
-          reason: 'tint keeps its per-card fill exposure');
+      expect(tint.fill, isNotNull, reason: 'tint keeps its fill aspect');
+      expect(tint.exposed[ExposedAspect.fill], isNull,
+          reason: 'tint is no longer exposed — per-card tint is the Color tab');
 
       final rules = got.firstWhere((l) => l.kind == LayerKind.rules);
       expect(rules.text?.inline, isTrue, reason: 'rules text stays inline');

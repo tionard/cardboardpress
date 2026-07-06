@@ -183,19 +183,25 @@ List<Layer> _buildLayers({
   }
 
   // tint — full-card fill slot; value + alpha are PER-CARD (baked in
-  // effectiveCardLayers). cornerRadius matches the card for exact AA.
+  // effectiveCardLayers from card.tint). cornerRadius matches the card for exact
+  // AA. Not exposed: the per-card tint stays the Color-tab control, so the
+  // editable layer here governs placement/presence without a duplicate control.
   layers.add(Layer(
     id: kTintLayerId,
     name: 'Tint',
     frac: _fullRect,
     cornerRadius: cornerRadiusFrac,
     fill: FillAspect(color: baseColor),
-    exposed: const {ExposedAspect.fill: EditorTab.color},
   ));
 
-  // fields — each becomes one layer, KEEPING the field id (zero per-card re-key).
+  // fields — each becomes generic layer(s), KEEPING the field id (zero per-card
+  // re-key). Footer decomposes into one bound-text layer per live zone.
   for (final f in fields) {
-    layers.add(_fieldToLayer(f));
+    if (f.type == FieldType.footer) {
+      layers.addAll(_footerToLayers(f));
+    } else {
+      layers.add(_fieldToLayer(f));
+    }
   }
 
   // set symbol — template-placed image, source=setSymbol (rarity-tinted per
@@ -233,45 +239,101 @@ List<Layer> _buildLayers({
 }
 
 Layer _fieldToLayer(FieldSpec f) {
-  final kind = switch (f.type) {
-    FieldType.art => LayerKind.art,
-    FieldType.rules => LayerKind.rules,
-    FieldType.footer => LayerKind.footer,
-    _ => LayerKind.generic,
-  };
+  // Art becomes a generic layer with a per-card image (source=cardArt). It's NOT
+  // exposed — the card editor's dedicated Art panel (keyed by the art field id =
+  // this layer id) drives the per-card image + transform, so exposing it too
+  // would double the control. Other text fields expose text to the Card tab.
+  final isArt = f.type == FieldType.art;
 
-  // Per-card exposure (drives the Card Editor; does NOT affect rendering). Art
-  // exposes its image to the art tab; other text-bearing fields expose text to
-  // the card tab. Footer text is derived, not exposed.
   final exposed = <ExposedAspect, EditorTab>{};
-  if (f.type == FieldType.art) {
-    exposed[ExposedAspect.image] = EditorTab.art;
-  } else if (f.text != null && f.type != FieldType.footer) {
+  if (!isArt && f.text != null) {
     exposed[ExposedAspect.text] = EditorTab.card;
   }
 
   return Layer(
-    id: f.id, // KEEP the field id
+    id: f.id, // KEEP the field id (per-card content stays keyed by it)
     name: _fieldName(f.type),
-    kind: kind,
     frac: f.frac,
     cornerRadius: f.cornerRadius,
     fill: f.fill == null ? null : FillAspect(color: f.fill!, alpha: f.fillAlpha),
+    image: isArt
+        ? const ImageAspect(source: ImageSource.cardArt)
+        : null,
     outline: f.outline,
-    // 9-slice frame; when present the renderer suppresses fill + outline exactly
-    // as `spriteMode` does today (fill kept dormant, not dropped).
     border: f.frame,
     text: f.text == null
         ? null
         : TextAspect(
             style: f.text!,
+            placeholder: _samplePlaceholder(f.type),
             inline: f.type == FieldType.cost || f.type == FieldType.rules,
+            multiline: f.type == FieldType.rules || f.type == FieldType.flavor,
           ),
     watermark: f.watermark,
-    footer: f.footer,
     exposed: exposed,
   );
 }
+
+// Footer -> one bound-text layer per live zone. Each zone shares the footer's
+// rect and text style; only alignment changes (matching the old zone painter).
+List<Layer> _footerToLayers(FieldSpec f) {
+  final spec = f.footer ?? const FooterSpec.defaults();
+  final ts = f.text;
+  if (ts == null) return const [];
+  final out = <Layer>[];
+  for (final zone in spec.zones) {
+    final parts = <TextSource>[
+      for (final item in spec.items)
+        if (item.zone == zone) _componentToSource(item.component),
+    ];
+    if (parts.isEmpty) continue;
+    final (align, vAlign) = _footerZoneAnchor(zone, ts.align);
+    out.add(Layer(
+      id: '${f.id}__${zone.name}',
+      name: 'Footer ${zone.name}',
+      frac: f.frac,
+      text: TextAspect(
+        style: ts.copyWith(align: align, vAlign: vAlign),
+        parts: parts,
+        separator: '·',
+      ),
+    ));
+  }
+  return out;
+}
+
+TextSource _componentToSource(FooterComponent c) => switch (c) {
+      FooterComponent.number => TextSource.collectorNumber,
+      FooterComponent.set => TextSource.setAbbrev,
+      FooterComponent.rarity => TextSource.rarityAbbrev,
+      FooterComponent.artist => TextSource.artist,
+      FooterComponent.copyright => TextSource.copyright,
+    };
+
+// Zone -> (horizontal, vertical) anchor, mirroring the old footer-zone painter.
+(TextAlign, VAlign) _footerZoneAnchor(FooterZone zone, TextAlign dflt) =>
+    switch (zone) {
+      FooterZone.line => (dflt, VAlign.middle),
+      FooterZone.left => (TextAlign.left, VAlign.middle),
+      FooterZone.right => (TextAlign.right, VAlign.middle),
+      FooterZone.topLeft => (TextAlign.left, VAlign.top),
+      FooterZone.topRight => (TextAlign.right, VAlign.top),
+      FooterZone.bottomLeft => (TextAlign.left, VAlign.bottom),
+      FooterZone.bottomRight => (TextAlign.right, VAlign.bottom),
+    };
+
+// Representative dummy text so a migrated text layer has something to show in the
+// template preview (placeholders are preview-only; never on a real card).
+String _samplePlaceholder(FieldType t) => switch (t) {
+      FieldType.name => 'Card Name',
+      FieldType.alias => 'Alias',
+      FieldType.cost => '{G}{G}',
+      FieldType.type => 'Type — Subtype',
+      FieldType.rules => 'Rules text goes here.',
+      FieldType.flavor => 'Flavor text.',
+      FieldType.stat => '0/0',
+      _ => '',
+    };
 
 String _fieldName(FieldType t) => switch (t) {
       FieldType.name => 'Name',

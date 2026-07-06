@@ -614,8 +614,6 @@ class _LayerExposureGroup {
 // Color tab) or drawn specially (border). Base/background/set-symbol are now
 // ordinary generic layers.
 const Set<String> _kReservedLayerIds = {
-  kTintLayerId,
-  kFoilLayerId,
   kBorderLayerId,
 };
 

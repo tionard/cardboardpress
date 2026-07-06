@@ -36,18 +36,7 @@ void paintCardFromLayers(
       case kBorderLayerId:
         break; // the outer border is drawn outside the clip, below
       default:
-        // Chrome that's been collapsed to generic layers (base fill, background
-        // image) and authored generic layers render through the generic path.
-        // A fill/text-only layer still uses the FieldSpec dispatcher (identical
-        // to the legacy field draw); a layer carrying an image or an active foil
-        // takes the generic sub-order drawer.
-        if (layer.kind == LayerKind.generic &&
-            (layer.image != null ||
-                (layer.foil != null && layer.foil != FoilType.none))) {
-          _paintGenericLayer(canvas, size, layer, card, refs);
-        } else {
-          _paintField(canvas, size, _layerToFieldSpec(layer), card, refs);
-        }
+        _paintGenericLayer(canvas, size, layer, card, refs);
     }
   }
 
@@ -67,36 +56,6 @@ void paintCardFromLayers(
           : const ui.Color(0xFFFFFFFF);
     canvas.drawRRect(cardRRect.deflate(stroke / 2), paint);
   }
-}
-
-// Rebuild the original FieldSpec from a field layer. The reconstructed `type`
-// only needs to drive the same `_paintField` branch the original took:
-//   art → art; rules → rules (inline, multi-line); footer → footer zones;
-//   generic + inline text → cost (inline, single-line); generic plain → name
-//   (any non-special plain-text type renders identically).
-// Every other FieldSpec field is carried through unchanged, so `_paintField`
-// produces identical pixels.
-FieldSpec _layerToFieldSpec(Layer layer) {
-  final type = switch (layer.kind) {
-    LayerKind.art => FieldType.art,
-    LayerKind.rules => FieldType.rules,
-    LayerKind.footer => FieldType.footer,
-    LayerKind.generic =>
-      (layer.text?.inline ?? false) ? FieldType.cost : FieldType.name,
-  };
-  return FieldSpec(
-    id: layer.id,
-    type: type,
-    frac: layer.frac,
-    cornerRadius: layer.cornerRadius,
-    fill: layer.fill?.color,
-    fillAlpha: layer.fill?.alpha ?? 1.0,
-    outline: layer.outline,
-    text: layer.text?.style,
-    watermark: layer.watermark,
-    footer: layer.footer,
-    frame: layer.border,
-  );
 }
 
 // A generic layer's own draw path: it honours the fixed aspect sub-order
@@ -130,10 +89,10 @@ void _paintGenericLayer(
     _fillRRect(canvas, rrect, fill, fillAlpha);
   }
 
-  // 2. image (fixed as-is / fixed silhouette-tint / set symbol)
+  // 2. image (fixed / silhouette / set symbol / per-card art)
   final image = layer.image;
   if (image != null) {
-    _paintLayerImage(canvas, rect, rrect, image, card, refs);
+    _paintLayerImage(canvas, rect, rrect, size, layer.id, image, card, refs);
   }
 
   // 3. border (9-slice frame), drawn like _paintFieldFrame
@@ -165,6 +124,20 @@ void _paintGenericLayer(
   // 5. foil
   _paintFoil(canvas, rect, rrect, layer.foil ?? FoilType.none);
 
+  // 5.5 watermark — a symbol silhouette filled with a palette colour, centred in
+  //     the layer, clipped to its rounded rect, drawn BEHIND the text.
+  final wm = layer.watermark;
+  if (wm != null) {
+    final wmImg = refs.resolveImage(card.watermarkImageIds[layer.id]);
+    if (wmImg != null) {
+      canvas.save();
+      canvas.clipRRect(rrect);
+      _paintTintedSymbol(
+          canvas, wmImg, rect, refs.resolveColor(wm.color), wm.alpha);
+      canvas.restore();
+    }
+  }
+
   // 6. text — per-card content keyed by layer id, else the layer's fixed text;
   //    in template preview an empty result falls back to the placeholder. The
   //    multiline flag drives inline wrapping (plain text wraps to the box).
@@ -192,7 +165,8 @@ void _paintGenericLayer(
 // filled with its tint when one is set, otherwise drawn as-is (cover-fit +
 // zoom/pan, clipped to the rounded rect, honouring the use-site alpha).
 void _paintLayerImage(ui.Canvas canvas, ui.Rect rect, ui.RRect rrect,
-    ImageAspect image, CardData card, CardRefs refs) {
+    ui.Size size, String layerId, ImageAspect image, CardData card,
+    CardRefs refs) {
   if (image.source == ImageSource.setSymbol) {
     final img = refs.resolveImage(card.setSymbolImageId);
     if (img == null) return;
@@ -202,6 +176,19 @@ void _paintLayerImage(ui.Canvas canvas, ui.Rect rect, ui.RRect rrect,
           canvas, img, rect, refs.resolveColor(tint), image.alpha);
     } else {
       _paintSetSymbol(canvas, img, rect, image.alpha);
+    }
+    return;
+  }
+
+  if (image.source == ImageSource.cardArt) {
+    // Per-card art, keyed by the layer id (= the old art field id), cover-fit
+    // with its per-card transform. No image => the hatched ART placeholder.
+    final img = refs.resolveImage(card.artImageIds[layerId]);
+    if (img != null) {
+      _paintArtImage(
+          canvas, rrect, img, card.artTransforms[layerId] ?? const ArtTransform());
+    } else {
+      _paintArtPlaceholder(canvas, rrect, size);
     }
     return;
   }

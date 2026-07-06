@@ -8,8 +8,6 @@ part of 'template_editor_screen.dart';
 // Tint and foil still hold per-card values in dedicated CardData fields, and the
 // border draws outside the clip — so those three stay system-only for now.
 const Set<String> _kChromeLayerIds = {
-  kTintLayerId,
-  kFoilLayerId,
   kBorderLayerId,
 };
 
@@ -404,6 +402,33 @@ extension _TemplateLayersPane on _TemplateBodyState {
           _labeledSlider('Opacity', image.alpha, 0, 1,
               (v) => _updateLayer(id,
                   (l) => l.copyWith(image: l.image?.copyWith(alpha: v)))),
+          if (image.source == ImageSource.fixed) ...[
+            Row(children: [
+              Expanded(
+                child: Text('Position',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ),
+              if (!image.transform.isIdentity)
+                TextButton(
+                  onPressed: () => _updateLayer(id,
+                      (l) => l.copyWith(
+                          image: l.image?.copyWith(transform: const ArtTransform()))),
+                  child: const Text('Reset'),
+                ),
+            ]),
+            _labeledSlider('Zoom', image.transform.zoom, 1.0, 3.0,
+                (v) => _updateLayer(id,
+                    (l) => l.copyWith(
+                        image: l.image?.copyWith(transform: image.transform.copyWith(zoom: v))))),
+            _labeledSlider('Horizontal', image.transform.panX, -1.0, 1.0,
+                (v) => _updateLayer(id,
+                    (l) => l.copyWith(
+                        image: l.image?.copyWith(transform: image.transform.copyWith(panX: v))))),
+            _labeledSlider('Vertical', image.transform.panY, -1.0, 1.0,
+                (v) => _updateLayer(id,
+                    (l) => l.copyWith(
+                        image: l.image?.copyWith(transform: image.transform.copyWith(panY: v))))),
+          ],
           _exposeControl(id, ExposedAspect.image, layer.exposed),
           _removeAspectRow(
               () => _updateLayer(id, (l) => l.copyWith(image: null))),

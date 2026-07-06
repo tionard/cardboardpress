@@ -33,7 +33,7 @@ enum ExposedAspect { text, fill, image, outlineColor, foil, visible }
 /// Where an image aspect gets its picture. `fixed` = a template-level ImageStore
 /// id ([ImageAspect.imageId]); `setSymbol` = resolved from the card's set at
 /// compose time (auto-tinted by the card's rarity colour).
-enum ImageSource { fixed, setSymbol }
+enum ImageSource { fixed, setSymbol, cardArt }
 
 const Object _unset = Object();
 

@@ -9,6 +9,7 @@ import 'dart:ui';
 
 import 'card_model.dart';
 import 'layers.dart';
+import 'layer_migration.dart';
 
 // Stable field ids for the default layout.
 const fNameId = 'f_name';
@@ -239,27 +240,6 @@ Map<FooterComponent, String> deriveFooterValues({  required String artist,
   };
 }
 
-String deriveFooterText({
-  required String artist,
-  SetEntry? set,
-  RarityEntry? rarity,
-  int? number,
-  int? total,
-  String? placeholder,
-}) {
-  final v = deriveFooterValues(
-      artist: artist, set: set, rarity: rarity, number: number, total: total);
-  final parts = [
-    for (final c in FooterComponent.values)
-      if (v[c]!.isNotEmpty) v[c]!,
-  ];
-  // Nothing resolved yet. The Template Editor passes a placeholder so the
-  // footer can be seen and positioned; real cards leave it blank until a
-  // set/rarity/number exists.
-  if (parts.isEmpty) return placeholder ?? '';
-  return parts.join('  ·  ');
-}
-
 /// Compose a template + content (+ foil, + derived footer inputs) into the
 /// render model. Footer fields are filled with derived text, not authored text.
 CardData composeCard(
@@ -274,14 +254,6 @@ CardData composeCard(
   Map<String, SymbolEntry> symbolsById = const {},
   String? footerPlaceholder,
 }) {
-  final footer = deriveFooterText(
-    artist: content.artist,
-    set: set,
-    rarity: rarity,
-    number: number,
-    total: total,
-    placeholder: footerPlaceholder,
-  );
   var footerValues = deriveFooterValues(
     artist: content.artist,
     set: set,
@@ -303,32 +275,27 @@ CardData composeCard(
     };
   }
   final text = Map<String, String>.from(content.text);
-  for (final f in t.fields) {
-    if (f.type == FieldType.footer) text[f.id] = footer;
-  }
-  // Authored layers can compose text from ordered bound sources (footer
-  // decomposition). Resolve + join here so the renderer just reads textContent.
-  final layers = t.layers;
-  if (layers != null) {
-    for (final l in layers) {
-      final ta = l.text;
-      if (ta == null || ta.parts.isEmpty) continue;
-      final joiner = ta.separator.isEmpty ? ' ' : ' ${ta.separator} ';
-      final resolved = [
-        for (final p in ta.parts)
-          _resolveTextSource(
-            p,
-            cardName: content.text[fNameId] ?? '',
-            artist: content.artist,
-            set: set,
-            rarity: rarity,
-            number: number,
-            total: total,
-            preview: footerPlaceholder != null,
-          ),
-      ].where((s) => s.isNotEmpty);
-      text[l.id] = resolved.join(joiner);
-    }
+  // Resolve bound text (decomposed footer parts, or any bound layer) over the
+  // DERIVED layers, so it works whether or not the template is promoted. Keyed
+  // by layer id — exactly what the renderer reads.
+  for (final l in effectiveTemplateLayers(t)) {
+    final ta = l.text;
+    if (ta == null || ta.parts.isEmpty) continue;
+    final joiner = ta.separator.isEmpty ? ' ' : ' ${ta.separator} ';
+    final resolved = [
+      for (final p in ta.parts)
+        _resolveTextSource(
+          p,
+          cardName: content.text[fNameId] ?? '',
+          artist: content.artist,
+          set: set,
+          rarity: rarity,
+          number: number,
+          total: total,
+          preview: footerPlaceholder != null,
+        ),
+    ].where((s) => s.isNotEmpty);
+    text[l.id] = resolved.join(joiner);
   }
 
   // Resolve the set's chosen set symbol to its image id (null if the set has
