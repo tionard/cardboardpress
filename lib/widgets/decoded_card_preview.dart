@@ -30,12 +30,17 @@ class DecodedCardPreview extends StatefulWidget {
   final ImageStore imageStore;
   final double width;
 
+  /// Template-preview only: text aspects with no resolved content fall back to
+  /// their placeholder. Leave false for real cards (Collection thumbnails).
+  final bool showPlaceholders;
+
   const DecodedCardPreview({
     super.key,
     required this.card,
     required this.palette,
     required this.imageStore,
     this.width = 92,
+    this.showPlaceholders = false,
   });
 
   @override
@@ -94,7 +99,10 @@ class _DecodedCardPreviewState extends State<DecodedCardPreview> {
   Widget build(BuildContext context) {
     return CardPreview(
       card: widget.card,
-      refs: CardRefs(palette: widget.palette, images: _images),
+      refs: CardRefs(
+          palette: widget.palette,
+          images: _images,
+          showPlaceholders: widget.showPlaceholders),
       width: widget.width,
     );
   }

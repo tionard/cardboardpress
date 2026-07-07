@@ -19,28 +19,42 @@ extension _CardEditorPanels on _CardEditorBodyState {
   }
 
   Widget _cardSettings() {
+    // Every control here is built from the template's LAYERS and their exposure
+    // routing — the same list the renderer walks. A layer whose only Card-tab
+    // exposure is free text renders as a plain text field (the familiar form);
+    // anything richer gets a titled block of per-aspect controls.
     final tabGroups = _exposedByLayer(EditorTab.card);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        for (final f in _editableFields) ...[
-          TextField(
-            controller: _controllerFor(f),
-            maxLines: f.type == FieldType.rules ? 4 : 1,
-            decoration: InputDecoration(
-              labelText: _fieldLabel(f.type),
-              isDense: true,
-              border: const OutlineInputBorder(),
+        if (tabGroups.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              'This template exposes nothing to the Card tab. Expose a '
+              'layer\u2019s text (or another aspect) to \u201cCard \u00b7 '
+              'Card tab\u201d in the Template Editor to edit it per card.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
-          const SizedBox(height: 14),
-        ],
         for (final g in tabGroups)
-          ..._exposedLayerBlock(g, EditorTab.card),
+          if (g.aspects.length == 1 && g.aspects.single == ExposedAspect.text) ...[
+            TextField(
+              controller: _controllerFor(g.layer.id),
+              maxLines: g.layer.text?.multiline == true ? 4 : 1,
+              decoration: InputDecoration(
+                labelText: g.layer.name,
+                isDense: true,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ] else
+            ..._exposedLayerBlock(g, EditorTab.card),
         Text(
-          'Each field autosaves as you type and the preview updates live. The '
-          'Footer is omitted — it shows values derived from the set and rarity. '
-          'Switch templates from the picker at the top.',
+          'Edits update the preview live and persist when you Save. Bound text '
+          '(footer lines) derives from the set and rarity, so it has no field '
+          'here. Switch templates from the picker at the top.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -48,65 +62,27 @@ extension _CardEditorPanels on _CardEditorBodyState {
   }
 
   Widget _artSettings() {
+    // One art block per layer whose image source is CARD ART (there can be
+    // several now), each keyed by its layer id — plus the per-card artist
+    // credit and any aspects other layers expose to this tab.
     final tabGroups = _exposedByLayer(EditorTab.art);
-    final artId = _artFieldId;
-    if (artId == null) {
-      if (tabGroups.isEmpty) {
-        return const Center(child: Text('This template has no Art field.'));
-      }
-      // No bespoke Art field but layers expose image aspects to this tab.
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          for (final g in tabGroups)
-            ..._exposedLayerBlock(g, EditorTab.art),
-        ],
-      );
-    }
-    final imageId = _working.content.art[artId];
-    final img = imageId == null ? null : _images[imageId];
+    final artLayers = _artLayers;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        SizedBox(
-          height: 170,
-          width: double.infinity,
-          child: img != null
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: RawImage(image: img, fit: BoxFit.cover),
-                )
-              : DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant),
-                  ),
-                  child: const Center(child: Text('No art yet')),
-                ),
-        ),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 8,
-          children: [
-            FilledButton.icon(
-              onPressed: () => _pickArt(artId),
-              icon: const Icon(Icons.upload_outlined),
-              label: Text(imageId == null ? 'Pick image' : 'Replace image'),
+        if (artLayers.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              'This template has no per-card art layer. Add one in the '
+              'Template Editor: a layer with an Image aspect whose source is '
+              '\u201cCard art\u201d.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-            if (imageId != null)
-              OutlinedButton.icon(
-                onPressed: () => _removeArt(artId),
-                icon: const Icon(Icons.delete_outline),
-                label: const Text('Remove'),
-              ),
-          ],
-        ),
-        if (img != null) ...[
-          const SizedBox(height: 8),
-          _artTransformControls(artId),
-        ],
+          ),
+        for (final l in artLayers)
+          ..._artBlock(l, showTitle: artLayers.length > 1),
         const SizedBox(height: 16),
         TextField(
           controller: _artist,
@@ -120,13 +96,65 @@ extension _CardEditorPanels on _CardEditorBodyState {
         Text(
           'The image is copied into the app and rendered through the same '
           'paintCard, so the preview and export match exactly. The artist '
-          'credit is per-card content shown by the Footer.',
+          'credit is per-card content shown by bound footer text.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         for (final g in tabGroups)
           ..._exposedLayerBlock(g, EditorTab.art),
       ],
     );
+  }
+
+  /// One per-card art layer's controls: preview, pick/replace/remove, zoom/pan.
+  List<Widget> _artBlock(Layer layer, {required bool showTitle}) {
+    final artId = layer.id;
+    final imageId = _working.content.art[artId];
+    final img = imageId == null ? null : _images[imageId];
+    return [
+      if (showTitle) ...[
+        Text(layer.name, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+      ],
+      SizedBox(
+        height: 170,
+        width: double.infinity,
+        child: img != null
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: RawImage(image: img, fit: BoxFit.cover),
+              )
+            : DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant),
+                ),
+                child: const Center(child: Text('No art yet')),
+              ),
+      ),
+      const SizedBox(height: 14),
+      Wrap(
+        spacing: 8,
+        children: [
+          FilledButton.icon(
+            onPressed: () => _pickArt(artId),
+            icon: const Icon(Icons.upload_outlined),
+            label: Text(imageId == null ? 'Pick image' : 'Replace image'),
+          ),
+          if (imageId != null)
+            OutlinedButton.icon(
+              onPressed: () => _removeArt(artId),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Remove'),
+            ),
+        ],
+      ),
+      if (img != null) ...[
+        const SizedBox(height: 8),
+        _artTransformControls(artId),
+      ],
+      const SizedBox(height: 8),
+    ];
   }
 
   Widget _artTransformControls(String artId) {
@@ -407,34 +435,35 @@ extension _CardEditorPanels on _CardEditorBodyState {
     return '$w×$h px';
   }
 
-  // ---- Phase 5: exposed-aspect wiring ----
+  // ---- exposed-aspect wiring ----
   //
-  // For each AUTHORED generic layer with any aspect exposed to [tab], the panel
-  // gets a compact block: one control per exposed aspect. System chrome layers
-  // (base/tint/bg/set-symbol/foil/border) and the bespoke kinds (art/rules/
-  // footer) are already fully driven by the dedicated panels above (text fields,
-  // the art panel, the tint well, the set/rarity chips), so they're skipped here
-  // to avoid rendering their controls twice. (This is the step-1 boundary until
-  // the field path is retired and these become the ONLY controls.)
+  // The exposure maps are THE source of per-card controls: every layer with an
+  // aspect routed to [tab] gets one, whether it came from a template field or
+  // was authored fresh in the Layers tab. The only skips:
+  //   * value-locked chrome (tint / foil / border) — their per-card values live
+  //     in the dedicated Color-tab controls (card.tint / card.foil) and
+  //     _resolveCardLayer ignores generic overrides for them, so a control here
+  //     would be a silent no-op;
+  //   * aspects with nothing to control (bound text, a card-art image already
+  //     owned by the Art panel, or an exposure orphaned by a removed aspect).
 
-  // While the field path is still alive, the dedicated panels render a control
-  // for every layer that came from a template FIELD (text fields on the Card
-  // tab, the art image, the footer) plus the chrome slots (tint / set symbol).
-  // So the generic exposed-block path must skip anything with a field id or a
-  // reserved id, or those controls appear twice. (Step-1 boundary: once fields
-  // are retired, this path becomes the ONLY source and the filter goes away.)
-  bool _ownedByLegacyPanel(Layer l) =>
-      _kReservedLayerIds.contains(l.id) ||
-      _effective.fields.any((f) => f.id == l.id);
+  bool _aspectHasCardControl(Layer l, ExposedAspect a) => switch (a) {
+        ExposedAspect.text => !(l.text?.isBound ?? true),
+        ExposedAspect.image =>
+          l.image != null && l.image!.source != ImageSource.cardArt,
+        ExposedAspect.fill => l.fill != null,
+        ExposedAspect.outlineColor => l.outline != null,
+        ExposedAspect.foil => true,
+        ExposedAspect.visible => true,
+      };
 
   List<_LayerExposureGroup> _exposedByLayer(EditorTab tab) {
-    final layers = effectiveTemplateLayers(_effective);
     final out = <_LayerExposureGroup>[];
-    for (final l in layers) {
-      if (_ownedByLegacyPanel(l)) continue;
+    for (final l in _cardLayers) {
+      if (_kValueLockedLayerIds.contains(l.id)) continue;
       final aspects = <ExposedAspect>[
         for (final e in l.exposed.entries)
-          if (e.value == tab) e.key,
+          if (e.value == tab && _aspectHasCardControl(l, e.key)) e.key,
       ];
       if (aspects.isEmpty) continue;
       out.add(_LayerExposureGroup(l, aspects));
@@ -470,12 +499,9 @@ extension _CardEditorPanels on _CardEditorBodyState {
   Widget _exposedAspectControl(Layer layer, ExposedAspect aspect) {
     switch (aspect) {
       case ExposedAspect.text:
-        // Bound text is composed from sources (derived), so it isn't typed here.
-        if (layer.text?.isBound ?? false) {
-          return const SizedBox.shrink();
-        }
+        // Bound text never reaches here (filtered); this is free per-card text.
         return TextField(
-          controller: _exposedTextController(layer.id, ''),
+          controller: _controllerFor(layer.id),
           maxLines: layer.text?.multiline == true ? 4 : 1,
           decoration: const InputDecoration(
             labelText: 'Text',
@@ -484,11 +510,8 @@ extension _CardEditorPanels on _CardEditorBodyState {
           ),
         );
       case ExposedAspect.image:
-        // Bespoke `art` kind is already fully handled by the Art panel above;
-        // don't offer a duplicate row for it.
-        if (layer.kind == LayerKind.art) {
-          return const SizedBox.shrink();
-        }
+        // Card-art images never reach here (Art panel owns them); this is a
+        // per-card override of the layer's fixed template picture.
         final imageId = _working.content.art[layer.id];
         return Row(children: [
           Expanded(
@@ -588,19 +611,6 @@ extension _CardEditorPanels on _CardEditorBodyState {
     ]);
   }
 
-  TextEditingController _exposedTextController(String layerId, String initial) {
-    final existing = _exposedTextControllers[layerId];
-    if (existing != null) return existing;
-    final c = TextEditingController(text: _working.content.text[layerId] ?? initial);
-    c.addListener(() {
-      final v = c.text;
-      if ((_working.content.text[layerId] ?? '') == v) return;
-      _markDirty(() => _working = _working.copyWith(
-          content: _working.content.withText(layerId, v)));
-    });
-    _exposedTextControllers[layerId] = c;
-    return c;
-  }
 }
 
 /// One layer's exposed aspects for a given tab. Rendered as a titled block.
@@ -610,15 +620,15 @@ class _LayerExposureGroup {
   _LayerExposureGroup(this.layer, this.aspects);
 }
 
-// System chrome layer ids still driven by dedicated panels (tint/foil in the
-// Color tab) or drawn specially (border). Base/background/set-symbol are now
-// ordinary generic layers.
-const Set<String> _kReservedLayerIds = {
+// Value-locked chrome: the per-card tint/foil values live in the dedicated
+// Color-tab controls (card.tint / card.foil) and the border is styled in the
+// template's Layout tab — _resolveCardLayer ignores generic overrides for these
+// ids, so exposed controls for them would be silent no-ops and are skipped.
+const Set<String> _kValueLockedLayerIds = {
+  kTintLayerId,
+  kFoilLayerId,
   kBorderLayerId,
 };
-
-String _fieldLabel(FieldType t) =>
-    t.name[0].toUpperCase() + t.name.substring(1);
 
 String _foilLabel(FoilType f) =>
     f.name[0].toUpperCase() + f.name.substring(1);

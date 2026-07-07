@@ -1,15 +1,25 @@
 part of 'template_editor_screen.dart';
 
-// Reserved chrome layer ids: system layers the user can reorder and hide, but
-// not delete or rename. Their *appearance* is driven by the template's dedicated
-// fields (base colour, border, set-symbol placement, …) and edited in the Layout
-// Reserved layer ids that still can't be edited as generic layers. Base,
-// background and set-symbol are now ordinary generic layers (editable here).
-// Tint and foil still hold per-card values in dedicated CardData fields, and the
-// border draws outside the clip — so those three stay system-only for now.
+// Reserved layer ids that can't be edited as generic layers at all: only the
+// border, which draws outside the rounded clip and is styled in the Layout tab.
+// Base, background and set-symbol are ordinary generic layers (editable here);
+// tint and foil are geometry-editable but value-locked (see _kValueChromeIds).
 const Set<String> _kChromeLayerIds = {
   kBorderLayerId,
 };
+
+// System layers whose VALUE lives on the card, not the template: tint (colour +
+// alpha from the Color tab) and foil (card.foil). Their geometry, order and
+// visibility are editable here, but aspect/exposure controls would be silent
+// no-ops — _resolveCardLayer bakes the per-card value over whatever the
+// template says — so the editor hides them and says where the value lives.
+const Set<String> _kValueChromeIds = {
+  kTintLayerId,
+  kFoilLayerId,
+};
+
+const ColorRef _kWatermarkDefault =
+    ColorRef.literal(ColorValue.single(Color(0xFF2C2B27)));
 
 // Defaults used when an aspect is first switched on, or a new layer is created.
 const ColorRef _kLayerFillDefault =
@@ -247,6 +257,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
   /// Chrome layers only get a note (their look is the Layout tab's job).
   Widget _selectedLayerEditor(Layer layer, ColorScheme scheme) {
     final isChrome = _isChromeLayer(layer.id);
+    final isValueChrome = _kValueChromeIds.contains(layer.id);
     final visible = layer.visible;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,13 +275,13 @@ extension _TemplateLayersPane on _TemplateBodyState {
               icon: Icon(visible ? Icons.visibility : Icons.visibility_off),
               onPressed: () => _toggleLayerVisible(layer),
             ),
-            if (!isChrome)
+            if (!isChrome && !isValueChrome)
               IconButton(
                 tooltip: 'Rename',
                 icon: const Icon(Icons.edit_outlined),
                 onPressed: () => _renameLayer(layer),
               ),
-            if (!isChrome)
+            if (!isChrome && !isValueChrome)
               IconButton(
                 tooltip: 'Remove layer',
                 icon: const Icon(Icons.delete_outline),
@@ -289,7 +300,25 @@ extension _TemplateLayersPane on _TemplateBodyState {
                 ?.copyWith(color: scheme.onSurfaceVariant),
           )
         else ...[
-          _exposeControl(layer.id, ExposedAspect.visible, layer.exposed),
+          if (isValueChrome)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                layer.id == kTintLayerId
+                    ? 'The tint colour and opacity are set PER CARD in the Card '
+                        'Editor\u2019s Color tab. This layer only controls where '
+                        'in the stack (and whether) the tint draws.'
+                    : 'The foil style is set PER CARD in the Card Editor\u2019s '
+                        'Color tab. This layer only controls where in the stack '
+                        '(and whether) the foil draws.',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+            )
+          else
+            _exposeControl(layer.id, ExposedAspect.visible, layer.exposed),
           const SizedBox(height: 8),
           _section('l_geo', 'Position & size', [
             _labeledSlider('Left', layer.frac.left, 0, 1,
@@ -308,7 +337,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
             _labeledSlider('Corner', layer.cornerRadius, 0, 0.1,
                 (v) => _setLayerCorner(layer, v)),
           ]),
-          ..._layerAspectSections(layer),
+          if (!isValueChrome) ..._layerAspectSections(layer),
         ],
       ],
     );
@@ -329,6 +358,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
     final outline = layer.outline;
     final foil = layer.foil;
     final text = layer.text;
+    final wm = layer.watermark;
     return [
       if (fill != null)
         _section('l_fill', 'Fill', [
@@ -362,6 +392,8 @@ extension _TemplateLayersPane on _TemplateBodyState {
                       value: ImageSource.fixed, label: Text('Picture')),
                   ButtonSegment(
                       value: ImageSource.setSymbol, label: Text('Set symbol')),
+                  ButtonSegment(
+                      value: ImageSource.cardArt, label: Text('Card art')),
                 ],
                 selected: {image.source},
                 onSelectionChanged: (s) => _updateLayer(id,
@@ -378,11 +410,20 @@ extension _TemplateLayersPane on _TemplateBodyState {
                 label: Text(image.imageId.isEmpty ? 'Choose…' : 'Change…'),
               ),
             ])
-          else
+          else if (image.source == ImageSource.setSymbol)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                   "Uses the card's set symbol, tinted by the rarity colour.",
+                  style: Theme.of(context).textTheme.bodySmall),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                  'Per-card artwork: each card picks and positions its own '
+                  'image in the Card Editor\u2019s Art tab. Empty shows the '
+                  'ART placeholder.',
                   style: Theme.of(context).textTheme.bodySmall),
             ),
           const SizedBox(height: 8),
@@ -429,7 +470,8 @@ extension _TemplateLayersPane on _TemplateBodyState {
                     (l) => l.copyWith(
                         image: l.image?.copyWith(transform: image.transform.copyWith(panY: v))))),
           ],
-          _exposeControl(id, ExposedAspect.image, layer.exposed),
+          if (image.source != ImageSource.cardArt)
+            _exposeControl(id, ExposedAspect.image, layer.exposed),
           _removeAspectRow(
               () => _updateLayer(id, (l) => l.copyWith(image: null))),
         ]),
@@ -519,6 +561,38 @@ extension _TemplateLayersPane on _TemplateBodyState {
           _removeAspectRow(
               () => _updateLayer(id, (l) => l.copyWith(foil: null))),
         ]),
+      if (wm != null)
+        _section('l_wm', 'Watermark', [
+          Text('A symbol drawn faintly behind this layer\u2019s text.',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 6),
+          Row(children: [
+            const SizedBox(width: 80, child: Text('Symbol')),
+            OutlinedButton.icon(
+              onPressed: () => _pickLayerWatermarkSymbol(layer),
+              icon: const Icon(Icons.image_outlined),
+              label: Text(wm.symbolId.isEmpty ? 'Choose…' : 'Change…'),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Text('Colour', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 6),
+          _colorWell(
+            current: wm.color,
+            use: SwatchUse.symbol,
+            onPicked: (r) => _updateLayer(id,
+                (l) => l.copyWith(watermark: l.watermark?.copyWith(color: r))),
+          ),
+          _labeledSlider(
+              'Opacity',
+              wm.alpha,
+              0,
+              1,
+              (v) => _updateLayer(id,
+                  (l) => l.copyWith(watermark: l.watermark?.copyWith(alpha: v)))),
+          _removeAspectRow(
+              () => _updateLayer(id, (l) => l.copyWith(watermark: null))),
+        ]),
       if (text != null)
         _section('l_text', 'Text', [
           ..._textAspectControls(layer, text),
@@ -549,6 +623,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
       if (layer.outline == null) 'outline': 'Outline',
       if (layer.foil == null) 'foil': 'Foil',
       if (layer.text == null) 'text': 'Text',
+      if (layer.watermark == null) 'watermark': 'Watermark',
     };
     if (absent.isEmpty) {
       return Text('All aspects added.',
@@ -582,6 +657,8 @@ extension _TemplateLayersPane on _TemplateBodyState {
                 l.copyWith(outline: const OutlineSpec(color: _kOutlineDefault)),
               'foil' => l.copyWith(foil: FoilType.holo),
               'text' => l.copyWith(text: _defaultTextAspect()),
+              'watermark' => l.copyWith(
+                  watermark: const WatermarkSpec(color: _kWatermarkDefault)),
               _ => l,
             });
   }
@@ -950,6 +1027,21 @@ extension _TemplateLayersPane on _TemplateBodyState {
         TextSource.copyright => 'Copyright',
       };
 
+  /// Open the symbol picker for the layer's watermark, then decode the chosen
+  /// symbol so the preview reflects it immediately.
+  Future<void> _pickLayerWatermarkSymbol(Layer layer) async {
+    final choice =
+        await pickSymbol(context, ref, currentId: layer.watermark?.symbolId);
+    if (choice == null) return; // cancelled
+    _updateLayer(
+        layer.id,
+        (l) => l.copyWith(
+            watermark:
+                (l.watermark ?? const WatermarkSpec(color: _kWatermarkDefault))
+                    .copyWith(symbolId: choice.id ?? '')));
+    _syncImages();
+  }
+
   /// Pick a fixed picture for the layer's image aspect (resets its zoom/pan).
   Future<void> _pickLayerImage(Layer layer) async {
     final imageId = await _pickAndStoreImage();
@@ -1013,9 +1105,8 @@ extension _TemplateLayersPane on _TemplateBodyState {
   /// visible immediately, and select it. Appended = top of the z-order = the
   /// last (bottom) row of the list.
   void _addGenericLayer() {
-    final count = effectiveTemplateLayers(_d)
-        .where((l) => !_isChromeLayer(l.id) && l.kind == LayerKind.generic)
-        .length;
+    final count =
+        effectiveTemplateLayers(_d).where((l) => l.id.startsWith('l_')).length;
     final id = 'l_${DateTime.now().microsecondsSinceEpoch}';
     // Starts with geometry only — appearance is added from "+ Add aspect".
     final layer = Layer(

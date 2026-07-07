@@ -93,14 +93,18 @@ void main() {
       expect(tint.exposed[ExposedAspect.fill], isNull,
           reason: 'tint is no longer exposed — per-card tint is the Color tab');
 
-      final rules = got.firstWhere((l) => l.kind == LayerKind.rules);
+      // Everything is a generic layer now — target by the stable field id and
+      // assert on the ASPECTS, not the retired LayerKind values.
+      final rules = got.firstWhere((l) => l.id == fRulesId);
       expect(rules.text?.inline, isTrue, reason: 'rules text stays inline');
       expect(rules.exposed[ExposedAspect.text], equals(EditorTab.card),
           reason: 'rules exposes text to the card tab');
 
-      final art = got.firstWhere((l) => l.kind == LayerKind.art);
-      expect(art.exposed[ExposedAspect.image], equals(EditorTab.art),
-          reason: 'art exposes its image to the art tab');
+      final art = got.firstWhere((l) => l.id == fArtId);
+      expect(art.image?.source, equals(ImageSource.cardArt),
+          reason: 'art resolves its picture per-card');
+      expect(art.exposed[ExposedAspect.image], isNull,
+          reason: 'art is not exposed — the dedicated Art panel owns it');
     });
   });
 

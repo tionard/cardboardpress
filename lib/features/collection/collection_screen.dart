@@ -31,6 +31,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/card_exporter.dart';
 import '../../data/image_store.dart';
 import '../../model/card_model.dart';
+import '../../model/layer_migration.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../state/settings.dart';
@@ -319,13 +320,13 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
 
   // ---- compose / decode (for thumbnails and export) ----
 
-  /// The card's display name (its Name field's content).
+  /// The card's display name (its name LAYER's content — the Name field's
+  /// layer, or the first free text layer exposed to the Card tab), so cards on
+  /// pure-layer templates still get a name in the Collection.
   String _cardName(CardEntry card, _CardCtx ctx) {
     final t = card.effectiveTemplate(ctx.templates);
-    for (final f in t.fields) {
-      if (f.type == FieldType.name) return card.content.text[f.id] ?? '';
-    }
-    return '';
+    final id = nameTextLayerId(t);
+    return id == null ? '' : (card.content.text[id] ?? '');
   }
 
   /// Compose [card] (member [index] of [folder]) into a renderable CardData,

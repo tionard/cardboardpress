@@ -23,7 +23,7 @@ extension _TemplateLayoutPane on _TemplateBodyState {
         _colorWell(
           current: _d.baseColor,
           use: SwatchUse.card,
-          onPicked: (ref) => _update(_d.copyWith(baseColor: ref)),
+          onPicked: _setBaseColor,
         ),
         const SizedBox(height: 20),
         Row(children: [
@@ -31,10 +31,8 @@ extension _TemplateLayoutPane on _TemplateBodyState {
           const Spacer(),
           Switch(
             value: border != null,
-            onChanged: (on) => _update(_d.copyWith(
-                border: on
-                    ? const BorderSpec(black: true, thickness: 0.022)
-                    : null)),
+            onChanged: (on) => _setBorder(
+                on ? const BorderSpec(black: true, thickness: 0.022) : null),
           ),
         ]),
         if (border != null) ...[
@@ -66,7 +64,7 @@ extension _TemplateLayoutPane on _TemplateBodyState {
           max: 0.12,
           step: 0.005,
           decimals: 3,
-          onChanged: (v) => _update(_d.copyWith(cornerRadiusFrac: v)),
+          onChanged: _setCornerRadius,
         ),
         const SizedBox(height: 8),
         Text('Card size', style: Theme.of(context).textTheme.titleSmall),
@@ -80,6 +78,74 @@ extension _TemplateLayoutPane on _TemplateBodyState {
         ]),
       ],
     );
+  }
+
+  // ---- Layout <-> promoted-layers sync ----
+  //
+  // Once a template is promoted (_d.layers != null) the persisted list is the
+  // render truth, so the Layout knobs that used to feed the derived chrome must
+  // also update their baked layer counterparts — otherwise base colour becomes
+  // a dead control and a changed corner radius leaves stale layer radii
+  // (visible slivers at the corners when the radius shrinks).
+
+  /// Base colour: template field + (when promoted) the `_base` layer's fill.
+  void _setBaseColor(ColorRef ref) {
+    var d = _d.copyWith(baseColor: ref);
+    final ls = d.layers;
+    if (ls != null) {
+      d = d.copyWith(layers: [
+        for (final l in ls)
+          l.id == kBaseLayerId && l.fill != null
+              ? l.copyWith(fill: l.fill!.copyWith(color: ref))
+              : l,
+      ]);
+    }
+    _update(d);
+  }
+
+  /// Corner radius: template field + (when promoted) the baked radius on the
+  /// full-card chrome layers, which mirror the card's radius for AA parity.
+  void _setCornerRadius(double v) {
+    var d = _d.copyWith(cornerRadiusFrac: v);
+    final ls = d.layers;
+    if (ls != null) {
+      const fullCardChrome = {
+        kBaseLayerId,
+        kBgLayerId,
+        kTintLayerId,
+        kFoilLayerId,
+      };
+      d = d.copyWith(layers: [
+        for (final l in ls)
+          fullCardChrome.contains(l.id) ? l.copyWith(cornerRadius: v) : l,
+      ]);
+    }
+    _update(d);
+  }
+
+  /// Border on/off: template field + (when promoted) add/remove the `_border`
+  /// slot so the Layers list stays in step with what actually draws.
+  void _setBorder(BorderSpec? border) {
+    var d = _d.copyWith(border: border);
+    final ls = d.layers;
+    if (ls != null) {
+      final has = ls.any((l) => l.id == kBorderLayerId);
+      if (border != null && !has) {
+        d = d.copyWith(layers: [
+          ...ls,
+          const Layer(
+              id: kBorderLayerId,
+              name: 'Border',
+              frac: Rect.fromLTRB(0, 0, 1, 1)),
+        ]);
+      } else if (border == null && has) {
+        d = d.copyWith(layers: [
+          for (final l in ls)
+            if (l.id != kBorderLayerId) l,
+        ]);
+      }
+    }
+    _update(d);
   }
 
   Widget _bgImageSection() {

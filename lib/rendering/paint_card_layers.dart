@@ -30,23 +30,27 @@ void paintCardFromLayers(
   canvas.save();
   canvas.clipRRect(cardRRect);
 
+  // The `_border` layer can't be reordered below content (it draws outside the
+  // clip, after everything), but its visibility IS honoured: hiding it in the
+  // Layers tab (or per-card) suppresses the draw. Absent layer = visible, so
+  // lists without a border slot keep the old behaviour.
+  var borderLayerVisible = true;
+
   for (final layer in layers) {
-    if (!layer.visible) continue;
-    switch (layer.id) {
-      case kBorderLayerId:
-        break; // the outer border is drawn outside the clip, below
-      default:
-        _paintGenericLayer(canvas, size, layer, card, refs);
+    if (layer.id == kBorderLayerId) {
+      borderLayerVisible = layer.visible;
+      continue; // the outer border is drawn outside the clip, below
     }
+    if (!layer.visible) continue;
+    _paintGenericLayer(canvas, size, layer, card, refs);
   }
 
   canvas.restore(); // end the card clip
 
-  // Border — outermost chrome, over everything, pure black/white. Identical to
-  // paintCard: gated on card.border, drawn outside the clip. (The optional
-  // `_border` layer is just a Layers-list marker; this is the real draw.)
+  // Border — outermost chrome, over everything, pure black/white: gated on
+  // card.border AND the `_border` layer's visibility, drawn outside the clip.
   final border = card.border;
-  if (border != null) {
+  if (border != null && borderLayerVisible) {
     final stroke = border.thickness * w;
     final paint = ui.Paint()
       ..style = ui.PaintingStyle.stroke
@@ -183,17 +187,33 @@ void _paintLayerImage(ui.Canvas canvas, ui.Rect rect, ui.RRect rrect,
   if (image.source == ImageSource.cardArt) {
     // Per-card art, keyed by the layer id (= the old art field id), cover-fit
     // with its per-card transform. No image => the hatched ART placeholder.
+    // The aspect's use-site alpha dims the draw (grouped, like fixed images).
     final img = refs.resolveImage(card.artImageIds[layerId]);
     if (img != null) {
-      _paintArtImage(
-          canvas, rrect, img, card.artTransforms[layerId] ?? const ArtTransform());
+      final tr = card.artTransforms[layerId] ?? const ArtTransform();
+      if (image.alpha >= 1.0) {
+        _paintArtImage(canvas, rrect, img, tr);
+      } else {
+        canvas.saveLayer(
+            rect,
+            ui.Paint()
+              ..color =
+                  const ui.Color(0xFFFFFFFF).withValues(alpha: image.alpha));
+        _paintArtImage(canvas, rrect, img, tr);
+        canvas.restore();
+      }
     } else {
       _paintArtPlaceholder(canvas, rrect, size);
     }
     return;
   }
 
-  final img = refs.resolveImage(image.imageId);
+  // A fixed image can carry a PER-CARD override (the aspect exposed to a card
+  // tab; the pick is stored in card.artImageIds keyed by this layer id). The
+  // override wins; the template picture is the default.
+  final overrideId = card.artImageIds[layerId];
+  final img = refs.resolveImage(
+      (overrideId != null && overrideId.isNotEmpty) ? overrideId : image.imageId);
   if (img == null) return;
   if (image.tint != null) {
     _paintTintedSymbol(

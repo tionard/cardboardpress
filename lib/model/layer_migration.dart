@@ -99,6 +99,34 @@ List<Layer> effectiveTemplateLayers(TemplateData t) =>
     t.layers ??
     applyLayerOverlay(templateToLayers(t), t.layerOrder, t.hiddenLayers);
 
+/// The layer id that holds the card's NAME, or null when the template has no
+/// name-bearing layer. Prefers the layer derived from the template's Name
+/// field (id-stable across promotion); otherwise the first free (unbound) text
+/// layer exposed to the Card tab — the closest thing a from-scratch layered
+/// template has to a "name". Used by [composeCard] (TextSource.cardName) and
+/// the Collection / Card Editor display name, replacing hardcoded field ids.
+String? nameTextLayerIdIn(List<Layer> layers, List<FieldSpec> fields) {
+  for (final f in fields) {
+    if (f.type != FieldType.name) continue;
+    for (final l in layers) {
+      if (l.id == f.id && l.text != null) return l.id;
+    }
+  }
+  for (final l in layers) {
+    final ta = l.text;
+    if (ta != null &&
+        !ta.isBound &&
+        l.exposed[ExposedAspect.text] == EditorTab.card) {
+      return l.id;
+    }
+  }
+  return null;
+}
+
+/// Convenience over [nameTextLayerIdIn] for a template.
+String? nameTextLayerId(TemplateData t) =>
+    nameTextLayerIdIn(effectiveTemplateLayers(t), t.fields);
+
 /// The layer list to render for a composed card — the card-side twin of
 /// [effectiveTemplateLayers]. This is what the renderer walks. Per-card values
 /// are baked onto the layers here so the renderer stays a single untouched path:

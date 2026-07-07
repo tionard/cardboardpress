@@ -171,9 +171,8 @@ class _CardEditorBody extends StatefulWidget {
 
 class _CardEditorBodyState extends State<_CardEditorBody> {
   late CardEntry _working;
-  final Map<String, TextEditingController> _controllers = {};
+  final Map<String, TextEditingController> _controllers = {}; // layerId -> ctl
   final Map<String, ui.Image> _images = {}; // imageId -> decoded image
-  final Map<String, TextEditingController> _exposedTextControllers = {};
   late final TextEditingController _artist;
   bool _dirty = false; // unsaved edits to the working copy
   bool _suppressDirty = false; // guards controller resync during revert
@@ -197,9 +196,6 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     // of being re-inserted when this editor body is torn down.)
     _artist.dispose();
     for (final c in _controllers.values) {
-      c.dispose();
-    }
-    for (final c in _exposedTextControllers.values) {
       c.dispose();
     }
     super.dispose();
@@ -243,32 +239,34 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     return (idx + 1, inSet.length);
   }
 
-  List<FieldSpec> get _editableFields => _effective.fields
-      .where((f) => f.text != null && f.type != FieldType.footer)
-      .toList();
+  /// The effective layer list of the card's template — the single source every
+  /// panel builds from (the renderer walks the same list). Field specs are no
+  /// longer consulted for controls; they only back the derived layers.
+  List<Layer> get _cardLayers => effectiveTemplateLayers(_effective);
 
-  String? get _artFieldId {
-    for (final f in _effective.fields) {
-      if (f.type == FieldType.art) return f.id;
-    }
-    return null;
-  }
+  /// Every layer whose image is per-card art, in z-order. Each gets an art
+  /// block in the Art panel (pick/replace/remove + zoom/pan), keyed by its id.
+  List<Layer> get _artLayers => [
+        for (final l in _cardLayers)
+          if (l.image?.source == ImageSource.cardArt) l,
+      ];
 
   // ---- text content ----
 
-  TextEditingController _controllerFor(FieldSpec f) {
-    return _controllers.putIfAbsent(f.id, () {
-      final c = TextEditingController(text: _working.content.text[f.id] ?? '');
-      c.addListener(() => _onFieldChanged(f.id, c.text));
+  TextEditingController _controllerFor(String layerId) {
+    return _controllers.putIfAbsent(layerId, () {
+      final c =
+          TextEditingController(text: _working.content.text[layerId] ?? '');
+      c.addListener(() => _onTextChanged(layerId, c.text));
       return c;
     });
   }
 
-  void _onFieldChanged(String fieldId, String value) {
+  void _onTextChanged(String layerId, String value) {
     if (_suppressDirty) return;
-    if ((_working.content.text[fieldId] ?? '') == value) return;
+    if ((_working.content.text[layerId] ?? '') == value) return;
     _markDirty(() => _working =
-        _working.copyWith(content: _working.content.withText(fieldId, value)));
+        _working.copyWith(content: _working.content.withText(layerId, value)));
   }
 
   /// Apply an in-memory edit and flag the working copy dirty. Nothing persists
@@ -567,13 +565,13 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
 
   // ---- shared chrome ----
 
-  /// The card's display name, taken from its Name field's content.
+  /// The card's display name, taken from its name layer's content (the Name
+  /// field's layer, or the first free text layer exposed to the Card tab).
   String _cardDisplayName() {
-    for (final f in _effective.fields) {
-      if (f.type == FieldType.name) {
-        final t = (_working.content.text[f.id] ?? '').trim();
-        if (t.isNotEmpty) return t;
-      }
+    final id = nameTextLayerId(_effective);
+    if (id != null) {
+      final t = (_working.content.text[id] ?? '').trim();
+      if (t.isNotEmpty) return t;
     }
     return 'Untitled card';
   }

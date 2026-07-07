@@ -27,6 +27,7 @@ import '../../data/template_repository.dart';
 import '../../model/card_model.dart';
 import '../../model/layer_migration.dart';
 import '../../model/layers.dart';
+import '../../model/markup.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../widgets/card_preview.dart';
@@ -297,9 +298,12 @@ class _TemplateBrowserState extends ConsumerState<_TemplateBrowser> {
   Widget _tile(BuildContext context, TemplateEntry t) {
     final scheme = Theme.of(context).colorScheme;
     final inUse = widget.inUseIds.contains(t.id);
+    // Empty content: the tile shows each text layer's PLACEHOLDER (plus the
+    // bound-text preview samples), so what you author is what the tile shows —
+    // sample content would mask the placeholders on the default field ids.
     final data = composeCard(
       t.data,
-      content: sampleContent(),
+      content: const CardContent(),
       symbolImageIds: ref.watch(textSymbolMapProvider),
       symbolsById: ref.watch(symbolsMapProvider),
       footerPlaceholder: _footerPlaceholder,
@@ -325,6 +329,7 @@ class _TemplateBrowserState extends ConsumerState<_TemplateBrowser> {
                           palette: widget.palette,
                           imageStore: ref.read(imageStoreProvider),
                           width: w,
+                          showPlaceholders: true,
                         ),
                       );
                     },
@@ -713,12 +718,24 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   Future<void> _syncImages() async {
     // Decode every image the previewed card needs (background + any Rules
     // watermark). composeCard resolves the watermark symbol ids to image ids.
+    final symbolMap = ref.read(textSymbolMapProvider);
     final card = composeCard(_d,
-        content: sampleContent(),
-        symbolImageIds: ref.read(textSymbolMapProvider),
+        content: const CardContent(),
+        symbolImageIds: symbolMap,
         symbolsById: ref.read(symbolsMapProvider),
         footerPlaceholder: _footerPlaceholder);
-    for (final id in card.imageIdsToDecode()) {
+    // The preview renders text PLACEHOLDERS (empty content), so any {tag}
+    // glyphs inside them need decoding too — they're not in textContent.
+    final ids = card.imageIdsToDecode().toSet();
+    for (final l in effectiveTemplateLayers(_d)) {
+      final ph = l.text?.placeholder ?? '';
+      if (ph.isEmpty) continue;
+      for (final tag in referencedTags(ph)) {
+        final imgId = symbolMap[tag];
+        if (imgId != null) ids.add(imgId);
+      }
+    }
+    for (final id in ids) {
       if (_images.containsKey(id)) continue;
       final bytes = await widget.imageStore.load(id);
       if (bytes == null) continue;
@@ -893,11 +910,18 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   Widget _previewWithOverlay(double w) {
     final h = w * _d.heightInches / _d.widthInches;
     final sel = _selectedField;
+    // Empty content: free text layers render their PLACEHOLDER (showPlaceholders
+    // below) and bound layers their preview samples. Sample card content would
+    // mask edited placeholders, since every template shares the default field ids.
     final card = composeCard(_d,
-        content: sampleContent(),
+        content: const CardContent(),
         symbolImageIds: ref.watch(textSymbolMapProvider),
         symbolsById: ref.watch(symbolsMapProvider),
         footerPlaceholder: _footerPlaceholder);
+    Layer? symbolGuide;
+    for (final l in effectiveTemplateLayers(_d)) {
+      if (l.id == kSetSymbolLayerId && l.visible) symbolGuide = l;
+    }
     return SizedBox(
       width: w,
       height: h,
@@ -927,12 +951,14 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
             ),
           // Set-symbol placement guide (the symbol itself only renders on real
           // cards, where the set has chosen one — here we just show the zone).
-          if (_d.setSymbol.enabled)
+          // Read from the EFFECTIVE layers so a promoted template's moved or
+          // hidden set-symbol layer is reflected, not the stale field placement.
+          if (symbolGuide != null)
             Positioned(
-              left: _d.setSymbol.frac.left * w,
-              top: _d.setSymbol.frac.top * h,
-              width: _d.setSymbol.frac.width * w,
-              height: _d.setSymbol.frac.height * h,
+              left: symbolGuide.frac.left * w,
+              top: symbolGuide.frac.top * h,
+              width: symbolGuide.frac.width * w,
+              height: symbolGuide.frac.height * h,
               child: IgnorePointer(
                 child: Container(
                   alignment: Alignment.center,

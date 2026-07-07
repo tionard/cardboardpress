@@ -89,12 +89,27 @@ class CardData {
     for (final f in fields) {
       final fr = f.frame;
       if (fr != null && fr.imageId.isNotEmpty) ids.add(fr.imageId);
-      if (f.type != FieldType.cost && f.type != FieldType.rules) continue;
-      final content = textContent[f.id];
-      if (content == null) continue;
+    }
+    // Inline {tag} glyphs: scan EVERY text value, not just legacy cost/rules
+    // fields — any generic text layer can have its Markup flag on now. A tag
+    // that never renders just decodes one extra small image; a missing decode
+    // would drop the symbol from the card, so over-including is the safe side.
+    // Persisted layers' PLACEHOLDERS are scanned too (they render in template
+    // previews, which use this same decode list).
+    for (final content in textContent.values) {
       for (final tag in referencedTags(content)) {
         final id = symbolImageIds[tag];
         if (id != null) ids.add(id);
+      }
+    }
+    if (layers != null) {
+      for (final l in layers!) {
+        final ph = l.text?.placeholder ?? '';
+        if (ph.isEmpty) continue;
+        for (final tag in referencedTags(ph)) {
+          final id = symbolImageIds[tag];
+          if (id != null) ids.add(id);
+        }
       }
     }
     return ids;

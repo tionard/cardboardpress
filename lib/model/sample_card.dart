@@ -276,9 +276,14 @@ CardData composeCard(
   }
   final text = Map<String, String>.from(content.text);
   // Resolve bound text (decomposed footer parts, or any bound layer) over the
-  // DERIVED layers, so it works whether or not the template is promoted. Keyed
-  // by layer id — exactly what the renderer reads.
-  for (final l in effectiveTemplateLayers(t)) {
+  // EFFECTIVE layers, so it works whether or not the template is promoted.
+  // Keyed by layer id — exactly what the renderer reads. The card's name is
+  // looked up via the name layer (Name field id, or the first free text layer
+  // on the Card tab) — never a hardcoded default-template id.
+  final layers = effectiveTemplateLayers(t);
+  final nameId = nameTextLayerIdIn(layers, t.fields);
+  final cardName = nameId == null ? '' : (content.text[nameId] ?? '');
+  for (final l in layers) {
     final ta = l.text;
     if (ta == null || ta.parts.isEmpty) continue;
     final joiner = ta.separator.isEmpty ? ' ' : ' ${ta.separator} ';
@@ -286,7 +291,7 @@ CardData composeCard(
       for (final p in ta.parts)
         _resolveTextSource(
           p,
-          cardName: content.text[fNameId] ?? '',
+          cardName: cardName,
           artist: content.artist,
           set: set,
           rarity: rarity,
@@ -303,13 +308,16 @@ CardData composeCard(
   final setSymbolImageId =
       (set?.symbolId == null) ? null : symbolsById[set!.symbolId]?.imageId;
 
-  // Resolve each Rules field's watermark symbol to an image id, keyed by field.
+  // Resolve each layer's watermark symbol to an image id, keyed by layer id.
+  // Walked over the effective layers (not t.fields) so watermarks added or
+  // edited on promoted layers resolve too; for derived layers the ids match
+  // the old field-keyed map exactly.
   final watermarkImageIds = <String, String>{};
-  for (final f in t.fields) {
-    final wm = f.watermark;
+  for (final l in layers) {
+    final wm = l.watermark;
     if (wm == null || wm.symbolId.isEmpty) continue;
     final img = symbolsById[wm.symbolId]?.imageId;
-    if (img != null) watermarkImageIds[f.id] = img;
+    if (img != null) watermarkImageIds[l.id] = img;
   }
 
   return CardData(
