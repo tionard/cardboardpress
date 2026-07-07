@@ -157,8 +157,13 @@ extension _CardEditorPanels on _CardEditorBodyState {
     ];
   }
 
-  Widget _artTransformControls(String artId) {
-    final tr = _working.content.artTransforms[artId] ?? const ArtTransform();
+  /// Zoom / pan sliders for a per-card transform keyed by [artId]. [fallback]
+  /// is what shows before any per-card value exists — identity for card art,
+  /// the TEMPLATE's transform for an exposed fixed image (so the sliders start
+  /// where the picture actually sits instead of jumping on first touch).
+  Widget _artTransformControls(String artId,
+      {ArtTransform fallback = const ArtTransform()}) {
+    final tr = _working.content.artTransforms[artId] ?? fallback;
 
     Widget slider(String label, double value, double min, double max,
         ValueChanged<double> onChanged) {
@@ -258,80 +263,32 @@ extension _CardEditorPanels on _CardEditorBodyState {
   }
 
   Widget _colorSettings() {
-    final refs = CardRefs(palette: widget.palette);
-    final defaultBase = refs.resolveColor(_effective.baseColor);
-    final tint = _working.content.tint;
-
+    // Fully exposure-driven: the Tint and Foil layers are ordinary generic
+    // layers whose fill / foil aspects are exposed here by default, so their
+    // blocks below ARE the old dedicated controls — plus whatever else the
+    // template routes to this tab. Legacy per-card values still show and clear
+    // correctly through the reroute-aware setters.
+    final tabGroups = _exposedByLayer(EditorTab.color);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Tint', style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            // A colour well: shows the current tint (or the base as "Default")
-            // and opens the picker popup. The returned ColorRef flows straight
-            // to _setTintRef — a palette pick keeps its id, a hand-built colour
-            // comes back as a literal, and both render through resolveColor. The
-            // use-site Opacity slider below is unchanged (per-colour alpha lives
-            // in the picker; this stays the master dimmer).
-            _SwatchTile(
-              value: tint == null ? defaultBase : refs.resolveColor(tint),
-              label: tint == null ? 'Default' : 'Tint',
-              selected: false,
-              onTap: () async {
-                final picked = await showColorPicker(
-                  context,
-                  use: SwatchUse.card,
-                  initial: tint,
-                );
-                if (picked != null) _setTintRef(picked);
-              },
+        if (tabGroups.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              'This template exposes nothing to the Color tab. Expose a '
+              'layer\u2019s fill, foil, or another aspect to \u201cCard \u00b7 '
+              'Color tab\u201d in the Template Editor to edit it per card.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(width: 12),
-            if (tint != null)
-              TextButton(
-                onPressed: _clearTint,
-                child: const Text('Use default'),
-              ),
-          ],
-        ),
-        if (_working.content.tint != null) ...[
-          const SizedBox(height: 12),
-          LabeledSlider(
-            label: 'Opacity',
-            value: _working.content.tintAlpha.clamp(0.0, 1.0),
-            min: 0,
-            max: 1,
-            step: 0.05,
-            decimals: 2,
-            labelWidth: 70,
-            onChanged: _setTintAlpha,
           ),
-        ],
-        const SizedBox(height: 20),
-        Text('Foil', style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: [
-            for (final f in FoilType.values)
-              ChoiceChip(
-                label: Text(_foilLabel(f)),
-                selected: _working.foil == f,
-                onSelected: (_) => _setFoil(f),
-              ),
-          ],
-        ),
-        const SizedBox(height: 16),
+        for (final g in tabGroups) ..._exposedLayerBlock(g, EditorTab.color),
         Text(
-          'Tint layers over the template\'s base colour at the opacity you set, '
-          'so a partial value blends the two. "Default" removes it. Foil draws a '
-          'sheen over the whole card.',
+          'A translucent Tint fill blends over everything beneath its layer. '
+          '\u201cUse default\u201d reverts any control to the template\u2019s '
+          'value.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        for (final g in _exposedByLayer(EditorTab.color))
-          ..._exposedLayerBlock(g, EditorTab.color),
       ],
     );
   }
@@ -455,6 +412,7 @@ extension _CardEditorPanels on _CardEditorBodyState {
         ExposedAspect.outlineColor => l.outline != null,
         ExposedAspect.foil => true,
         ExposedAspect.visible => true,
+        ExposedAspect.watermark => l.watermark != null,
       };
 
   List<_LayerExposureGroup> _exposedByLayer(EditorTab tab) {
@@ -510,33 +468,91 @@ extension _CardEditorPanels on _CardEditorBodyState {
           ),
         );
       case ExposedAspect.image:
-        // Card-art images never reach here (Art panel owns them); this is a
-        // per-card override of the layer's fixed template picture.
+        // Card-art images never reach here (Art panel owns them); this is the
+        // per-card face of a FIXED template picture: an optional replacement
+        // image plus position / opacity / silhouette-tint overrides, exactly
+        // the controls the template author has (all “absent = template
+        // value”, baked by _resolveCardLayer).
+        final ia = layer.image!;
         final imageId = _working.content.art[layer.id];
-        return Row(children: [
-          Expanded(
-            child: Text(
-              imageId == null ? 'No image set' : 'Image set',
-              style: Theme.of(context).textTheme.bodySmall,
+        final effAlpha = _working.content.imageAlphas[layer.id] ?? ia.alpha;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(
+                child: Text(
+                  imageId == null
+                      ? 'Template picture'
+                      : 'Custom picture on this card',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              TextButton(
+                onPressed: () => _pickLayerImageOverride(layer.id),
+                child: Text(imageId == null ? 'Replace…' : 'Change…'),
+              ),
+              if (imageId != null)
+                TextButton(
+                  onPressed: () => _removeLayerImageOverride(layer.id),
+                  child: const Text('Use default'),
+                ),
+            ]),
+            const SizedBox(height: 4),
+            _artTransformControls(layer.id, fallback: ia.transform),
+            LabeledSlider(
+              label: 'Opacity',
+              value: effAlpha.clamp(0.0, 1.0),
+              min: 0,
+              max: 1,
+              step: 0.05,
+              decimals: 2,
+              labelWidth: 78,
+              onChanged: (v) => _setLayerImageAlpha(layer.id, v),
             ),
-          ),
-          TextButton(
-            onPressed: () => _pickLayerImageOverride(layer.id),
-            child: Text(imageId == null ? 'Pick…' : 'Change…'),
-          ),
-          if (imageId != null)
-            TextButton(
-              onPressed: () => _removeLayerImageOverride(layer.id),
-              child: const Text('Remove'),
+            const SizedBox(height: 8),
+            _exposedColorRow(
+              label: 'Tint',
+              current: _working.content.imageTints[layer.id],
+              templateDefault: ia.tint,
+              onPicked: (r) => _setLayerImageTint(layer.id, r),
+              onClear: () => _setLayerImageTint(layer.id, null),
             ),
-        ]);
+          ],
+        );
       case ExposedAspect.fill:
-        return _exposedColorRow(
-          label: 'Fill',
-          current: _working.content.fillColors[layer.id],
-          templateDefault: layer.fill?.color,
-          onPicked: (r) => _setLayerFill(layer.id, r),
-          onClear: () => _setLayerFill(layer.id, null),
+        // Legacy tint reroute: a pre-reroute card's tint (content.tint /
+        // tintAlpha) shows and clears as if it were this layer's override.
+        final isTintSlot = layer.id == kTintLayerId;
+        final legacyTint = isTintSlot ? _working.content.tint : null;
+        final fillOverride =
+            _working.content.fillColors[layer.id] ?? legacyTint;
+        final effectiveAlpha = _working.content.fillAlphas[layer.id] ??
+            (legacyTint != null
+                ? _working.content.tintAlpha
+                : (layer.fill?.alpha ?? 1.0));
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _exposedColorRow(
+              label: 'Fill',
+              current: fillOverride,
+              templateDefault: layer.fill?.color,
+              onPicked: (r) => _setLayerFill(layer.id, r),
+              onClear: () => _setLayerFill(layer.id, null),
+            ),
+            const SizedBox(height: 8),
+            LabeledSlider(
+              label: 'Opacity',
+              value: effectiveAlpha.clamp(0.0, 1.0),
+              min: 0,
+              max: 1,
+              step: 0.05,
+              decimals: 2,
+              labelWidth: 78,
+              onChanged: (v) => _setLayerFillAlpha(layer.id, v),
+            ),
+          ],
         );
       case ExposedAspect.outlineColor:
         return _exposedColorRow(
@@ -556,7 +572,14 @@ extension _CardEditorPanels on _CardEditorBodyState {
           ),
         ]);
       case ExposedAspect.foil:
-        final override = _working.content.foilOverrides[layer.id];
+        // Legacy foil reroute: a pre-reroute card's foil (entry.foil) shows
+        // and clears as if it were this layer's override.
+        final legacyFoil =
+            layer.id == kFoilLayerId && _working.foil != FoilType.none
+                ? _working.foil
+                : null;
+        final override =
+            _working.content.foilOverrides[layer.id] ?? legacyFoil;
         final current = override ?? layer.foil ?? FoilType.none;
         return Row(children: [
           const SizedBox(width: 80, child: Text('Foil')),
@@ -577,6 +600,48 @@ extension _CardEditorPanels on _CardEditorBodyState {
                 onPressed: () => _setLayerFoil(layer.id, null),
                 child: const Text('Use default')),
         ]);
+      case ExposedAspect.watermark:
+        final wm = layer.watermark!;
+        final symbolOverride = _working.content.watermarkSymbols[layer.id];
+        final wmColor = _working.content.watermarkColors[layer.id];
+        final wmAlpha =
+            _working.content.watermarkAlphas[layer.id] ?? wm.alpha;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const SizedBox(width: 80, child: Text('Symbol')),
+              OutlinedButton.icon(
+                onPressed: () => _pickLayerWatermarkSymbol(layer),
+                icon: const Icon(Icons.image_outlined),
+                label: Text(symbolOverride == null ? 'Change…' : 'Custom'),
+              ),
+              if (symbolOverride != null)
+                TextButton(
+                    onPressed: () => _clearLayerWatermarkSymbol(layer.id),
+                    child: const Text('Use default')),
+            ]),
+            const SizedBox(height: 8),
+            _exposedColorRow(
+              label: 'Colour',
+              current: wmColor,
+              templateDefault: wm.color,
+              onPicked: (r) => _setLayerWatermarkColor(layer.id, r),
+              onClear: () => _setLayerWatermarkColor(layer.id, null),
+            ),
+            const SizedBox(height: 8),
+            LabeledSlider(
+              label: 'Opacity',
+              value: wmAlpha.clamp(0.0, 1.0),
+              min: 0,
+              max: 1,
+              step: 0.05,
+              decimals: 2,
+              labelWidth: 78,
+              onChanged: (v) => _setLayerWatermarkAlpha(layer.id, v),
+            ),
+          ],
+        );
     }
   }
 
@@ -620,15 +685,11 @@ class _LayerExposureGroup {
   _LayerExposureGroup(this.layer, this.aspects);
 }
 
-// Value-locked chrome: the per-card tint/foil values live in the dedicated
-// Color-tab controls (card.tint / card.foil) and the border is styled in the
-// template's Layout tab — _resolveCardLayer ignores generic overrides for these
-// ids, so exposed controls for them would be silent no-ops and are skipped.
+// System layers with no per-card controls: BASE is template-owned (Layout tab)
+// and BORDER draws outside the clip with its style on the template — generic
+// overrides for it would be no-ops. Tint and foil are ordinary generic layers.
 const Set<String> _kValueLockedLayerIds = {
-  kTintLayerId,
-  kFoilLayerId,
+  kBaseLayerId,
   kBorderLayerId,
 };
 
-String _foilLabel(FoilType f) =>
-    f.name[0].toUpperCase() + f.name.substring(1);

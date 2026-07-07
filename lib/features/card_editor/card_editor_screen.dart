@@ -39,6 +39,7 @@ import '../../widgets/labeled_slider.dart';
 import '../../widgets/preview_dock.dart';
 import '../../widgets/swatch_picker.dart';
 import '../../widgets/color_picker/color_picker.dart';
+import '../customization/symbol_picker.dart';
 
 part 'card_editor_panels.dart';
 part 'card_editor_widgets.dart';
@@ -123,7 +124,7 @@ const _catIcons = {
   _Cat.export: Icons.ios_share_outlined,
 };
 
-class _CardEditorBody extends StatefulWidget {
+class _CardEditorBody extends ConsumerStatefulWidget {
   final CardEntry card;
   final List<CardEntry> allCards;
   final List<TemplateEntry> templates;
@@ -166,10 +167,10 @@ class _CardEditorBody extends StatefulWidget {
   });
 
   @override
-  State<_CardEditorBody> createState() => _CardEditorBodyState();
+  ConsumerState<_CardEditorBody> createState() => _CardEditorBodyState();
 }
 
-class _CardEditorBodyState extends State<_CardEditorBody> {
+class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
   late CardEntry _working;
   final Map<String, TextEditingController> _controllers = {}; // layerId -> ctl
   final Map<String, ui.Image> _images = {}; // imageId -> decoded image
@@ -415,24 +416,11 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
     }
   }
 
-  void _setTintRef(ColorRef ref) {
-    _markDirty(() =>
-        _working = _working.copyWith(content: _working.content.withTint(ref)));
-  }
-
-  void _clearTint() {
-    _markDirty(() =>
-        _working = _working.copyWith(content: _working.content.withTint(null)));
-  }
-
-  void _setTintAlpha(double a) {
-    _markDirty(() => _working =
-        _working.copyWith(content: _working.content.withTintAlpha(a)));
-  }
-
-  void _setFoil(FoilType f) {
-    _markDirty(() => _working = _working.copyWith(foil: f));
-  }
+  // Tint and foil are ordinary exposed layer aspects now; there are no
+  // dedicated mutators. Legacy per-card values (content.tint / entry.foil)
+  // still render via the resolver shims — the setters below clear them when
+  // the user reverts the matching layer override to “default”, so
+  // “Use default” genuinely means the template value again.
 
   void _onArtistChanged() {
     if (_suppressDirty) return;
@@ -453,8 +441,61 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   // ---- Phase 5: per-card layer-aspect mutators ----
 
   void _setLayerFill(String layerId, ColorRef? ref) {
+    _markDirty(() {
+      var content = _working.content.withFillColor(layerId, ref);
+      // Reverting the TINT layer's fill to default also clears the legacy
+      // per-card tint, or the shim would immediately re-apply it.
+      if (ref == null && layerId == kTintLayerId && content.tint != null) {
+        content = content.withTint(null);
+      }
+      _working = _working.copyWith(content: content);
+    });
+  }
+
+  void _setLayerFillAlpha(String layerId, double? a) {
     _markDirty(() => _working = _working.copyWith(
-        content: _working.content.withFillColor(layerId, ref)));
+        content: _working.content.withFillAlpha(layerId, a)));
+  }
+
+  void _setLayerImageAlpha(String layerId, double? a) {
+    _markDirty(() => _working = _working.copyWith(
+        content: _working.content.withImageAlpha(layerId, a)));
+  }
+
+  void _setLayerImageTint(String layerId, ColorRef? ref) {
+    _markDirty(() => _working = _working.copyWith(
+        content: _working.content.withImageTint(layerId, ref)));
+  }
+
+  void _setLayerWatermarkColor(String layerId, ColorRef? ref) {
+    _markDirty(() => _working = _working.copyWith(
+        content: _working.content.withWatermarkColor(layerId, ref)));
+  }
+
+  void _setLayerWatermarkAlpha(String layerId, double? a) {
+    _markDirty(() => _working = _working.copyWith(
+        content: _working.content.withWatermarkAlpha(layerId, a)));
+  }
+
+  /// Pick a per-card watermark symbol for an exposed watermark aspect, then
+  /// re-run the image sync so the new glyph decodes into the preview.
+  Future<void> _pickLayerWatermarkSymbol(Layer layer) async {
+    final current = _working.content.watermarkSymbols[layer.id] ??
+        layer.watermark?.symbolId;
+    final choice = await pickSymbol(context, ref, currentId: current);
+    if (choice == null) return; // cancelled
+    // A picked symbol overrides the template's; \u201cNone\u201d stores an explicit
+    // empty override (no watermark on this card). \u201cUse default\u201d elsewhere
+    // removes the override entirely.
+    _markDirty(() => _working = _working.copyWith(
+        content:
+            _working.content.withWatermarkSymbol(layer.id, choice.id ?? '')));
+    _syncArtImages();
+  }
+
+  void _clearLayerWatermarkSymbol(String layerId) {
+    _markDirty(() => _working = _working.copyWith(
+        content: _working.content.withWatermarkSymbol(layerId, null)));
   }
 
   void _setLayerOutline(String layerId, ColorRef? ref) {
@@ -468,8 +509,17 @@ class _CardEditorBodyState extends State<_CardEditorBody> {
   }
 
   void _setLayerFoil(String layerId, FoilType? foil) {
-    _markDirty(() => _working = _working.copyWith(
-        content: _working.content.withLayerFoil(layerId, foil)));
+    _markDirty(() {
+      _working = _working.copyWith(
+          content: _working.content.withLayerFoil(layerId, foil));
+      // Reverting the FOIL layer to default also clears the legacy per-card
+      // foil, or the shim would immediately re-apply it.
+      if (foil == null &&
+          layerId == kFoilLayerId &&
+          _working.foil != FoilType.none) {
+        _working = _working.copyWith(foil: FoilType.none);
+      }
+    });
   }
 
   /// Pick an image for a per-card image-aspect override, routed via [_pickArt]

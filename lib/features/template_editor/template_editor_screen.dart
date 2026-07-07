@@ -918,10 +918,15 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
         symbolImageIds: ref.watch(textSymbolMapProvider),
         symbolsById: ref.watch(symbolsMapProvider),
         footerPlaceholder: _footerPlaceholder);
+    final layers = effectiveTemplateLayers(_d);
     Layer? symbolGuide;
-    for (final l in effectiveTemplateLayers(_d)) {
+    Layer? selectedLayer;
+    for (final l in layers) {
       if (l.id == kSetSymbolLayerId && l.visible) symbolGuide = l;
+      if (_mode == _Mode.layers && l.id == _selectedLayerId) selectedLayer = l;
     }
+    // The border draws outside the card rect; an in-card outline would lie.
+    if (selectedLayer?.id == kBorderLayerId) selectedLayer = null;
     return SizedBox(
       width: w,
       height: h,
@@ -943,6 +948,26 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
               child: IgnorePointer(
                 child: Container(
                   decoration: BoxDecoration(
+                    border: Border.all(
+                        color: Theme.of(context).colorScheme.primary, width: 2),
+                  ),
+                ),
+              ),
+            ),
+          // Selected-layer outline (Layers mode): live feedback for the
+          // Position & size sliders even on layers with nothing visible to draw
+          // (no fill/image/outline yet). Rounded to match the layer's corner.
+          if (selectedLayer != null)
+            Positioned(
+              left: selectedLayer.frac.left * w,
+              top: selectedLayer.frac.top * h,
+              width: selectedLayer.frac.width * w,
+              height: selectedLayer.frac.height * h,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius:
+                        BorderRadius.circular(selectedLayer.cornerRadius * w),
                     border: Border.all(
                         color: Theme.of(context).colorScheme.primary, width: 2),
                   ),

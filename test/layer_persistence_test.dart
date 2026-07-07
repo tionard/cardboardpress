@@ -90,8 +90,16 @@ void main() {
 
       final tint = got.firstWhere((l) => l.id == kTintLayerId);
       expect(tint.fill, isNotNull, reason: 'tint keeps its fill aspect');
-      expect(tint.exposed[ExposedAspect.fill], isNull,
-          reason: 'tint is no longer exposed — per-card tint is the Color tab');
+      expect(tint.fill!.alpha, equals(0.0),
+          reason: 'template-level tint defaults to none (alpha 0)');
+      expect(tint.exposed[ExposedAspect.fill], equals(EditorTab.color),
+          reason: 'tint is a generic layer exposing its fill to the Color tab');
+
+      final foilLayer = got.firstWhere((l) => l.id == kFoilLayerId);
+      expect(foilLayer.foil, equals(FoilType.none),
+          reason: 'foil is a generic layer with a real foil aspect (default none)');
+      expect(foilLayer.exposed[ExposedAspect.foil], equals(EditorTab.color),
+          reason: 'foil exposes its aspect to the Color tab');
 
       // Everything is a generic layer now — target by the stable field id and
       // assert on the ASPECTS, not the retired LayerKind values.

@@ -28,7 +28,7 @@ enum EditorTab { card, art, color, set, export }
 
 /// A per-card-editable facet of a layer. A layer exposes zero or more of these,
 /// each routed to one [EditorTab]; empty exposure = template-only (no card slot).
-enum ExposedAspect { text, fill, image, outlineColor, foil, visible }
+enum ExposedAspect { text, fill, image, outlineColor, foil, visible, watermark }
 
 /// Where an image aspect gets its picture. `fixed` = a template-level ImageStore
 /// id ([ImageAspect.imageId]); `setSymbol` = resolved from the card's set at

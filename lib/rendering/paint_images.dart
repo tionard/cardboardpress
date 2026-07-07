@@ -234,7 +234,8 @@ void _paintArtImage(
   canvas.restore();
 }
 
-void _paintArtPlaceholder(ui.Canvas canvas, ui.RRect rrect, ui.Size size) {
+void _paintArtPlaceholder(ui.Canvas canvas, ui.RRect rrect, ui.Size size,
+    {String label = 'ART'}) {
   final rect = rrect.outerRect;
   canvas.save();
   canvas.clipRRect(rrect);
@@ -254,7 +255,7 @@ void _paintArtPlaceholder(ui.Canvas canvas, ui.RRect rrect, ui.Size size) {
   _paintText(
     canvas,
     rect,
-    'ART',
+    label,
     const TextStyleSpec(
       sizeFrac: 0.04,
       align: ui.TextAlign.center,

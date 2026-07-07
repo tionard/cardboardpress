@@ -315,8 +315,11 @@ CardData composeCard(
   final watermarkImageIds = <String, String>{};
   for (final l in layers) {
     final wm = l.watermark;
-    if (wm == null || wm.symbolId.isEmpty) continue;
-    final img = symbolsById[wm.symbolId]?.imageId;
+    if (wm == null) continue;
+    // Per-card symbol override (exposed watermark) wins over the template's.
+    final symbolId = content.watermarkSymbols[l.id] ?? wm.symbolId;
+    if (symbolId.isEmpty) continue;
+    final img = symbolsById[symbolId]?.imageId;
     if (img != null) watermarkImageIds[l.id] = img;
   }
 
@@ -348,6 +351,11 @@ CardData composeCard(
     outlineColors: content.outlineColors,
     cardHiddenLayers: content.cardHiddenLayers,
     foilOverrides: content.foilOverrides,
+    fillAlphas: content.fillAlphas,
+    imageAlphas: content.imageAlphas,
+    imageTints: content.imageTints,
+    watermarkColors: content.watermarkColors,
+    watermarkAlphas: content.watermarkAlphas,
   );
 }
 

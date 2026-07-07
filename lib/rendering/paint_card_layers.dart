@@ -208,13 +208,16 @@ void _paintLayerImage(ui.Canvas canvas, ui.Rect rect, ui.RRect rrect,
     return;
   }
 
-  // A fixed image can carry a PER-CARD override (the aspect exposed to a card
-  // tab; the pick is stored in card.artImageIds keyed by this layer id). The
-  // override wins; the template picture is the default.
-  final overrideId = card.artImageIds[layerId];
-  final img = refs.resolveImage(
-      (overrideId != null && overrideId.isNotEmpty) ? overrideId : image.imageId);
-  if (img == null) return;
+  // Fixed image. Per-card overrides (picture / transform / opacity / tint from
+  // the exposed-image controls) are already baked onto the aspect by
+  // _resolveCardLayer, so this path just draws what it's handed. In the
+  // template preview an unresolved picture shows a hatched IMAGE placeholder —
+  // the same feedback card-art zones give — and nothing on real cards.
+  final img = refs.resolveImage(image.imageId);
+  if (img == null) {
+    if (refs.showPlaceholders) _paintArtPlaceholder(canvas, rrect, size, label: 'IMAGE');
+    return;
+  }
   if (image.tint != null) {
     _paintTintedSymbol(
         canvas, img, rect, refs.resolveColor(image.tint!), image.alpha);

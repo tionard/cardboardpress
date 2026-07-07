@@ -31,6 +31,11 @@ class CardData {
   final Map<String, ColorRef> outlineColors; // layerId -> per-card outline colour
   final Set<String> cardHiddenLayers; // layerIds this card hides (per-card)
   final Map<String, FoilType> foilOverrides; // layerId -> per-card foil
+  final Map<String, double> fillAlphas; // layerId -> fill opacity override
+  final Map<String, double> imageAlphas; // layerId -> fixed-image opacity
+  final Map<String, ColorRef> imageTints; // layerId -> fixed-image tint
+  final Map<String, ColorRef> watermarkColors; // layerId -> watermark colour
+  final Map<String, double> watermarkAlphas; // layerId -> watermark opacity
 
   const CardData({
     this.widthInches = 2.5,
@@ -60,6 +65,11 @@ class CardData {
     this.outlineColors = const {},
     this.cardHiddenLayers = const {},
     this.foilOverrides = const {},
+    this.fillAlphas = const {},
+    this.imageAlphas = const {},
+    this.imageTints = const {},
+    this.watermarkColors = const {},
+    this.watermarkAlphas = const {},
   });
 
   /// Every image id the renderer needs decoded: card art, the template
@@ -171,6 +181,17 @@ class CardContent {
   final Set<String> cardHiddenLayers; // layerIds this card hides (per-card)
   final Map<String, FoilType> foilOverrides; // layerId -> per-card foil
 
+  // Per-card overrides for the richer exposed aspects, all keyed by layer id
+  // and all "absent = template value". These carry the tint reroute (the tint
+  // layer's per-card colour+opacity are just fill overrides now) and the
+  // exposed fixed-image / watermark controls.
+  final Map<String, double> fillAlphas; // layerId -> fill opacity override
+  final Map<String, double> imageAlphas; // layerId -> fixed-image opacity
+  final Map<String, ColorRef> imageTints; // layerId -> fixed-image tint
+  final Map<String, String> watermarkSymbols; // layerId -> symbol id override
+  final Map<String, ColorRef> watermarkColors; // layerId -> watermark colour
+  final Map<String, double> watermarkAlphas; // layerId -> watermark opacity
+
   const CardContent({
     this.text = const {},
     this.art = const {},
@@ -183,6 +204,12 @@ class CardContent {
     this.outlineColors = const {},
     this.cardHiddenLayers = const {},
     this.foilOverrides = const {},
+    this.fillAlphas = const {},
+    this.imageAlphas = const {},
+    this.imageTints = const {},
+    this.watermarkSymbols = const {},
+    this.watermarkColors = const {},
+    this.watermarkAlphas = const {},
   });
 
   CardContent _copy({
@@ -197,6 +224,12 @@ class CardContent {
     Map<String, ColorRef>? outlineColors,
     Set<String>? cardHiddenLayers,
     Map<String, FoilType>? foilOverrides,
+    Map<String, double>? fillAlphas,
+    Map<String, double>? imageAlphas,
+    Map<String, ColorRef>? imageTints,
+    Map<String, String>? watermarkSymbols,
+    Map<String, ColorRef>? watermarkColors,
+    Map<String, double>? watermarkAlphas,
   }) =>
       CardContent(
         text: text ?? this.text,
@@ -211,7 +244,55 @@ class CardContent {
         outlineColors: outlineColors ?? this.outlineColors,
         cardHiddenLayers: cardHiddenLayers ?? this.cardHiddenLayers,
         foilOverrides: foilOverrides ?? this.foilOverrides,
+        fillAlphas: fillAlphas ?? this.fillAlphas,
+        imageAlphas: imageAlphas ?? this.imageAlphas,
+        imageTints: imageTints ?? this.imageTints,
+        watermarkSymbols: watermarkSymbols ?? this.watermarkSymbols,
+        watermarkColors: watermarkColors ?? this.watermarkColors,
+        watermarkAlphas: watermarkAlphas ?? this.watermarkAlphas,
       );
+
+  // Small helpers for the "absent = default" map mutators below.
+  static Map<String, double> _setD(
+      Map<String, double> m, String k, double? v) {
+    final next = Map<String, double>.from(m);
+    v == null ? next.remove(k) : next[k] = v;
+    return next;
+  }
+
+  static Map<String, ColorRef> _setC(
+      Map<String, ColorRef> m, String k, ColorRef? v) {
+    final next = Map<String, ColorRef>.from(m);
+    v == null ? next.remove(k) : next[k] = v;
+    return next;
+  }
+
+  /// Per-card fill opacity for a layer; null clears back to the template's.
+  CardContent withFillAlpha(String layerId, double? a) =>
+      _copy(fillAlphas: _setD(fillAlphas, layerId, a));
+
+  /// Per-card fixed-image opacity; null clears back to the template's.
+  CardContent withImageAlpha(String layerId, double? a) =>
+      _copy(imageAlphas: _setD(imageAlphas, layerId, a));
+
+  /// Per-card fixed-image tint; null clears back to the template's.
+  CardContent withImageTint(String layerId, ColorRef? ref) =>
+      _copy(imageTints: _setC(imageTints, layerId, ref));
+
+  /// Per-card watermark symbol; null clears back to the template's.
+  CardContent withWatermarkSymbol(String layerId, String? symbolId) {
+    final next = Map<String, String>.from(watermarkSymbols);
+    symbolId == null ? next.remove(layerId) : next[layerId] = symbolId;
+    return _copy(watermarkSymbols: next);
+  }
+
+  /// Per-card watermark colour; null clears back to the template's.
+  CardContent withWatermarkColor(String layerId, ColorRef? ref) =>
+      _copy(watermarkColors: _setC(watermarkColors, layerId, ref));
+
+  /// Per-card watermark opacity; null clears back to the template's.
+  CardContent withWatermarkAlpha(String layerId, double? a) =>
+      _copy(watermarkAlphas: _setD(watermarkAlphas, layerId, a));
 
   /// Set (or clear, when [foil] is null) the per-card foil for a layer.
   /// Per-card foil override for a layer. [foil] == null clears it back to the

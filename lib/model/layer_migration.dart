@@ -141,29 +141,61 @@ List<Layer> effectiveCardLayers(CardData c) {
 Layer _resolveCardLayer(Layer l, CardData c) {
   var out = l;
 
-  // Chrome baked from per-card CardData fields. Tint: a full-card fill whose
-  // colour+alpha are the card's tint; absent tint hides the slot (nothing drawn,
-  // matching the old special-case that only filled when a tint was set).
-  if (l.id == kTintLayerId) {
-    final tint = c.tint;
-    return tint == null
-        ? out.copyWith(visible: false)
-        : out.copyWith(fill: FillAspect(color: tint, alpha: c.tintAlpha));
+  // ---- Legacy shims (tint/foil reroute) ----
+  // Cards saved before the reroute keep their value in the dedicated CardData
+  // fields; it's baked here as the STARTING value, and the generic per-card
+  // override maps below still win when present (the card editor writes those
+  // now). New cards never set these fields, so the shims are inert for them.
+  if (l.id == kTintLayerId && c.tint != null && out.fill != null) {
+    out = out.copyWith(
+        fill: out.fill!.copyWith(color: c.tint, alpha: c.tintAlpha));
   }
-  if (l.id == kFoilLayerId) {
-    // The card-level foil (Color tab) baked onto the foil slot; none draws
-    // nothing, exactly like the old special-case.
-    return out.copyWith(foil: c.foil);
+  if (l.id == kFoilLayerId && c.foil != FoilType.none) {
+    out = out.copyWith(foil: c.foil);
   }
 
-  // Per-card overrides on authored generic layers.
+  // ---- Per-card overrides for a fixed-source image aspect ----
+  // The exposed-image control: a per-card picture (art map), cover-fit
+  // transform, use-site opacity, and silhouette tint — all keyed by layer id,
+  // all "absent = template value". Card-art sources are untouched (the
+  // renderer resolves those per-card itself).
+  final img = out.image;
+  if (img != null && img.source == ImageSource.fixed) {
+    var next = img;
+    final overrideId = c.artImageIds[l.id];
+    if (overrideId != null && overrideId.isNotEmpty) {
+      next = next.copyWith(imageId: overrideId);
+    }
+    final tr = c.artTransforms[l.id];
+    if (tr != null) next = next.copyWith(transform: tr);
+    final ia = c.imageAlphas[l.id];
+    if (ia != null) next = next.copyWith(alpha: ia);
+    final it = c.imageTints[l.id];
+    if (it != null) next = next.copyWith(tint: it);
+    if (!identical(next, img)) out = out.copyWith(image: next);
+  }
+
+  // ---- Generic per-card overrides (every layer, chrome included) ----
   final fc = c.fillColors[l.id];
   if (fc != null && out.fill != null) {
     out = out.copyWith(fill: out.fill!.copyWith(color: fc));
   }
+  final fa = c.fillAlphas[l.id];
+  if (fa != null && out.fill != null) {
+    out = out.copyWith(fill: out.fill!.copyWith(alpha: fa));
+  }
   final oc = c.outlineColors[l.id];
   if (oc != null && out.outline != null) {
     out = out.copyWith(outline: out.outline!.copyWith(color: oc));
+  }
+  final wm = out.watermark;
+  if (wm != null) {
+    final wc = c.watermarkColors[l.id];
+    final wa = c.watermarkAlphas[l.id];
+    if (wc != null || wa != null) {
+      out = out.copyWith(
+          watermark: wm.copyWith(color: wc ?? wm.color, alpha: wa ?? wm.alpha));
+    }
   }
   if (out.visible && c.cardHiddenLayers.contains(l.id)) {
     out = out.copyWith(visible: false);
@@ -210,16 +242,19 @@ List<Layer> _buildLayers({
     ));
   }
 
-  // tint — full-card fill slot; value + alpha are PER-CARD (baked in
-  // effectiveCardLayers from card.tint). cornerRadius matches the card for exact
-  // AA. Not exposed: the per-card tint stays the Color-tab control, so the
-  // editable layer here governs placement/presence without a duplicate control.
+  // tint — an ordinary generic fill layer now. The template-side fill IS the
+  // template's default tint (alpha 0 = none, the historical default); the
+  // per-card tint is just this layer's exposed fill overrides (colour via
+  // fillColors, opacity via fillAlphas). Exposed to the Color tab so every
+  // template keeps a per-card tint control out of the box. Cards saved before
+  // the reroute still render via the card.tint shim in _resolveCardLayer.
   layers.add(Layer(
     id: kTintLayerId,
     name: 'Tint',
     frac: _fullRect,
     cornerRadius: cornerRadiusFrac,
-    fill: FillAspect(color: baseColor),
+    fill: FillAspect(color: baseColor, alpha: 0.0),
+    exposed: const {ExposedAspect.fill: EditorTab.color},
   ));
 
   // fields — each becomes generic layer(s), KEEPING the field id (zero per-card
@@ -235,10 +270,13 @@ List<Layer> _buildLayers({
   // set symbol — template-placed image, source=setSymbol (rarity-tinted per
   // card, resolved from the card's set). Not exposed: the picture comes from the
   // set, not per-card. Editable as a normal generic layer (placement/size).
+  // Visible by default: the old `enabled` flag lost its UI when the Layout
+  // section moved here, and a hidden-by-default slot made set symbols silently
+  // vanish on every template but ones configured pre-migration. The layer's
+  // own eye is the on/off switch now.
   layers.add(Layer(
     id: kSetSymbolLayerId,
     name: 'Set symbol',
-    visible: setSymbol.enabled,
     frac: setSymbol.frac,
     image: ImageAspect(
       source: ImageSource.setSymbol,
@@ -246,13 +284,17 @@ List<Layer> _buildLayers({
     ),
   ));
 
-  // foil — full-card overlay slot; the FoilType is PER-CARD (renderer reads
-  // card.foil for this slot).
+  // foil — an ordinary generic layer with a foil aspect (template default:
+  // none). The per-card foil is this layer's exposed-foil override
+  // (foilOverrides), like any other layer; cards saved before the reroute
+  // still render via the card.foil shim in _resolveCardLayer.
   layers.add(Layer(
     id: kFoilLayerId,
     name: 'Foil',
     frac: _fullRect,
     cornerRadius: cornerRadiusFrac,
+    foil: FoilType.none,
+    exposed: const {ExposedAspect.foil: EditorTab.color},
   ));
 
   // outer border — pure white/black chrome, drawn OUTSIDE the rounded clip, on

@@ -1,21 +1,13 @@
 part of 'template_editor_screen.dart';
 
-// Reserved layer ids that can't be edited as generic layers at all: only the
-// border, which draws outside the rounded clip and is styled in the Layout tab.
-// Base, background and set-symbol are ordinary generic layers (editable here);
-// tint and foil are geometry-editable but value-locked (see _kValueChromeIds).
+// The only system layers left. BASE is the card's ground: always the bottom
+// of the stack (pinned, not draggable) and styled from the Layout tab (colour,
+// corner), so it isn't edited here. BORDER draws outside the rounded clip and
+// is styled in the Layout tab. Everything else — background, tint, set-symbol,
+// foil, and every authored layer — is a plain generic layer.
 const Set<String> _kChromeLayerIds = {
+  kBaseLayerId,
   kBorderLayerId,
-};
-
-// System layers whose VALUE lives on the card, not the template: tint (colour +
-// alpha from the Color tab) and foil (card.foil). Their geometry, order and
-// visibility are editable here, but aspect/exposure controls would be silent
-// no-ops — _resolveCardLayer bakes the per-card value over whatever the
-// template says — so the editor hides them and says where the value lives.
-const Set<String> _kValueChromeIds = {
-  kTintLayerId,
-  kFoilLayerId,
 };
 
 const ColorRef _kWatermarkDefault =
@@ -187,14 +179,14 @@ extension _TemplateLayersPane on _TemplateBodyState {
   Widget _layerRow(List<Layer> shown, int i, ColorScheme scheme) {
     final layer = shown[i];
     final isBorder = layer.id == kBorderLayerId;
-    final isChrome = _isChromeLayer(layer.id);
+    final isBase = layer.id == kBaseLayerId;
     final visible = layer.visible;
 
     final note = isBorder
         ? 'Draws outside the card edge — reordering has no visual effect yet; '
             'hiding works.'
-        : isChrome
-            ? 'System layer — its look is set in the Layout tab.'
+        : isBase
+            ? 'Always the bottom layer — colour and corner are in the Layout tab.'
             : null;
 
     return Container(
@@ -206,13 +198,19 @@ extension _TemplateLayersPane on _TemplateBodyState {
       ),
       child: Row(
         children: [
-          ReorderableDragStartListener(
-            index: i,
-            child: const Padding(
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.drag_handle),
+          if (isBase)
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Icon(Icons.lock_outline, color: scheme.outline),
+            )
+          else
+            ReorderableDragStartListener(
+              index: i,
+              child: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.drag_handle),
+              ),
             ),
-          ),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
@@ -257,7 +255,6 @@ extension _TemplateLayersPane on _TemplateBodyState {
   /// Chrome layers only get a note (their look is the Layout tab's job).
   Widget _selectedLayerEditor(Layer layer, ColorScheme scheme) {
     final isChrome = _isChromeLayer(layer.id);
-    final isValueChrome = _kValueChromeIds.contains(layer.id);
     final visible = layer.visible;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,13 +272,13 @@ extension _TemplateLayersPane on _TemplateBodyState {
               icon: Icon(visible ? Icons.visibility : Icons.visibility_off),
               onPressed: () => _toggleLayerVisible(layer),
             ),
-            if (!isChrome && !isValueChrome)
+            if (!isChrome)
               IconButton(
                 tooltip: 'Rename',
                 icon: const Icon(Icons.edit_outlined),
                 onPressed: () => _renameLayer(layer),
               ),
-            if (!isChrome && !isValueChrome)
+            if (!isChrome)
               IconButton(
                 tooltip: 'Remove layer',
                 icon: const Icon(Icons.delete_outline),
@@ -300,25 +297,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
                 ?.copyWith(color: scheme.onSurfaceVariant),
           )
         else ...[
-          if (isValueChrome)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                layer.id == kTintLayerId
-                    ? 'The tint colour and opacity are set PER CARD in the Card '
-                        'Editor\u2019s Color tab. This layer only controls where '
-                        'in the stack (and whether) the tint draws.'
-                    : 'The foil style is set PER CARD in the Card Editor\u2019s '
-                        'Color tab. This layer only controls where in the stack '
-                        '(and whether) the foil draws.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-            )
-          else
-            _exposeControl(layer.id, ExposedAspect.visible, layer.exposed),
+          _exposeControl(layer.id, ExposedAspect.visible, layer.exposed),
           const SizedBox(height: 8),
           _section('l_geo', 'Position & size', [
             _labeledSlider('Left', layer.frac.left, 0, 1,
@@ -337,7 +316,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
             _labeledSlider('Corner', layer.cornerRadius, 0, 0.1,
                 (v) => _setLayerCorner(layer, v)),
           ]),
-          if (!isValueChrome) ..._layerAspectSections(layer),
+          ..._layerAspectSections(layer),
         ],
       ],
     );
@@ -590,6 +569,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
               1,
               (v) => _updateLayer(id,
                   (l) => l.copyWith(watermark: l.watermark?.copyWith(alpha: v)))),
+          _exposeControl(id, ExposedAspect.watermark, layer.exposed),
           _removeAspectRow(
               () => _updateLayer(id, (l) => l.copyWith(watermark: null))),
         ]),
@@ -1072,7 +1052,15 @@ extension _TemplateLayersPane on _TemplateBodyState {
   /// store it as the explicit `_d.layers`, clearing the now-superseded overlay.
   void _editLayers(List<Layer> Function(List<Layer>) edit) {
     final current = effectiveTemplateLayers(_d);
-    final next = edit([...current]);
+    var next = edit([...current]);
+    // Invariant: the Base layer is always the bottom of the stack (index 0).
+    // Normalised here — the single choke point every mutation flows through —
+    // so drags can't slip anything beneath it and legacy orders self-heal.
+    final baseIdx = next.indexWhere((l) => l.id == kBaseLayerId);
+    if (baseIdx > 0) {
+      final base = next.removeAt(baseIdx);
+      next = [base, ...next];
+    }
     _update(_d.copyWith(
       layers: next,
       layerOrder: const [],

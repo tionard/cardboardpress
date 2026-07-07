@@ -255,8 +255,25 @@ TemplateData templateFromMap(Map m) => TemplateData(
       hiddenLayers: _strList(m['hidden']),
       layers: m['layers'] == null
           ? null
-          : [for (final e in (m['layers'] as List)) _layerFromMap(e as Map)],
+          : _fixupLegacyTintLayer(
+              [for (final e in (m['layers'] as List)) _layerFromMap(e as Map)]),
     );
+
+// LEGACY FIXUP (tint reroute). Templates promoted before the tint layer became
+// a real generic layer carry the promotion artifact `fill: baseColor @ alpha
+// 1.0` on the `_tint` slot — a value that never rendered (the resolver used to
+// replace it wholesale with the card's tint). Now that the tint layer's fill IS
+// the template-level tint, a full-alpha fill would paint an opaque slab over
+// the card. Any persisted 1.0 predates editability, so it's safely normalised
+// to 0 (= no template tint) here at decode; an author who truly wants a nearly
+// opaque template tint can set up to 0.99. Applied at load so future saves
+// persist the fixed value.
+List<Layer> _fixupLegacyTintLayer(List<Layer> layers) => [
+      for (final l in layers)
+        l.id == '_tint' && l.fill != null && l.fill!.alpha >= 1.0
+            ? l.copyWith(fill: l.fill!.copyWith(alpha: 0.0))
+            : l,
+    ];
 
 List<String> _strList(Object? v) =>
     v is List ? [for (final e in v) '$e'] : const [];
@@ -305,6 +322,19 @@ Map<String, dynamic> cardContentToMap(CardContent c) => {
       if (c.cardHiddenLayers.isNotEmpty) 'hideL': c.cardHiddenLayers.toList(),
       if (c.foilOverrides.isNotEmpty)
         'foilO': {for (final e in c.foilOverrides.entries) e.key: e.value.name},
+      if (c.fillAlphas.isNotEmpty) 'fillA': c.fillAlphas,
+      if (c.imageAlphas.isNotEmpty) 'imgA': c.imageAlphas,
+      if (c.imageTints.isNotEmpty)
+        'imgT': {
+          for (final e in c.imageTints.entries) e.key: _colorRefToMap(e.value),
+        },
+      if (c.watermarkSymbols.isNotEmpty) 'wmS': c.watermarkSymbols,
+      if (c.watermarkColors.isNotEmpty)
+        'wmC': {
+          for (final e in c.watermarkColors.entries)
+            e.key: _colorRefToMap(e.value),
+        },
+      if (c.watermarkAlphas.isNotEmpty) 'wmA': c.watermarkAlphas,
     };
 
 CardContent cardContentFromMap(Map m) {
@@ -335,7 +365,21 @@ CardContent cardContentFromMap(Map m) {
       for (final e in ((m['foilO'] as Map?) ?? const {}).entries)
         e.key.toString(): _byName(FoilType.values, e.value, FoilType.none),
     },
+    fillAlphas: _doubleMap(m['fillA']),
+    imageAlphas: _doubleMap(m['imgA']),
+    imageTints: _colorRefMap(m['imgT']),
+    watermarkSymbols: {
+      for (final e in ((m['wmS'] as Map?) ?? const {}).entries)
+        e.key.toString(): '${e.value}',
+    },
+    watermarkColors: _colorRefMap(m['wmC']),
+    watermarkAlphas: _doubleMap(m['wmA']),
   );
+}
+
+Map<String, double> _doubleMap(Object? raw) {
+  final m = (raw as Map?) ?? const {};
+  return {for (final e in m.entries) e.key.toString(): _d(e.value, 1.0)};
 }
 
 Map<String, ColorRef> _colorRefMap(Object? raw) {
