@@ -49,14 +49,4 @@ void paintCard(ui.Canvas canvas, ui.Size size, CardData card, CardRefs refs) {
 // Fields
 // ---------------------------------------------------------------------------
 
-/// The stroke colour for an outline. If the spec carries an explicit [color] it
-/// wins (and the outline can render with no fill at all). Otherwise fall back to
-/// the legacy relative shade of [shadeBase] — the fill (or, for art, the card
-/// base). Returns null when there's nothing to draw (no colour and no base).
-ui.Color? _outlineColor(OutlineSpec o, CardRefs refs, ui.Color? shadeBase) {
-  final c = o.color;
-  if (c != null) return refs.resolveColor(c).c1;
-  if (shadeBase == null) return null;
-  return _shade(shadeBase, lighter: o.lighter, t: o.intensity);
-}
 

@@ -31,6 +31,7 @@ import '../../model/markup.dart';
 import '../../model/sample_card.dart';
 import '../../state/providers.dart';
 import '../../widgets/card_preview.dart';
+import '../../widgets/preview_backdrop.dart';
 import '../../widgets/decoded_card_preview.dart';
 import '../../widgets/labeled_slider.dart';
 import '../../widgets/preview_dock.dart';
@@ -73,7 +74,6 @@ TextStyleSpec _defaultTextFor(FieldType type) {
   );
 }
 
-const double _previewW = 280;
 
 // Shown in the Template Editor preview only, so the footer can be seen and
 // positioned. Real cards derive their footer from set/rarity/number instead.
@@ -535,23 +535,33 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
               icon: const Icon(Icons.arrow_back),
               onPressed: _handleBack,
             ),
-            Flexible(
-              child: Text(
-                _working.name.isEmpty ? 'Untitled' : _working.name,
-                style: Theme.of(context).textTheme.titleMedium,
-                overflow: TextOverflow.ellipsis,
+            // Title + tag share ONE tight Expanded. With a loose Flexible next
+            // to a Spacer, Flutter splits the free space between them and a
+            // short title's unused share becomes dead space AFTER the buttons —
+            // stranding Save mid-row on wide (desktop) windows.
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      _working.name.isEmpty ? 'Untitled' : _working.name,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'TEMPLATE',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          letterSpacing: 1.2,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              'TEMPLATE',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurfaceVariant,
-                  ),
-            ),
-            const Spacer(),
             FilledButton(
               onPressed: _dirty ? _save : null,
               child: const Text('Save'),
@@ -849,11 +859,11 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 720;
         if (wide) {
-          // Desktop: header on top, fixed-width preview beside the pane.
-          final preview = Padding(
-            padding: const EdgeInsets.all(16),
-            child: Center(child: _previewWithOverlay(_previewW)),
-          );
+          // Desktop: header on top, preview beside the pane. The preview FITS
+          // its column (width and height, like the phone dock) instead of a
+          // fixed 280px card lost in the space, and sits on the gradient
+          // backdrop so black/white card borders read in both themes.
+          final preview = PreviewBackdrop(child: _fittingPreviewWithOverlay());
           return Column(
             children: [
               _editorHeader(),
@@ -880,7 +890,7 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
         // to fill the space above the dock as the handle is dragged.
         return PreviewDockScaffold(
           header: _editorHeader(),
-          preview: _fittingPreviewWithOverlay(),
+          preview: PreviewBackdrop(child: _fittingPreviewWithOverlay()),
           dock: pane,
         );
       },

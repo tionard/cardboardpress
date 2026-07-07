@@ -72,6 +72,7 @@ Map<String, dynamic> _outlineToMap(OutlineSpec o) => {
       'intensity': o.intensity,
       'thickness': o.thickness,
       if (o.color != null) 'color': _colorRefToMap(o.color!),
+      if (o.alpha != 1.0) 'a': o.alpha,
     };
 
 OutlineSpec _outlineFromMap(Map m) => OutlineSpec(
@@ -79,6 +80,7 @@ OutlineSpec _outlineFromMap(Map m) => OutlineSpec(
       intensity: _d(m['intensity'], 0.4),
       thickness: _d(m['thickness'], 0.004),
       color: m['color'] == null ? null : _colorRefFromMap(m['color'] as Map),
+      alpha: _d(m['a'], 1.0),
     );
 
 // ---- TextStyleSpec ----

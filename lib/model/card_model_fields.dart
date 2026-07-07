@@ -14,13 +14,16 @@ class OutlineSpec {
   // renders even with no fill. When null, fall back to the legacy relative
   // shade of the fill (lighter/intensity) — so pre-existing outlines are
   // unchanged. New/edited outlines set a colour; the shade path is legacy-only.
+  // A double (two-colour) value renders as a gradient stroke, like fills.
   final ColorRef? color;
+  final double alpha; // use-site opacity of the stroke, 0..1
 
   const OutlineSpec({
     this.lighter = false,
     this.intensity = 0.4,
     this.thickness = 0.004,
     this.color,
+    this.alpha = 1.0,
   });
 
   OutlineSpec copyWith({
@@ -28,12 +31,14 @@ class OutlineSpec {
     double? intensity,
     double? thickness,
     Object? color = _sentinel,
+    double? alpha,
   }) =>
       OutlineSpec(
         lighter: lighter ?? this.lighter,
         intensity: intensity ?? this.intensity,
         thickness: thickness ?? this.thickness,
         color: identical(color, _sentinel) ? this.color : color as ColorRef?,
+        alpha: alpha ?? this.alpha,
       );
 }
 

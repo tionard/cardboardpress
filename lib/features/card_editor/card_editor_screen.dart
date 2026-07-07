@@ -36,6 +36,7 @@ import '../../state/providers.dart';
 import '../../state/settings.dart';
 import '../../widgets/card_preview.dart';
 import '../../widgets/labeled_slider.dart';
+import '../../widgets/preview_backdrop.dart';
 import '../../widgets/preview_dock.dart';
 import '../../widgets/swatch_picker.dart';
 import '../../widgets/color_picker/color_picker.dart';
@@ -641,23 +642,32 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
               icon: const Icon(Icons.arrow_back),
               onPressed: _handleBack,
             ),
-            Flexible(
-              child: Text(
-                _cardDisplayName(),
-                style: Theme.of(context).textTheme.titleMedium,
-                overflow: TextOverflow.ellipsis,
+            // Title + tag share ONE tight Expanded — a loose Flexible next to
+            // a Spacer splits the free space and strands the buttons mid-row
+            // on wide (desktop) windows; see the same fix in the Template
+            // Editor header.
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      _cardDisplayName(),
+                      style: Theme.of(context).textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'CARD',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          letterSpacing: 1.2,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 8),
-            Text(
-              'CARD',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurfaceVariant,
-                  ),
-            ),
-            const Spacer(),
             IconButton(
               tooltip: 'New card',
               icon: const Icon(Icons.note_add_outlined),
@@ -698,7 +708,11 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
           ),
           const Spacer(),
           Flexible(
-            child: Container(
+            // Capped so the pill stays a compact control pinned right on wide
+            // desktop windows instead of stretching across half of them.
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: scheme.surfaceContainerHighest,
@@ -740,6 +754,7 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
                   ],
                   onChanged: _changeTemplate,
                 ),
+              ),
               ),
             ),
           ),
@@ -790,12 +805,10 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
 
           if (wide) {
             // Tablet / desktop: header on top, then preview · rail · settings.
-            final preview = Padding(
-              padding: const EdgeInsets.all(16),
-              child: Center(
-                child: CardPreview(card: card, refs: refs, width: 300),
-              ),
-            );
+            // The preview FITS its column (width and height) instead of a
+            // fixed 300px card lost in the space, on the gradient backdrop so
+            // black/white card borders read in both themes.
+            final preview = PreviewBackdrop(child: _fittingPreview(card, refs));
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -832,7 +845,7 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
               mainAxisSize: MainAxisSize.min,
               children: [_cardHeader(), _templateHeader()],
             ),
-            preview: _fittingPreview(card, refs),
+            preview: PreviewBackdrop(child: _fittingPreview(card, refs)),
             dock: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

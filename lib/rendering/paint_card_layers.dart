@@ -112,17 +112,36 @@ void _paintGenericLayer(
 
   // 4. outline — explicit colour if set (draws even with no fill), else a
   //    relative shade of the fill. Suppressed in sprite mode (border present).
+  //    A DOUBLE colour strokes with the same gradient shader fills use, and
+  //    [OutlineSpec.alpha] is the stroke's use-site opacity (like a fill's).
   final outline = layer.outline;
   if (outline != null && !spriteMode) {
-    final col = _outlineColor(outline, refs, fill?.c1);
-    if (col != null) {
-      final strokeW = outline.thickness * size.width;
-      final paint = ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = strokeW
-        ..color = col;
-      canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
+    final strokeW = outline.thickness * size.width;
+    final paint = ui.Paint()
+      ..style = ui.PaintingStyle.stroke
+      ..strokeWidth = strokeW;
+    var draw = false;
+    final oc = outline.color;
+    if (oc != null) {
+      final cv = refs.resolveColor(oc);
+      final shader = _doubleShader(cv, rrect.outerRect, outline.alpha);
+      if (shader != null) {
+        paint.shader = shader;
+      } else {
+        // baked per-colour alpha × use-site alpha, matching _fillRRect.
+        paint.color = cv.c1.withValues(alpha: cv.c1.a * outline.alpha);
+      }
+      draw = true;
+    } else {
+      // Legacy relative shade of the fill (single colour by definition).
+      final base = fill?.c1;
+      if (base != null) {
+        final col = _shade(base, lighter: outline.lighter, t: outline.intensity);
+        paint.color = col.withValues(alpha: col.a * outline.alpha);
+        draw = true;
+      }
     }
+    if (draw) canvas.drawRRect(rrect.deflate(strokeW / 2), paint);
   }
 
   // 5. foil

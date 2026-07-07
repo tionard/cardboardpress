@@ -511,6 +511,13 @@ extension _TemplateLayersPane on _TemplateBodyState {
               0.02,
               (v) => _updateLayer(id,
                   (l) => l.copyWith(outline: l.outline?.copyWith(thickness: v)))),
+          _labeledSlider(
+              'Opacity',
+              outline.alpha,
+              0,
+              1,
+              (v) => _updateLayer(id,
+                  (l) => l.copyWith(outline: l.outline?.copyWith(alpha: v)))),
           if (outline.color == null && fill == null)
             Text('This outline shades the fill — pick a colour, or add a Fill.',
                 style: Theme.of(context).textTheme.bodySmall),
