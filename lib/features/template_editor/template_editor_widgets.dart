@@ -111,4 +111,28 @@ extension _TemplateEditorShared on _TemplateBodyState {
   }
 }
 
-String _typeLabel(FieldType t) => t.name[0].toUpperCase() + t.name.substring(1);
+// Shared label helpers. Top-level (not extension statics!) on purpose: a
+// static member of one extension is invisible to code in every other part —
+// the exposure dropdown (layers core) and the text-source summary (aspects)
+// both need these across part boundaries.
+
+/// Card-Editor tab name shown in the "Editing: Card · X tab" exposure dropdown.
+String _tabLabel(EditorTab t) => switch (t) {
+      EditorTab.card => 'Card',
+      EditorTab.art => 'Art',
+      EditorTab.color => 'Colour',
+      EditorTab.set => 'Set',
+      EditorTab.export => 'Export',
+    };
+
+/// Human label for a bound-text source (footer parts, text-parts editor).
+String _textSourceLabel(TextSource s) => switch (s) {
+      TextSource.cardName => 'Card name',
+      TextSource.setName => 'Set name',
+      TextSource.setAbbrev => 'Set abbreviation',
+      TextSource.collectorNumber => 'Collector number',
+      TextSource.rarityName => 'Rarity name',
+      TextSource.rarityAbbrev => 'Rarity abbreviation',
+      TextSource.artist => 'Artist',
+      TextSource.copyright => 'Copyright',
+    };

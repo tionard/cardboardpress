@@ -42,8 +42,11 @@ import '../customization/symbol_picker.dart';
 
 part 'template_editor_widgets.dart';
 part 'template_editor_layout.dart';
-part 'template_editor_fields.dart';
+part 'template_editor_browser.dart';
 part 'template_editor_layers.dart';
+part 'template_editor_preview.dart';
+part 'template_editor_layer_aspects.dart';
+part 'template_editor_layer_dialogs.dart';
 
 const Map<String, (double, double)> _sizePresets = {
   'Poker (2.5 × 3.5)': (2.5, 3.5),
@@ -52,35 +55,11 @@ const Map<String, (double, double)> _sizePresets = {
   'Square (3.5 × 3.5)': (3.5, 3.5),
 };
 
-// Defaults for newly-added fields (seeded palette ids).
-const _paperRef =
-    ColorRef(id: 'c_paper', snapshot: ColorValue.single(Color(0xFFF1EFE8)));
-const _inkRef =
-    ColorRef(id: 'c_ink', snapshot: ColorValue.single(Color(0xFF2C2B27)));
-
-/// Default text style for a freshly created/changed field. Multi-line types
-/// (rules, flavor) default to shrink-to-fit so long text stays inside the box.
-/// Everything is middle-anchored except Rules, which stays top-anchored so
-/// multi-line rules text reads top-down.
-TextStyleSpec _defaultTextFor(FieldType type) {
-  final multiline = type == FieldType.rules || type == FieldType.flavor;
-  final isRules = type == FieldType.rules;
-  return TextStyleSpec(
-    sizeFrac: 0.035,
-    colorRef: _inkRef,
-    vAlign: isRules ? VAlign.top : VAlign.middle,
-    padX: 0.025,
-    padY: isRules ? 0.015 : 0.0,
-    fit: multiline ? TextFit.shrink : TextFit.fixed,
-  );
-}
-
-
 // Shown in the Template Editor preview only, so the footer can be seen and
 // positioned. Real cards derive their footer from set/rarity/number instead.
 const _footerPlaceholder = '001/XXX • CORE • R';
 
-enum _Mode { layout, fields, layers }
+enum _Mode { layout, layers }
 
 class TemplateEditorScreen extends ConsumerStatefulWidget {
   const TemplateEditorScreen({super.key});
@@ -200,202 +179,6 @@ class _TemplateEditorScreenState extends ConsumerState<TemplateEditorScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Template Browser — the grid you land on. Pick a template to edit it.
-// ---------------------------------------------------------------------------
-
-class _TemplateBrowser extends ConsumerStatefulWidget {
-  final List<TemplateEntry> templates;
-  final Set<String> inUseIds;
-  final Map<String, ColorValue> palette;
-  final ValueChanged<String> onOpen;
-  final VoidCallback onNew;
-  final ValueChanged<TemplateEntry> onDuplicate;
-  final ValueChanged<TemplateEntry> onDelete;
-
-  const _TemplateBrowser({
-    required this.templates,
-    required this.inUseIds,
-    required this.palette,
-    required this.onOpen,
-    required this.onNew,
-    required this.onDuplicate,
-    required this.onDelete,
-  });
-
-  @override
-  ConsumerState<_TemplateBrowser> createState() => _TemplateBrowserState();
-}
-
-class _TemplateBrowserState extends ConsumerState<_TemplateBrowser> {
-  String _query = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final q = _query.trim().toLowerCase();
-    final list = q.isEmpty
-        ? widget.templates
-        : widget.templates
-            .where((t) => t.name.toLowerCase().contains(q))
-            .toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-          child: Row(
-            children: [
-              Text('Templates', style: Theme.of(context).textTheme.titleLarge),
-              const Spacer(),
-              FilledButton.icon(
-                onPressed: widget.onNew,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('New'),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: TextField(
-            onChanged: (v) => setState(() => _query = v),
-            decoration: const InputDecoration(
-              isDense: true,
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Search templates…',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        Expanded(
-          child: list.isEmpty
-              ? Center(
-                  child: Text(
-                    widget.templates.isEmpty
-                        ? 'No templates yet — tap New to start one.'
-                        : 'No templates match "$_query".',
-                    style: TextStyle(color: scheme.onSurfaceVariant),
-                  ),
-                )
-              : GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                  gridDelegate:
-                      const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 180,
-                    childAspectRatio: 0.6,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 14,
-                  ),
-                  itemCount: list.length,
-                  itemBuilder: (context, i) => _tile(context, list[i]),
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _tile(BuildContext context, TemplateEntry t) {
-    final scheme = Theme.of(context).colorScheme;
-    final inUse = widget.inUseIds.contains(t.id);
-    // Empty content: the tile shows each text layer's PLACEHOLDER (plus the
-    // bound-text preview samples), so what you author is what the tile shows —
-    // sample content would mask the placeholders on the default field ids.
-    final data = composeCard(
-      t.data,
-      content: const CardContent(),
-      symbolImageIds: ref.watch(textSymbolMapProvider),
-      symbolsById: ref.watch(symbolsMapProvider),
-      footerPlaceholder: _footerPlaceholder,
-    );
-    final aspect = data.widthInches / data.heightInches;
-    return InkWell(
-      onTap: () => widget.onOpen(t.id),
-      borderRadius: BorderRadius.circular(10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: LayoutBuilder(
-                    builder: (context, c) {
-                      double w = c.maxWidth;
-                      if (w / aspect > c.maxHeight) w = c.maxHeight * aspect;
-                      return Center(
-                        child: DecodedCardPreview(
-                          card: data,
-                          palette: widget.palette,
-                          imageStore: ref.read(imageStoreProvider),
-                          width: w,
-                          showPlaceholders: true,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                if (inUse)
-                  Positioned(
-                    left: 4,
-                    top: 4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: scheme.secondaryContainer,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'IN USE',
-                        style: TextStyle(
-                          fontSize: 9,
-                          letterSpacing: 0.5,
-                          fontWeight: FontWeight.w700,
-                          color: scheme.onSecondaryContainer,
-                        ),
-                      ),
-                    ),
-                  ),
-                Positioned(right: -6, top: -6, child: _tileMenu(t)),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              t.name.isEmpty ? '(unnamed)' : t.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _tileMenu(TemplateEntry t) {
-    return PopupMenuButton<String>(
-      tooltip: '',
-      icon: Icon(Icons.more_vert,
-          size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
-      onSelected: (v) {
-        if (v == 'edit') widget.onOpen(t.id);
-        if (v == 'duplicate') widget.onDuplicate(t);
-        if (v == 'delete') widget.onDelete(t);
-      },
-      itemBuilder: (context) => const [
-        PopupMenuItem(value: 'edit', child: Text('Edit')),
-        PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
-        PopupMenuItem(value: 'delete', child: Text('Delete')),
-      ],
-    );
-  }
-}
-
 class _TemplateBody extends ConsumerStatefulWidget {
   final TemplateEntry entry;
   final Map<String, ColorValue> palette;
@@ -427,7 +210,6 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   final Map<String, ui.Image> _images = {}; // imageId -> decoded bg image
   bool _dirty = false; // unsaved edits to the working copy
   _Mode _mode = _Mode.layout;
-  String? _selectedFieldId;
   String? _selectedLayerId; // selected layer in the Layers tab (editor-only UI)
   bool _layersReordering = false; // Layers tab: reorder mode vs edit mode
   // Which field-editor sections are expanded (keyed by section). Remembered as
@@ -456,13 +238,6 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   }
 
   TemplateData get _d => _working.data;
-
-  FieldSpec? get _selectedField {
-    for (final f in _d.fields) {
-      if (f.id == _selectedFieldId) return f;
-    }
-    return null;
-  }
 
   void _onNameChanged() {
     if (_working.name == _name.text) return;
@@ -573,12 +348,6 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     );
   }
 
-  /// Select a field for editing (or clear with null). Editor-only UI state,
-  /// not part of the template data.
-  void _selectField(String? id) {
-    setState(() => _selectedFieldId = id);
-  }
-
   /// Select a layer in the Layers tab (or clear with null). Editor-only UI
   /// state. Extensions route through this since they can't call setState.
   void _selectLayer(String? id) {
@@ -623,94 +392,10 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     _update(_d.copyWith(widthInches: w, heightInches: h));
   }
 
-  void _updateField(FieldSpec updated) {
-    final fields =
-        _d.fields.map((f) => f.id == updated.id ? updated : f).toList();
-    _update(_d.copyWith(fields: fields));
-  }
-
   void _toggleSection(String key) {
     setState(() {
       if (!_expandedSections.remove(key)) _expandedSections.add(key);
     });
-  }
-
-  // ---- single-placement rule (spec §3.6) ----
-  //
-  // Every field type is placeable exactly once EXCEPT Stat, which may repeat.
-  // We enforce it where a type is chosen: the Add-field menu and the per-field
-  // type dropdown both grey out a type that's already in use.
-
-  Set<FieldType> get _placedTypes => _d.fields.map((f) => f.type).toSet();
-
-  /// Can a NEW field of [type] be added? Stat always; others only if absent.
-  bool _canAdd(FieldType type) =>
-      type == FieldType.stat || !_placedTypes.contains(type);
-
-  /// Can field [self] be CHANGED to [type]? Always its current type or Stat;
-  /// otherwise only if no OTHER field already uses that type.
-  bool _canChangeTo(FieldType type, FieldSpec self) =>
-      type == self.type ||
-      type == FieldType.stat ||
-      !_d.fields.any((f) => f.id != self.id && f.type == type);
-
-  void _addField(FieldType type) {
-    if (!_canAdd(type)) return; // defensive; the menu already disables it
-    final id = 'f_${DateTime.now().microsecondsSinceEpoch}';
-    final isArt = type == FieldType.art;
-    final f = FieldSpec(
-      id: id,
-      type: type,
-      frac: const Rect.fromLTRB(0.1, 0.1, 0.9, 0.24),
-      fill: isArt ? null : _paperRef,
-      fillAlpha: 0.85,
-      text: isArt ? null : _defaultTextFor(type),
-    );
-    _update(_d.copyWith(fields: [..._d.fields, f]));
-    setState(() => _selectedFieldId = id);
-  }
-
-  void _removeField(String id) {
-    _update(_d.copyWith(fields: _d.fields.where((f) => f.id != id).toList()));
-    setState(() => _selectedFieldId = null);
-  }
-
-  void _moveField(String id, int delta) {
-    final fields = [..._d.fields];
-    final i = fields.indexWhere((f) => f.id == id);
-    final j = i + delta;
-    if (i < 0 || j < 0 || j >= fields.length) return;
-    final f = fields.removeAt(i);
-    fields.insert(j, f);
-    _update(_d.copyWith(fields: fields));
-  }
-
-  void _changeFieldType(FieldSpec f, FieldType type) {
-    var updated = f.copyWith(type: type);
-    if (type == FieldType.art) {
-      updated = updated.copyWith(text: null, fill: null);
-    } else if (f.text == null) {
-      updated = updated.copyWith(
-          text: _defaultTextFor(type));
-    }
-    // The watermark belongs to the Rules field; drop it if the type changes away.
-    if (type != FieldType.rules && f.watermark != null) {
-      updated = updated.copyWith(watermark: null);
-    }
-    _updateField(updated);
-  }
-
-  void _setFrac(FieldSpec f, {double? l, double? t, double? r, double? b}) {
-    const min = 0.03;
-    var left = l ?? f.frac.left;
-    var top = t ?? f.frac.top;
-    var right = r ?? f.frac.right;
-    var bottom = b ?? f.frac.bottom;
-    if (l != null) left = left.clamp(0.0, right - min);
-    if (r != null) right = right.clamp(left + min, 1.0);
-    if (t != null) top = top.clamp(0.0, bottom - min);
-    if (b != null) bottom = bottom.clamp(top + min, 1.0);
-    _updateField(f.copyWith(frac: Rect.fromLTRB(left, top, right, bottom)));
   }
 
   // ---- background image ----
@@ -772,35 +457,6 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     return imageId;
   }
 
-  /// Pick a 9-slice sprite for [f]'s frame. Like [_pickBgImage] but the chosen
-  /// image goes on the field's NineSliceSpec; defaults (slice/inset/centre) are
-  /// kept when replacing an existing frame's sprite.
-  Future<void> _pickFrame(FieldSpec f) async {
-    final result = await FilePicker.pickFiles(type: FileType.image);
-    if (result == null) return;
-    final file = result.files.first;
-    final bytes = await file.readAsBytes();
-    final imageId = await widget.imageStore
-        .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
-    final img = await _decode(bytes);
-    if (!mounted) return;
-    setState(() => _images[imageId] = img);
-    final existing = f.frame ?? const NineSliceSpec();
-    // The fill stays dormant (not cleared) — 9-slice mode just doesn't draw it,
-    // so toggling back to Fill keeps the colour. Render decides by mode.
-    _updateField(f.copyWith(frame: existing.copyWith(imageId: imageId)));
-  }
-
-  /// Toggle a field's background between flat fill and a 9-slice sprite. The
-  /// "mode" is whether a frame object exists; the fill colour is left intact so
-  /// switching back and forth never loses it.
-  void _setBackgroundMode(FieldSpec f, bool toSprite) {
-    if (toSprite == (f.frame != null)) return;
-    _updateField(toSprite
-        ? f.copyWith(frame: const NineSliceSpec())
-        : f.copyWith(frame: null));
-  }
-
   @override
   Widget build(BuildContext context) {
     final pane = Column(
@@ -818,11 +474,7 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
           ),
         ),
         Expanded(
-          child: _mode == _Mode.layout
-              ? _layoutForm()
-              : _mode == _Mode.fields
-                  ? _fieldsPane()
-                  : _layersPane(),
+          child: _mode == _Mode.layout ? _layoutForm() : _layersPane(),
         ),
       ],
     );
@@ -866,126 +518,6 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
           dock: pane,
         );
       },
-    );
-  }
-
-  // Fit the preview (and its overlays) into whatever box it's handed, so it can
-  // scale as the dock grows/shrinks on the phone.
-  Widget _fittingPreviewWithOverlay() {
-    final aspect = _d.widthInches / _d.heightInches;
-    return LayoutBuilder(
-      builder: (context, c) {
-        const pad = 16.0;
-        final double availW = c.maxWidth - pad * 2;
-        final double availH = c.maxHeight - pad * 2;
-        if (availW <= 0 || availH <= 0) return const SizedBox.shrink();
-        double w = availW;
-        if (w / aspect > availH) w = availH * aspect;
-        return Padding(
-          padding: const EdgeInsets.all(pad),
-          child: Center(child: _previewWithOverlay(w)),
-        );
-      },
-    );
-  }
-
-  Widget _previewWithOverlay(double w) {
-    final h = w * _d.heightInches / _d.widthInches;
-    final sel = _selectedField;
-    // Empty content: free text layers render their PLACEHOLDER (showPlaceholders
-    // below) and bound layers their preview samples. Sample card content would
-    // mask edited placeholders, since every template shares the default field ids.
-    final card = composeCard(_d,
-        content: const CardContent(),
-        symbolImageIds: ref.watch(textSymbolMapProvider),
-        symbolsById: ref.watch(symbolsMapProvider),
-        footerPlaceholder: _footerPlaceholder);
-    final layers = effectiveTemplateLayers(_d);
-    Layer? symbolGuide;
-    Layer? selectedLayer;
-    for (final l in layers) {
-      if (l.id == kSetSymbolLayerId && l.visible) symbolGuide = l;
-      if (_mode == _Mode.layers && l.id == _selectedLayerId) selectedLayer = l;
-    }
-    // The border draws outside the card rect; an in-card outline would lie.
-    if (selectedLayer?.id == kBorderLayerId) selectedLayer = null;
-    return SizedBox(
-      width: w,
-      height: h,
-      child: Stack(
-        children: [
-          CardPreview(
-              card: card,
-              refs: CardRefs(
-                  palette: widget.palette,
-                  images: _images,
-                  showPlaceholders: true),
-              width: w),
-          if (_mode == _Mode.fields && sel != null)
-            Positioned(
-              left: sel.frac.left * w,
-              top: sel.frac.top * h,
-              width: sel.frac.width * w,
-              height: sel.frac.height * h,
-              child: IgnorePointer(
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                        color: Theme.of(context).colorScheme.primary, width: 2),
-                  ),
-                ),
-              ),
-            ),
-          // Selected-layer outline (Layers mode): live feedback for the
-          // Position & size sliders even on layers with nothing visible to draw
-          // (no fill/image/outline yet). Rounded to match the layer's corner.
-          if (selectedLayer != null)
-            Positioned(
-              left: selectedLayer.frac.left * w,
-              top: selectedLayer.frac.top * h,
-              width: selectedLayer.frac.width * w,
-              height: selectedLayer.frac.height * h,
-              child: IgnorePointer(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius:
-                        BorderRadius.circular(selectedLayer.cornerRadius * w),
-                    border: Border.all(
-                        color: Theme.of(context).colorScheme.primary, width: 2),
-                  ),
-                ),
-              ),
-            ),
-          // Set-symbol placement guide (the symbol itself only renders on real
-          // cards, where the set has chosen one — here we just show the zone).
-          // Read from the EFFECTIVE layers so a promoted template's moved or
-          // hidden set-symbol layer is reflected, not the stale field placement.
-          if (symbolGuide != null)
-            Positioned(
-              left: symbolGuide.frac.left * w,
-              top: symbolGuide.frac.top * h,
-              width: symbolGuide.frac.width * w,
-              height: symbolGuide.frac.height * h,
-              child: IgnorePointer(
-                child: Container(
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                        color: Theme.of(context).colorScheme.tertiary,
-                        width: 1.5),
-                    color: Theme.of(context)
-                        .colorScheme
-                        .tertiary
-                        .withValues(alpha: 0.12),
-                  ),
-                  child: Icon(Icons.star_border,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.tertiary),
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }
