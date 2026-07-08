@@ -95,6 +95,7 @@ Map<String, dynamic> _textToMap(TextStyleSpec t) => {
       'fit': t.fit.name,
       'padX': t.padX,
       'padY': t.padY,
+      if (t.fontFamily != null) 'font': t.fontFamily,
     };
 
 TextStyleSpec _textFromMap(Map m) => TextStyleSpec(
@@ -108,6 +109,7 @@ TextStyleSpec _textFromMap(Map m) => TextStyleSpec(
       fit: _byName(TextFit.values, m['fit'], TextFit.fixed),
       padX: _d(m['padX'], 0.04),
       padY: _d(m['padY'], 0.0),
+      fontFamily: m['font'] as String?,
     );
 
 // ---- BorderSpec ----

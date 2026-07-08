@@ -12,6 +12,7 @@ void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
     ui.Size size, ColorValue color) {
   final weight = ts.bold ? ui.FontWeight.bold : ui.FontWeight.normal;
   final slant = ts.italic ? ui.FontStyle.italic : ui.FontStyle.normal;
+  final variations = _fontVariations(ts.fontFamily, ts.bold);
 
   // Horizontal padding (sides) + optional vertical padding (top+bottom).
   final pad = ts.padX * size.width;
@@ -23,6 +24,7 @@ void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
   ui.Paragraph layoutAt(double fs, {ui.Paint? fg, ui.Color? col}) {
     final b = ui.ParagraphBuilder(ui.ParagraphStyle(
       textAlign: ts.align,
+      fontFamily: ts.fontFamily,
       fontWeight: weight,
       fontStyle: slant,
       fontSize: fs,
@@ -30,6 +32,8 @@ void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
       ..pushStyle(ui.TextStyle(
         foreground: fg,
         color: fg == null ? col : null,
+        fontFamily: ts.fontFamily,
+        fontVariations: variations,
         fontSize: fs,
         fontWeight: weight,
         fontStyle: slant,
@@ -104,14 +108,27 @@ void _paintText(ui.Canvas canvas, ui.Rect rect, String text, TextStyleSpec ts,
 /// with the run's own (from **bold** / *italic* markup). Inline text is single
 /// colour (c1); double-colour fills are a plain-text-field feature.
 ui.TextStyle _runStyle(
-        double fs, bool bold, bool italic, ColorValue color, double alpha) =>
+        double fs, bool bold, bool italic, ColorValue color, double alpha,
+        {String? family}) =>
     ui.TextStyle(
       // Inline text is single-colour: baked alpha × use-site alpha.
       color: color.c1.withValues(alpha: color.c1.a * alpha),
+      fontFamily: family,
+      fontVariations: _fontVariations(family, bold),
       fontWeight: bold ? ui.FontWeight.bold : ui.FontWeight.normal,
       fontStyle: italic ? ui.FontStyle.italic : ui.FontStyle.normal,
       fontSize: fs,
     );
+
+/// For variable fonts, the requested weight must ALSO be set as a `wght` axis
+/// value — SkParagraph matches a variable TTF as its default instance, so
+/// fontWeight alone can leave bold text regular. Static fonts ignore unknown
+/// axes, so this is safe to pass for every bundled family; `null` family
+/// (app default) gets none.
+List<ui.FontVariation>? _fontVariations(String? family, bool bold) =>
+    family == null
+        ? null
+        : [ui.FontVariation('wght', bold ? 700 : 400)];
 
 /// Draws inline content: literal text (with per-run bold/italic) interleaved
 /// with {symbol} pips. Used by Cost (single line) and Rules (multi-line, which
@@ -152,17 +169,20 @@ void _paintInline(
   ui.Paragraph build(double fs) {
     final b = ui.ParagraphBuilder(ui.ParagraphStyle(
       textAlign: ts.align,
+      fontFamily: ts.fontFamily,
       fontWeight: weight,
       fontStyle: slant,
       fontSize: fs,
       maxLines: maxLines,
       ellipsis: maxLines == 1 ? '\u2026' : null,
     ))
-      ..pushStyle(_runStyle(fs, baseBold, baseItalic, color, ts.colorAlpha));
+      ..pushStyle(_runStyle(fs, baseBold, baseItalic, color, ts.colorAlpha,
+          family: ts.fontFamily));
     for (final tk in tokens) {
       if (tk is TextRun) {
         b.pushStyle(_runStyle(fs, baseBold || tk.bold, baseItalic || tk.italic,
-            color, ts.colorAlpha));
+            color, ts.colorAlpha,
+            family: ts.fontFamily));
         b.addText(tk.text);
         b.pop();
       } else if (tk is SymbolRun) {

@@ -63,6 +63,11 @@ class TextStyleSpec {
   final double padX; // horizontal inset, as a fraction of card width (sides only)
   final double padY; // vertical inset, as a fraction of card height (top+bottom)
 
+  /// Bundled font family for this text (must match a pubspec `fonts:` family
+  /// from the catalog in model/font_catalog.dart). Null = the app default.
+  /// Template-level only — deliberately NOT exposed per-card.
+  final String? fontFamily;
+
   const TextStyleSpec({
     required this.sizeFrac,
     this.bold = false,
@@ -74,6 +79,7 @@ class TextStyleSpec {
     this.fit = TextFit.fixed,
     this.padX = 0.04,
     this.padY = 0.0,
+    this.fontFamily,
   });
 
   TextStyleSpec copyWith({
@@ -87,6 +93,7 @@ class TextStyleSpec {
     TextFit? fit,
     double? padX,
     double? padY,
+    Object? fontFamily = _sentinel, // sentinel: null must CLEAR back to default
   }) =>
       TextStyleSpec(
         sizeFrac: sizeFrac ?? this.sizeFrac,
@@ -99,6 +106,9 @@ class TextStyleSpec {
         fit: fit ?? this.fit,
         padX: padX ?? this.padX,
         padY: padY ?? this.padY,
+        fontFamily: identical(fontFamily, _sentinel)
+            ? this.fontFamily
+            : fontFamily as String?,
       );
 }
 

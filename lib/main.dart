@@ -3,7 +3,9 @@
 // App entry point. For a C# dev: `main()` is your Program.Main, and runApp()
 // hands the root widget to the Flutter engine to render.
 
+import 'package:flutter/foundation.dart' show LicenseEntryWithLineBreaks, LicenseRegistry;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app_shell.dart';
@@ -16,6 +18,7 @@ import 'state/settings.dart';
 // against the SAME database + image store the app then uses.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _registerFontLicenses();
   final container = ProviderContainer();
   await seedDefaultTextSymbols(
     container.read(databaseProvider),
@@ -30,6 +33,36 @@ Future<void> main() async {
     container: container,
     child: const CardboardPressApp(),
   ));
+}
+
+/// Surfaces the bundled fonts' SIL OFL texts in Flutter's licenses page
+/// (Settings → About → Licenses via showLicensePage / AboutDialog). The OFL
+/// requires the license to accompany the fonts in any distribution — this is
+/// what keeps the Play Store / itch.io builds compliant. One entry per family,
+/// streamed lazily from assets so startup cost is nil until the page opens.
+void _registerFontLicenses() {
+  const families = {
+    'Cinzel': 'cinzel',
+    'Uncial Antiqua': 'uncialantiqua',
+    'Almendra': 'almendra',
+    'Almendra SC': 'almendrasc',
+    'EB Garamond': 'ebgaramond',
+    'Alegreya': 'alegreya',
+    'Alegreya SC': 'alegreyasc',
+    'Inter': 'inter',
+    'Dancing Script': 'dancingscript',
+    'Great Vibes': 'greatvibes',
+    'VT323': 'vt323',
+    'Orbitron': 'orbitron',
+    'Bangers': 'bangers',
+  };
+  LicenseRegistry.addLicense(() async* {
+    for (final e in families.entries) {
+      final text =
+          await rootBundle.loadString('assets/fonts/licenses/OFL-${e.value}.txt');
+      yield LicenseEntryWithLineBreaks([e.key], text);
+    }
+  });
 }
 
 class CardboardPressApp extends ConsumerWidget {

@@ -707,6 +707,46 @@ extension _TemplateLayersPane on _TemplateBodyState {
               style: Theme.of(context).textTheme.bodySmall),
         ),
       ]),
+      Row(children: [
+        const SizedBox(width: 80, child: Text('Font')),
+        Expanded(
+          child: DropdownButton<String?>(
+            value: s.fontFamily,
+            isExpanded: true,
+            // Each entry renders in its own face — the fonts are bundled
+            // assets, so the widget layer can use them directly. The stored
+            // value is the pubspec family string; null = app default.
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Default'),
+              ),
+              for (final f in kFontCatalog)
+                DropdownMenuItem<String?>(
+                  value: f.family,
+                  child: Text.rich(
+                    TextSpan(children: [
+                      TextSpan(
+                        text: f.family,
+                        style: TextStyle(fontFamily: f.family, fontSize: 16),
+                      ),
+                      TextSpan(
+                        text: '  · ${f.note}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.outline),
+                      ),
+                    ]),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: (fam) => _updateLayer(
+                id,
+                (l) => l.copyWith(
+                    text: l.text?.copyWith(style: s.copyWith(fontFamily: fam)))),
+          ),
+        ),
+      ]),
       _labeledSlider(
           'Size',
           s.sizeFrac,

@@ -25,6 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/image_store.dart';
 import '../../data/template_repository.dart';
 import '../../model/card_model.dart';
+import '../../model/font_catalog.dart';
 import '../../model/layer_migration.dart';
 import '../../model/layers.dart';
 import '../../model/markup.dart';
@@ -771,23 +772,23 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     return imageId;
   }
 
-  Future<void> _pickBgImage() async {
-    final result = await FilePicker.pickFiles(type: FileType.image);
-    if (result == null) return;
-    final file = result.files.first;
-    final bytes = await file.readAsBytes();
-    final imageId = await widget.imageStore
-        .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
-    final img = await _decode(bytes);
-    if (!mounted) return;
-    setState(() {
-      _images[imageId] = img;
-      // Replacing resets zoom/pan — a fresh image shouldn't inherit the old crop.
-      _working = _working.copyWith(
-          data: _d.copyWith(bgImageId: imageId, bgTransform: const ArtTransform()));
-      _dirty = true;
-    });
-  }
+  // Future<void> _pickBgImage() async {
+  //   final result = await FilePicker.pickFiles(type: FileType.image);
+  //   if (result == null) return;
+  //   final file = result.files.first;
+  //   final bytes = await file.readAsBytes();
+  //   final imageId = await widget.imageStore
+  //       .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
+  //   final img = await _decode(bytes);
+  //   if (!mounted) return;
+  //   setState(() {
+  //     _images[imageId] = img;
+  //     // Replacing resets zoom/pan — a fresh image shouldn't inherit the old crop.
+  //     _working = _working.copyWith(
+  //         data: _d.copyWith(bgImageId: imageId, bgTransform: const ArtTransform()));
+  //     _dirty = true;
+  //   });
+  // }
 
   /// Pick a 9-slice sprite for [f]'s frame. Like [_pickBgImage] but the chosen
   /// image goes on the field's NineSliceSpec; defaults (slice/inset/centre) are
@@ -818,16 +819,16 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
         : f.copyWith(frame: null));
   }
 
-  void _removeBgImage() {
-    setState(() {
-      _working = _working.copyWith(
-          data: _d.copyWith(bgImageId: null, bgTransform: const ArtTransform()));
-      _dirty = true;
-    });
-    // (The file is left on disk; orphan cleanup comes with Collection delete.)
-  }
+  // void _removeBgImage() {
+  //   setState(() {
+  //     _working = _working.copyWith(
+  //         data: _d.copyWith(bgImageId: null, bgTransform: const ArtTransform()));
+  //     _dirty = true;
+  //   });
+  //   // (The file is left on disk; orphan cleanup comes with Collection delete.)
+  // }
 
-  void _setBgTransform(ArtTransform t) => _update(_d.copyWith(bgTransform: t));
+  // void _setBgTransform(ArtTransform t) => _update(_d.copyWith(bgTransform: t));
 
   @override
   Widget build(BuildContext context) {
