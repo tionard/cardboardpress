@@ -362,12 +362,14 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   }
 
   /// Bring the given layer's chip fully into view in the horizontal strip.
-  /// Deferred a frame so the chip is laid out (e.g. a just-added layer) before
-  /// we measure it. Safe to call when the strip isn't mounted — it no-ops.
-  void _scrollChipIntoView(String id) {
+  /// A freshly added layer's chip doesn't exist until the strip rebuilds, and
+  /// a single post-frame callback often fires before that chip is laid out —
+  /// so we retry across a few frames until its key resolves, then animate.
+  /// Safe when the strip isn't mounted: it just runs out of attempts and stops.
+  void _scrollChipIntoView(String id, {int attempt = 0}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final key = _layerChipKeys[id];
-      final ctx = key?.currentContext;
+      if (!mounted) return;
+      final ctx = _layerChipKeys[id]?.currentContext;
       if (ctx != null) {
         Scrollable.ensureVisible(
           ctx,
@@ -375,6 +377,9 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
+      } else if (attempt < 5) {
+        // Chip not built/laid-out yet — try again next frame.
+        _scrollChipIntoView(id, attempt: attempt + 1);
       }
     });
   }

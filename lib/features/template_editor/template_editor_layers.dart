@@ -133,24 +133,40 @@ extension _TemplateLayersPane on _TemplateBodyState {
           stops: [0.0, fade / rect.width, 1 - fade / rect.width, 1.0],
         ).createShader(rect),
         blendMode: BlendMode.dstIn,
-        child: ListView.separated(
-          controller: _layerStripCtl,
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          itemCount: editable.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (context, i) {
-            final l = editable[i];
-            final key = _layerChipKeys.putIfAbsent(l.id, () => GlobalKey());
-            return Center(
-              child: ChoiceChip(
-                key: key,
-                label: Text(l.name),
-                selected: l.id == _selectedLayerId,
-                onSelected: (_) => _selectLayer(l.id),
-              ),
-            );
-          },
+        child: ScrollConfiguration(
+          // Desktop fix: a horizontal ListView only takes TOUCH drag by
+          // default — mouse drag isn't a recognised scroll device and a
+          // vertical mouse wheel doesn't map to horizontal scroll, so on
+          // Windows the strip looked frozen. Opting mouse + trackpad into the
+          // drag devices makes click-drag scroll it; scrollbars stay hidden.
+          behavior: ScrollConfiguration.of(context).copyWith(
+            scrollbars: false,
+            dragDevices: {
+              ui.PointerDeviceKind.touch,
+              ui.PointerDeviceKind.mouse,
+              ui.PointerDeviceKind.trackpad,
+              ui.PointerDeviceKind.stylus,
+            },
+          ),
+          child: ListView.separated(
+            controller: _layerStripCtl,
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            itemCount: editable.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final l = editable[i];
+              final key = _layerChipKeys.putIfAbsent(l.id, () => GlobalKey());
+              return Center(
+                child: ChoiceChip(
+                  key: key,
+                  label: Text(l.name),
+                  selected: l.id == _selectedLayerId,
+                  onSelected: (_) => _selectLayer(l.id),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -324,8 +340,6 @@ extension _TemplateLayersPane on _TemplateBodyState {
                 ?.copyWith(color: scheme.onSurfaceVariant),
           )
         else ...[
-          _exposeControl(layer.id, ExposedAspect.visible, layer.exposed),
-          const SizedBox(height: 8),
           _section('l_geo', 'Position & size', [
             _labeledSlider('Left', layer.frac.left, 0, 1,
                 (v) => _setLayerFrac(layer, l: v),
