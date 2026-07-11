@@ -212,6 +212,11 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   _Mode _mode = _Mode.layout;
   String? _selectedLayerId; // selected layer in the Layers tab (editor-only UI)
   bool _layersReordering = false; // Layers tab: reorder mode vs edit mode
+  // Horizontal scroll position of the Layers-tab chip strip. Keyed chips let us
+  // scroll the selected one into view (see _selectLayer) so it never strands
+  // off-screen on a template with many layers.
+  final ScrollController _layerStripCtl = ScrollController();
+  final Map<String, GlobalKey> _layerChipKeys = {};
   // Which field-editor sections are expanded (keyed by section). Remembered as
   // you move between fields so it doesn't keep snapping shut. Empty = all closed.
   final Set<String> _expandedSections = {};
@@ -234,6 +239,7 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     _name.dispose();
     _widthCtl.dispose();
     _heightCtl.dispose();
+    _layerStripCtl.dispose();
     super.dispose();
   }
 
@@ -352,6 +358,25 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
   /// state. Extensions route through this since they can't call setState.
   void _selectLayer(String? id) {
     setState(() => _selectedLayerId = id);
+    if (id != null) _scrollChipIntoView(id);
+  }
+
+  /// Bring the given layer's chip fully into view in the horizontal strip.
+  /// Deferred a frame so the chip is laid out (e.g. a just-added layer) before
+  /// we measure it. Safe to call when the strip isn't mounted — it no-ops.
+  void _scrollChipIntoView(String id) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final key = _layerChipKeys[id];
+      final ctx = key?.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.5, // centre it
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   /// Toggle the Layers tab between edit mode and reorder mode. Extensions can't
@@ -464,13 +489,37 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: SegmentedButton<_Mode>(
-            segments: const [
-              ButtonSegment(value: _Mode.layout, label: Text('Layout')),
-              ButtonSegment(value: _Mode.layers, label: Text('Layers')),
+          child: Row(
+            children: [
+              Expanded(
+                child: SegmentedButton<_Mode>(
+                  segments: const [
+                    ButtonSegment(value: _Mode.layout, label: Text('Layout')),
+                    ButtonSegment(value: _Mode.layers, label: Text('Layers')),
+                  ],
+                  selected: {_mode},
+                  onSelectionChanged: (s) => setState(() => _mode = s.first),
+                ),
+              ),
+              // Layer actions ride on this row (only in Layers mode) instead of
+              // a dedicated header band below, buying back that vertical space
+              // for the aspect controls. Hidden in reorder mode, which has its
+              // own "Done" affordance.
+              if (_mode == _Mode.layers && !_layersReordering) ...[
+                const SizedBox(width: 8),
+                if (_hasReorderableLayers)
+                  IconButton(
+                    tooltip: 'Reorder layers',
+                    icon: const Icon(Icons.swap_vert),
+                    onPressed: () => _setLayersReordering(true),
+                  ),
+                IconButton.filledTonal(
+                  tooltip: 'Add layer',
+                  icon: const Icon(Icons.add),
+                  onPressed: _addGenericLayer,
+                ),
+              ],
             ],
-            selected: {_mode},
-            onSelectionChanged: (s) => setState(() => _mode = s.first),
           ),
         ),
         Expanded(

@@ -50,6 +50,11 @@ extension _TemplateLayersPane on _TemplateBodyState {
         : _layersEditView(shown, scheme);
   }
 
+  /// Reorder is only meaningful with 2+ layers in the stack (chrome included) —
+  /// mirrors the old header row's `shown.length >= 2` guard, but callable from
+  /// the mode-switch row in the parent build without threading `shown` through.
+  bool get _hasReorderableLayers => effectiveTemplateLayers(_d).length >= 2;
+
   // Edit mode: pick a layer (chips) and edit it in a full-height panel. The
   // reorder list is tucked behind the ↕ button so aspects get the whole space.
   Widget _layersEditView(List<Layer> shown, ColorScheme scheme) {
@@ -63,26 +68,10 @@ extension _TemplateLayersPane on _TemplateBodyState {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-          child: Row(
-            children: [
-              Text('Layers', style: Theme.of(context).textTheme.titleSmall),
-              const Spacer(),
-              if (shown.length >= 2)
-                IconButton(
-                  tooltip: 'Reorder',
-                  icon: const Icon(Icons.swap_vert),
-                  onPressed: () => _setLayersReordering(true),
-                ),
-              ActionChip(
-                avatar: const Icon(Icons.add, size: 18),
-                label: const Text('Add layer'),
-                onPressed: _addGenericLayer,
-              ),
-            ],
-          ),
-        ),
+        // No header row here anymore — the "Layers" label is redundant with the
+        // active segment above, and its reorder / add-layer actions moved onto
+        // the mode-switch row to reclaim this band for the aspect controls.
+        const SizedBox(height: 8),
         if (editable.isEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -90,21 +79,12 @@ extension _TemplateLayersPane on _TemplateBodyState {
                 style: Theme.of(context).textTheme.bodySmall),
           )
         else
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final l in editable)
-                  ChoiceChip(
-                    label: Text(l.name),
-                    selected: l.id == _selectedLayerId,
-                    onSelected: (_) => _selectLayer(l.id),
-                  ),
-              ],
-            ),
-          ),
+          // Single-row horizontal strip instead of a multi-row Wrap: the chip
+          // list stays one row tall no matter how many layers a template has,
+          // leaving the space below for the actual aspect controls. The
+          // selected chip auto-scrolls into view (_selectLayer), and edge fades
+          // signal there's more to scroll to.
+          _layerChipStrip(editable),
         const Divider(height: 1),
         Expanded(
           child: (selected == null || _isChromeLayer(selected.id))
@@ -125,6 +105,54 @@ extension _TemplateLayersPane on _TemplateBodyState {
                 ),
         ),
       ],
+    );
+  }
+
+  /// The one-row, horizontally scrolling layer picker. Each chip carries a
+  /// GlobalKey (kept in _layerChipKeys) so _scrollChipIntoView can centre the
+  /// selected one. A ShaderMask paints symmetric edge fades so partially
+  /// scrolled chips read as "more over here" rather than "clipped".
+  Widget _layerChipStrip(List<Layer> editable) {
+    // Prune keys for layers that no longer exist so the map can't grow forever.
+    final liveIds = {for (final l in editable) l.id};
+    _layerChipKeys.removeWhere((id, _) => !liveIds.contains(id));
+
+    const fade = 16.0; // px of fade at each end
+    return SizedBox(
+      height: 48,
+      child: ShaderMask(
+        shaderCallback: (rect) => LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: const [
+            Colors.transparent,
+            Colors.black,
+            Colors.black,
+            Colors.transparent,
+          ],
+          stops: [0.0, fade / rect.width, 1 - fade / rect.width, 1.0],
+        ).createShader(rect),
+        blendMode: BlendMode.dstIn,
+        child: ListView.separated(
+          controller: _layerStripCtl,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          itemCount: editable.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, i) {
+            final l = editable[i];
+            final key = _layerChipKeys.putIfAbsent(l.id, () => GlobalKey());
+            return Center(
+              child: ChoiceChip(
+                key: key,
+                label: Text(l.name),
+                selected: l.id == _selectedLayerId,
+                onSelected: (_) => _selectLayer(l.id),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
