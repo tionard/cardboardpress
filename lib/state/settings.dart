@@ -42,7 +42,10 @@ class AppSettingsState {
 
   const AppSettingsState({
     this.themeMode = ThemeMode.system,
-    this.proUnlocked = false,
+    // Default ON: the app ships free with all functionality unlocked. The
+    // toggle and the entitlement seam stay (in case monetisation ever comes
+    // back), but out of the box everything is available.
+    this.proUnlocked = true,
   });
 
   AppSettingsState copyWith({ThemeMode? themeMode, bool? proUnlocked}) =>
@@ -59,7 +62,10 @@ Future<AppSettingsState> loadAppSettings(AppDatabase db) async {
   final map = await db.readSettings();
   return AppSettingsState(
     themeMode: _decodeThemeMode(map[_kThemeMode]),
-    proUnlocked: map[_kProUnlocked] == '1',
+    // '!= 0' (not '== 1') so an ABSENT row also unlocks: fresh installs and
+    // existing users who never touched the toggle get Pro by default, while a
+    // deliberately stored '0' still means off.
+    proUnlocked: map[_kProUnlocked] != '0',
   );
 }
 
