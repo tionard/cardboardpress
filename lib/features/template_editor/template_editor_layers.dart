@@ -134,7 +134,7 @@ extension _TemplateLayersPane on _TemplateBodyState {
         ).createShader(rect),
         blendMode: BlendMode.dstIn,
         child: ScrollConfiguration(
-          // Desktop fix: a horizontal ListView only takes TOUCH drag by
+          // Desktop fix: a horizontal scrollable only takes TOUCH drag by
           // default — mouse drag isn't a recognised scroll device and a
           // vertical mouse wheel doesn't map to horizontal scroll, so on
           // Windows the strip looked frozen. Opting mouse + trackpad into the
@@ -148,24 +148,28 @@ extension _TemplateLayersPane on _TemplateBodyState {
               ui.PointerDeviceKind.stylus,
             },
           ),
-          child: ListView.separated(
+          child: SingleChildScrollView(
+            // NON-LAZY on purpose. ListView builds children lazily, so a layer
+            // appended off-screen (every "Add layer") had NO chip widget yet —
+            // its GlobalKey never resolved and ensureVisible could never find
+            // it, which is why auto-scroll-to-new-layer silently failed. A Row
+            // builds every chip up front (layer counts are tiny), so any chip
+            // can always be scrolled into view. Same controller, same look.
             controller: _layerStripCtl,
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            itemCount: editable.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, i) {
-              final l = editable[i];
-              final key = _layerChipKeys.putIfAbsent(l.id, () => GlobalKey());
-              return Center(
-                child: ChoiceChip(
-                  key: key,
-                  label: Text(l.name),
-                  selected: l.id == _selectedLayerId,
-                  onSelected: (_) => _selectLayer(l.id),
-                ),
-              );
-            },
+            child: Row(
+              spacing: 8,
+              children: [
+                for (final l in editable)
+                  ChoiceChip(
+                    key: _layerChipKeys.putIfAbsent(l.id, () => GlobalKey()),
+                    label: Text(l.name),
+                    selected: l.id == _selectedLayerId,
+                    onSelected: (_) => _selectLayer(l.id),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
