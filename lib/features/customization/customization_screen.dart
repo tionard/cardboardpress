@@ -30,10 +30,11 @@ class CustomizationScreen extends ConsumerStatefulWidget {
 }
 
 class _CustomizationScreenState extends ConsumerState<CustomizationScreen> {
-  int _subTab = 0; // 0=Colors, 1=Rarities, 2=Symbols, 3=Text, 4=Frames
+  int _subTab = 0; // 0=Colors, 1=Rarities, 2=Symbols, 3=Frames
+  int _symbolsTab = 0; // within Symbols: 0=Standalone, 1=Text {tag}
   String? _selectedId;
 
-  static const _subTabNames = ['Colors', 'Rarities', 'Symbols', 'Text', 'Frames'];
+  static const _subTabNames = ['Colors', 'Rarities', 'Symbols', 'Frames'];
 
   @override
   Widget build(BuildContext context) {
@@ -56,9 +57,8 @@ class _CustomizationScreenState extends ConsumerState<CustomizationScreen> {
             child: switch (_subTab) {
               0 => _buildColors(),
               1 => const RarityManager(),
-              2 => const SymbolManager(),
-              3 => const TextSymbolManager(),
-              4 => const FrameManager(),
+              2 => _buildSymbols(),
+              3 => const FrameManager(),
               _ => Center(
                   child: Text(
                       '${_subTabNames[_subTab]} — coming in a later session')),
@@ -66,6 +66,33 @@ class _CustomizationScreenState extends ConsumerState<CustomizationScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Both symbol libraries share one top-level segment: standalone graphics
+  /// (set symbol / watermark) and inline text {tag} glyphs are cousins, so
+  /// they live behind a smaller sub-toggle instead of crowding the top bar.
+  Widget _buildSymbols() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SegmentedButton<int>(
+          showSelectedIcon: false,
+          style: const ButtonStyle(
+              visualDensity: VisualDensity(horizontal: -2, vertical: -2)),
+          segments: const [
+            ButtonSegment(value: 0, label: Text('Standalone')),
+            ButtonSegment(value: 1, label: Text('Text {tag}')),
+          ],
+          selected: {_symbolsTab},
+          onSelectionChanged: (s) => setState(() => _symbolsTab = s.first),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+            child: _symbolsTab == 0
+                ? const SymbolManager()
+                : const TextSymbolManager()),
+      ],
     );
   }
 

@@ -14,8 +14,9 @@
 // Previews paint through paintFramePreview — the SAME nine-slice painter the
 // card renderer uses — on a neutral card-aspect rounded rect, so what the
 // grid shows is exactly how the frame slices on a card. [FramePreviewThumb]
-// and [editFrameSlicing] are public: the template-side frame picker reuses the
-// thumb, and the template editor's "Edit frame…" opens this same dialog.
+// is public (the template-side frame picker reuses it); the slicing dialog
+// itself — the visual guide-line editor — lives in frame_slice_editor.dart
+// and is shared with the template editor's "Edit frame…".
 
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -25,8 +26,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../model/card_model.dart';
-import '../../rendering/paint_card.dart';
 import '../../state/providers.dart';
+import 'frame_slice_editor.dart';
 
 class FrameManager extends ConsumerWidget {
   const FrameManager({super.key});
@@ -319,144 +320,8 @@ class FrameManager extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Slicing editor dialog (shared with the template editor's "Edit frame…")
-// ---------------------------------------------------------------------------
-
-/// Edits [f]'s slicing — the four source cuts and the two tile modes — with a
-/// live card-aspect preview painted through the real nine-slice renderer.
-/// Saving writes to the LIBRARY, so every referencing template updates; this
-/// is intentionally the same whether opened from Customization or from a
-/// template's border section. (Until the phase-3 visual inset editor, cuts are
-/// set with sliders.)
-Future<void> editFrameSlicing(
-    BuildContext context, WidgetRef ref, FrameEntry f) async {
-  final img = await _decodedImage(ref, f.imageId);
-  if (!context.mounted) return;
-  if (img == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not load the frame\'s image.')));
-    return;
-  }
-
-  var insetL = f.insetL, insetT = f.insetT, insetR = f.insetR, insetB = f.insetB;
-  var edgeMode = f.edgeMode, centerMode = f.centerMode;
-
-  final saved = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setLocal) {
-        final backdrop = Theme.of(ctx).colorScheme.surfaceContainerHighest;
-        Widget slider(String label, double value, ValueChanged<double> onCh) =>
-            Row(children: [
-              SizedBox(width: 88, child: Text(label)),
-              Expanded(
-                child: Slider(
-                  value: value.clamp(0.0, 0.49),
-                  min: 0,
-                  max: 0.49,
-                  onChanged: (v) => setLocal(() => onCh(v)),
-                ),
-              ),
-              SizedBox(
-                  width: 40,
-                  child: Text('${(value * 100).round()}%',
-                      textAlign: TextAlign.end,
-                      style: Theme.of(ctx).textTheme.bodySmall)),
-            ]);
-        return AlertDialog(
-          title: Text('Slicing — ${f.name}'),
-          content: SizedBox(
-            width: 420,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: CustomPaint(
-                      size: const Size(160, 224),
-                      painter: _FramePreviewPainter(
-                        image: img,
-                        spec: NineSliceSpec(
-                          imageId: f.imageId,
-                          insetL: insetL,
-                          insetT: insetT,
-                          insetR: insetR,
-                          insetB: insetB,
-                          edgeMode: edgeMode,
-                          centerMode: centerMode,
-                          thickness: 0.08,
-                        ),
-                        backdrop: backdrop,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Cuts: how far in from each edge of the sprite the slice '
-                    'sits. A side at 0 removes that band — e.g. Top and Bottom '
-                    'at 0 makes a left/center/right 3-slice.',
-                    style: Theme.of(ctx).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 4),
-                  slider('Cut left', insetL, (v) => insetL = v),
-                  slider('Cut top', insetT, (v) => insetT = v),
-                  slider('Cut right', insetR, (v) => insetR = v),
-                  slider('Cut bottom', insetB, (v) => insetB = v),
-                  const SizedBox(height: 4),
-                  SwitchListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Tile edges'),
-                    subtitle: const Text('Repeat the edge pattern instead of '
-                        'stretching it'),
-                    value: edgeMode == SliceFillMode.tile,
-                    onChanged: (v) => setLocal(() => edgeMode =
-                        v ? SliceFillMode.tile : SliceFillMode.stretch),
-                  ),
-                  SwitchListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Tile center'),
-                    subtitle: const Text('Applies when a template fills the '
-                        'center with this frame'),
-                    value: centerMode == SliceFillMode.tile,
-                    onChanged: (v) => setLocal(() => centerMode =
-                        v ? SliceFillMode.tile : SliceFillMode.stretch),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    ),
-  );
-
-  if (saved == true) {
-    await ref.read(frameRepositoryProvider).updateSlicing(
-          f.id,
-          insetL: insetL,
-          insetT: insetT,
-          insetR: insetR,
-          insetB: insetB,
-          edgeMode: edgeMode,
-          centerMode: centerMode,
-        );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Preview thumb (public — reused by the template-side frame picker)
+// Preview thumb (public — reused by the template-side frame picker; painter
+// and decode cache come from frame_slice_editor.dart)
 // ---------------------------------------------------------------------------
 
 /// A card-aspect (2.5 : 3.5) preview of a library frame, painted through the
@@ -488,7 +353,7 @@ class _FramePreviewThumbState extends ConsumerState<FramePreviewThumb> {
   }
 
   Future<void> _load() async {
-    final img = await _decodedImage(ref, widget.frame.imageId);
+    final img = await decodedFrameImage(ref, widget.frame.imageId);
     if (!mounted) return;
     setState(() => _img = img);
   }
@@ -508,7 +373,7 @@ class _FramePreviewThumbState extends ConsumerState<FramePreviewThumb> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2)))
           : CustomPaint(
-              painter: _FramePreviewPainter(
+              painter: FramePreviewPainter(
                 image: img,
                 spec: widget.frame.previewSpec(),
                 backdrop:
@@ -517,46 +382,4 @@ class _FramePreviewThumbState extends ConsumerState<FramePreviewThumb> {
             ),
     );
   }
-}
-
-class _FramePreviewPainter extends CustomPainter {
-  final ui.Image image;
-  final NineSliceSpec spec;
-  final Color backdrop;
-  const _FramePreviewPainter(
-      {required this.image, required this.spec, required this.backdrop});
-
-  @override
-  void paint(Canvas canvas, Size size) =>
-      paintFramePreview(canvas, size, image, spec, backdrop: backdrop);
-
-  @override
-  bool shouldRepaint(_FramePreviewPainter old) =>
-      !identical(old.image, image) ||
-      old.backdrop != backdrop ||
-      old.spec.imageId != spec.imageId ||
-      old.spec.insetL != spec.insetL ||
-      old.spec.insetT != spec.insetT ||
-      old.spec.insetR != spec.insetR ||
-      old.spec.insetB != spec.insetB ||
-      old.spec.edgeMode != spec.edgeMode ||
-      old.spec.centerMode != spec.centerMode ||
-      old.spec.thickness != spec.thickness;
-}
-
-/// Decode a stored image into a ui.Image, via a small process-wide cache.
-/// Image ids are immutable (a replaced image gets a new id), so entries never
-/// go stale.
-final Map<String, ui.Image> _imageCache = {};
-
-Future<ui.Image?> _decodedImage(WidgetRef ref, String imageId) async {
-  if (imageId.isEmpty) return null;
-  final cached = _imageCache[imageId];
-  if (cached != null) return cached;
-  final bytes = await ref.read(imageStoreProvider).load(imageId);
-  if (bytes == null) return null;
-  final codec = await ui.instantiateImageCodec(bytes);
-  final frame = await codec.getNextFrame();
-  _imageCache[imageId] = frame.image;
-  return frame.image;
 }

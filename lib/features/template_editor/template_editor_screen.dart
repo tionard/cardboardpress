@@ -38,8 +38,8 @@ import '../../widgets/labeled_slider.dart';
 import '../../widgets/preview_dock.dart';
 import '../../widgets/swatch_picker.dart';
 import '../../widgets/color_picker/color_picker.dart';
-import '../customization/frame_manager.dart';
 import '../customization/frame_picker.dart';
+import '../customization/frame_slice_editor.dart';
 import '../customization/symbol_picker.dart';
 
 part 'template_editor_widgets.dart';
