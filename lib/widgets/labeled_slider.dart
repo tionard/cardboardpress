@@ -10,6 +10,13 @@
 // drag, step, or typed entry — is reported through [onChanged], clamped to
 // [min]..[max]. The widget holds no value state of its own (only whether the
 // readout is currently being edited).
+//
+// Most values in the app are FRACTIONS of something (card width, layer size…)
+// — that's the renderer's resolution-independence trick — but raw fractions
+// read terribly ("0.06"). [percent] shows and edits the value as a percentage
+// ("6%") while the stored value stays a fraction; typed entry accepts "25" or
+// "25%" alike. Readout precision follows the step size unless [decimals]
+// overrides it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,8 +33,14 @@ class LabeledSlider extends StatefulWidget {
   /// same rule the old inline sliders used, so existing controls are unchanged.
   final double? step;
 
-  /// Readout precision. 0 shows an integer (e.g. an RGB 0–255 channel).
-  final int decimals;
+  /// Readout precision IN THE DISPLAYED UNIT (so with [percent], decimals of
+  /// the percentage). If null, derived from the step: coarse steps show fewer
+  /// decimals. 0 shows an integer (e.g. an RGB 0–255 channel).
+  final int? decimals;
+
+  /// Display and edit the value as a percentage; the stored value stays a
+  /// fraction (0.25 shows as "25%", typing "25" or "25%" yields 0.25).
+  final bool percent;
 
   final double labelWidth;
   final bool showStepper;
@@ -41,7 +54,8 @@ class LabeledSlider extends StatefulWidget {
     this.min = 0.0,
     this.max = 1.0,
     this.step,
-    this.decimals = 2,
+    this.decimals,
+    this.percent = false,
     this.labelWidth = 80,
     this.showStepper = true,
     this.editable = true,
@@ -64,7 +78,25 @@ class _LabeledSliderState extends State<LabeledSlider> {
 
   double _clamp(double v) => v.clamp(widget.min, widget.max).toDouble();
 
-  String _fmt(double v) => v.toStringAsFixed(widget.decimals);
+  /// Decimals in the DISPLAYED unit: explicit override, else enough for one
+  /// step to be distinguishable (step 0.002 as percent = "0.2" → 1 decimal).
+  int get _decimals {
+    final d = widget.decimals;
+    if (d != null) return d;
+    final s = widget.percent ? _step * 100 : _step;
+    if (s >= 1) return 0;
+    if (s >= 0.1) return 1;
+    if (s >= 0.01) return 2;
+    return 3;
+  }
+
+  String _fmt(double v) => widget.percent
+      ? '${(v * 100).toStringAsFixed(_decimals)}%'
+      : v.toStringAsFixed(_decimals);
+
+  /// The bare number shown while editing (no % sign; the unit is implied).
+  String _editText(double v) =>
+      (widget.percent ? v * 100 : v).toStringAsFixed(_decimals);
 
   void _emit(double v) {
     final c = _clamp(v);
@@ -77,7 +109,7 @@ class _LabeledSliderState extends State<LabeledSlider> {
 
   void _beginEdit() {
     if (!widget.editable) return;
-    _ctrl.text = _fmt(_clamp(widget.value));
+    _ctrl.text = _editText(_clamp(widget.value));
     setState(() => _editing = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focus.requestFocus();
@@ -88,8 +120,9 @@ class _LabeledSliderState extends State<LabeledSlider> {
 
   void _commitEdit() {
     if (!_editing) return;
-    final parsed = double.tryParse(_ctrl.text.replaceAll(',', '.'));
-    if (parsed != null) _emit(parsed);
+    final raw = _ctrl.text.replaceAll(',', '.').replaceAll('%', '').trim();
+    final parsed = double.tryParse(raw);
+    if (parsed != null) _emit(widget.percent ? parsed / 100 : parsed);
     setState(() => _editing = false);
   }
 
@@ -115,7 +148,7 @@ class _LabeledSliderState extends State<LabeledSlider> {
               keyboardType: const TextInputType.numberWithOptions(
                   decimal: true, signed: true),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\-]')),
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\-%]')),
               ],
               style: theme.textTheme.bodySmall,
               decoration: const InputDecoration(

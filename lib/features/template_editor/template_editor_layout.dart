@@ -36,9 +36,14 @@ extension _TemplateLayoutPane on _TemplateBodyState {
           ),
         ]),
         if (border != null) ...[
-          _labeledSlider('Thickness', border.thickness, 0.005, 0.05,
+          _labeledSlider(
+              'Thickness',
+              border.thickness,
+              0.005,
+              0.05,
               (v) => _update(_d.copyWith(
-                  border: BorderSpec(black: border.black, thickness: v)))),
+                  border: BorderSpec(black: border.black, thickness: v))),
+              step: 0.002),
           Row(children: [
             const SizedBox(width: 80, child: Text('Colour')),
             const SizedBox(width: 8),
@@ -63,7 +68,7 @@ extension _TemplateLayoutPane on _TemplateBodyState {
           min: 0.0,
           max: 0.12,
           step: 0.005,
-          decimals: 3,
+          percent: true,
           onChanged: _setCornerRadius,
         ),
         const SizedBox(height: 8),

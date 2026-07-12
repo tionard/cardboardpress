@@ -7,15 +7,17 @@ extension _TemplateEditorShared on _TemplateBodyState {
 
   Widget _labeledSlider(String label, double value, double min, double max,
       ValueChanged<double> onChanged,
-      {double? step}) {
-    // Fine ranges (sizes/thicknesses) read better with an extra decimal.
+      {double? step, bool percent = true}) {
+    // Template-editor values are fractions of the card/layer almost without
+    // exception, so they display as percentages by default; readout precision
+    // follows the step.
     return LabeledSlider(
       label: label,
       value: value,
       min: min,
       max: max,
       step: step,
-      decimals: max <= 0.2 ? 3 : 2,
+      percent: percent,
       onChanged: onChanged,
     );
   }

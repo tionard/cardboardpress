@@ -45,7 +45,8 @@ extension _TemplateLayerAspects on _TemplateBodyState {
           ),
           _labeledSlider('Opacity', fill.alpha, 0, 1,
               (v) => _updateLayer(id,
-                  (l) => l.copyWith(fill: l.fill?.copyWith(alpha: v)))),
+                  (l) => l.copyWith(fill: l.fill?.copyWith(alpha: v))),
+              step: 0.01),
           _exposeControl(id, ExposedAspect.fill, layer.exposed),
           _removeAspectRow(
               () => _updateLayer(id, (l) => l.copyWith(fill: null))),
@@ -112,7 +113,8 @@ extension _TemplateLayerAspects on _TemplateBodyState {
           ],
           _labeledSlider('Opacity', image.alpha, 0, 1,
               (v) => _updateLayer(id,
-                  (l) => l.copyWith(image: l.image?.copyWith(alpha: v)))),
+                  (l) => l.copyWith(image: l.image?.copyWith(alpha: v))),
+              step: 0.01),
           if (image.source == ImageSource.fixed) ...[
             Row(children: [
               Expanded(
@@ -200,7 +202,8 @@ extension _TemplateLayerAspects on _TemplateBodyState {
             }),
             _labeledSlider('Thickness', border.thickness, 0, 0.2,
                 (v) => _updateLayer(id,
-                    (l) => l.copyWith(border: l.border?.copyWith(thickness: v)))),
+                    (l) => l.copyWith(border: l.border?.copyWith(thickness: v))),
+                step: 0.002),
             Text(
                 'Drawn size of the thickest side; the others scale in '
                 'proportion to the frame\'s cuts.',
@@ -242,14 +245,16 @@ extension _TemplateLayerAspects on _TemplateBodyState {
               0,
               0.02,
               (v) => _updateLayer(id,
-                  (l) => l.copyWith(outline: l.outline?.copyWith(thickness: v)))),
+                  (l) => l.copyWith(outline: l.outline?.copyWith(thickness: v))),
+              step: 0.002),
           _labeledSlider(
               'Opacity',
               outline.alpha,
               0,
               1,
               (v) => _updateLayer(id,
-                  (l) => l.copyWith(outline: l.outline?.copyWith(alpha: v)))),
+                  (l) => l.copyWith(outline: l.outline?.copyWith(alpha: v))),
+              step: 0.01),
           if (outline.color == null && fill == null)
             Text('This outline shades the fill — pick a colour, or add a Fill.',
                 style: Theme.of(context).textTheme.bodySmall),
@@ -307,7 +312,8 @@ extension _TemplateLayerAspects on _TemplateBodyState {
               0,
               1,
               (v) => _updateLayer(id,
-                  (l) => l.copyWith(watermark: l.watermark?.copyWith(alpha: v)))),
+                  (l) => l.copyWith(watermark: l.watermark?.copyWith(alpha: v))),
+              step: 0.01),
           _exposeControl(id, ExposedAspect.watermark, layer.exposed),
           _removeAspectRow(
               () => _updateLayer(id, (l) => l.copyWith(watermark: null))),
@@ -572,7 +578,8 @@ extension _TemplateLayerAspects on _TemplateBodyState {
           0,
           1,
           (v) => _updateLayer(id,
-              (l) => l.copyWith(text: l.text?.copyWith(style: s.copyWith(colorAlpha: v))))),
+              (l) => l.copyWith(text: l.text?.copyWith(style: s.copyWith(colorAlpha: v)))),
+          step: 0.01),
       _exposeControl(id, ExposedAspect.text, layer.exposed),
     ];
   }
