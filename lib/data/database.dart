@@ -125,6 +125,29 @@ class Symbols extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// A Frames-library entry (Customization → Frames): a 9-slice border sprite
+/// plus its slicing definition — per-edge source cuts and stretch/tile modes
+/// (stored as SliceFillMode names). Templates reference a frame by id on their
+/// border aspect and retain a snapshot, so deleting a row here never breaks a
+/// template. Use-site properties (thickness, drawCenter, tint) live on the
+/// layer, never here.
+@DataClassName('FrameRow')
+class Frames extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get imageId => text()();
+  RealColumn get insetL => real().withDefault(const Constant(0.33))();
+  RealColumn get insetT => real().withDefault(const Constant(0.33))();
+  RealColumn get insetR => real().withDefault(const Constant(0.33))();
+  RealColumn get insetB => real().withDefault(const Constant(0.33))();
+  TextColumn get edgeMode => text().withDefault(const Constant('stretch'))();
+  TextColumn get centerMode => text().withDefault(const Constant('stretch'))();
+  IntColumn get position => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// App-level preferences (theme mode, Pro entitlement, future export defaults).
 /// A tiny key/value store kept INSIDE the database on purpose: it then rides
 /// along in any future library backup, instead of living off in
@@ -141,7 +164,7 @@ class AppSettings extends Table {
 
 @DriftDatabase(
     tables: [PaletteColors, Templates, Cards, Sets, Rarities, TextSymbols, Symbols,
-    AppSettings])
+    Frames, AppSettings])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
 
@@ -152,7 +175,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forFile(File file) : super(NativeDatabase(file));
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -221,6 +244,13 @@ class AppDatabase extends _$AppDatabase {
             // A tiny key/value table kept inside the DB so a future library
             // backup covers it. Starts empty; every setting has a code default.
             await m.createTable(appSettings);
+          }
+          if (from < 12) {
+            // v11->v12: the Frames library (shared 9-slice border sprites,
+            // Customization -> Frames). Starts empty; any image-backed default
+            // frame pack would seed at startup (like text symbols), never
+            // inside a migration.
+            await m.createTable(frames);
           }
         },
         beforeOpen: (details) async {
@@ -515,6 +545,27 @@ class AppDatabase extends _$AppDatabase {
     if (rows.isEmpty) return -1;
     return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
   }
+  // ---- frames (9-slice border sprite library) ----
+
+  Stream<List<FrameRow>> watchFrames() => (select(frames)
+        ..orderBy([(t) => OrderingTerm(expression: t.position)]))
+      .watch();
+
+  Future<void> insertFrame(FramesCompanion c) =>
+      into(frames).insert(c, mode: InsertMode.insertOrIgnore);
+
+  Future<void> updateFrameRow(String id, FramesCompanion c) =>
+      (update(frames)..where((t) => t.id.equals(id))).write(c);
+
+  Future<void> deleteFrame(String id) =>
+      (delete(frames)..where((t) => t.id.equals(id))).go();
+
+  Future<int> maxFramePosition() async {
+    final rows = await select(frames).get();
+    if (rows.isEmpty) return -1;
+    return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
+  }
+
   // ---- app settings (key/value) ----
 
   /// All settings as a plain map, read once at startup (lib/state/settings.dart).

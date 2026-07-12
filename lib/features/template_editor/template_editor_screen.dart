@@ -38,6 +38,8 @@ import '../../widgets/labeled_slider.dart';
 import '../../widgets/preview_dock.dart';
 import '../../widgets/swatch_picker.dart';
 import '../../widgets/color_picker/color_picker.dart';
+import '../customization/frame_manager.dart';
+import '../customization/frame_picker.dart';
 import '../customization/symbol_picker.dart';
 
 part 'template_editor_widgets.dart';
@@ -449,6 +451,7 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
         content: const CardContent(),
         symbolImageIds: symbolMap,
         symbolsById: ref.read(symbolsMapProvider),
+        frames: ref.read(framesMapProvider),
         footerPlaceholder: _footerPlaceholder);
     // The preview renders text PLACEHOLDERS (empty content), so any {tag}
     // glyphs inside them need decoding too — they're not in textContent.

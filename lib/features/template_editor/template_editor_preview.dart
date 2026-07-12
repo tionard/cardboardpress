@@ -38,6 +38,7 @@ extension _TemplatePreview on _TemplateBodyState {
         content: const CardContent(),
         symbolImageIds: ref.watch(textSymbolMapProvider),
         symbolsById: ref.watch(symbolsMapProvider),
+        frames: ref.watch(framesMapProvider),
         footerPlaceholder: _footerPlaceholder);
     final layers = effectiveTemplateLayers(_d);
     Layer? symbolGuide;

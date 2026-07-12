@@ -318,6 +318,7 @@ class BackupService {
     final rarities = await src.select(src.rarities).get();
     final textSymbols = await src.select(src.textSymbols).get();
     final symbols = await src.select(src.symbols).get();
+    final frames = await src.select(src.frames).get();
     Expression<bool> all(dynamic _) => const Constant(true);
     await db.batch((b) {
       b.deleteWhere(db.cards, all);
@@ -327,6 +328,7 @@ class BackupService {
       b.deleteWhere(db.rarities, all);
       b.deleteWhere(db.textSymbols, all);
       b.deleteWhere(db.symbols, all);
+      b.deleteWhere(db.frames, all);
       b.insertAll(db.paletteColors, palette.map((r) => r.toCompanion(false)));
       b.insertAll(db.templates, templates.map((r) => r.toCompanion(false)));
       b.insertAll(db.cards, cards.map((r) => r.toCompanion(false)));
@@ -334,6 +336,7 @@ class BackupService {
       b.insertAll(db.rarities, rarities.map((r) => r.toCompanion(false)));
       b.insertAll(db.textSymbols, textSymbols.map((r) => r.toCompanion(false)));
       b.insertAll(db.symbols, symbols.map((r) => r.toCompanion(false)));
+      b.insertAll(db.frames, frames.map((r) => r.toCompanion(false)));
     });
   }
 
@@ -348,6 +351,7 @@ class BackupService {
     final rarities = await from.select(from.rarities).get();
     final textSymbols = await from.select(from.textSymbols).get();
     final symbols = await from.select(from.symbols).get();
+    final frames = await from.select(from.frames).get();
     await to.batch((b) {
       b.insertAll(to.paletteColors, palette.map((r) => r.toCompanion(false)));
       b.insertAll(to.templates, templates.map((r) => r.toCompanion(false)));
@@ -356,6 +360,7 @@ class BackupService {
       b.insertAll(to.rarities, rarities.map((r) => r.toCompanion(false)));
       b.insertAll(to.textSymbols, textSymbols.map((r) => r.toCompanion(false)));
       b.insertAll(to.symbols, symbols.map((r) => r.toCompanion(false)));
+      b.insertAll(to.frames, frames.map((r) => r.toCompanion(false)));
     });
   }
 
@@ -367,5 +372,6 @@ class BackupService {
     await d.delete(d.rarities).go();
     await d.delete(d.textSymbols).go();
     await d.delete(d.symbols).go();
+    await d.delete(d.frames).go();
   }
 }

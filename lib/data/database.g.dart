@@ -2846,6 +2846,591 @@ class SymbolsCompanion extends UpdateCompanion<SymbolRow> {
   }
 }
 
+class $FramesTable extends Frames with TableInfo<$FramesTable, FrameRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FramesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _imageIdMeta = const VerificationMeta(
+    'imageId',
+  );
+  @override
+  late final GeneratedColumn<String> imageId = GeneratedColumn<String>(
+    'image_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _insetLMeta = const VerificationMeta('insetL');
+  @override
+  late final GeneratedColumn<double> insetL = GeneratedColumn<double>(
+    'inset_l',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.33),
+  );
+  static const VerificationMeta _insetTMeta = const VerificationMeta('insetT');
+  @override
+  late final GeneratedColumn<double> insetT = GeneratedColumn<double>(
+    'inset_t',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.33),
+  );
+  static const VerificationMeta _insetRMeta = const VerificationMeta('insetR');
+  @override
+  late final GeneratedColumn<double> insetR = GeneratedColumn<double>(
+    'inset_r',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.33),
+  );
+  static const VerificationMeta _insetBMeta = const VerificationMeta('insetB');
+  @override
+  late final GeneratedColumn<double> insetB = GeneratedColumn<double>(
+    'inset_b',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.33),
+  );
+  static const VerificationMeta _edgeModeMeta = const VerificationMeta(
+    'edgeMode',
+  );
+  @override
+  late final GeneratedColumn<String> edgeMode = GeneratedColumn<String>(
+    'edge_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('stretch'),
+  );
+  static const VerificationMeta _centerModeMeta = const VerificationMeta(
+    'centerMode',
+  );
+  @override
+  late final GeneratedColumn<String> centerMode = GeneratedColumn<String>(
+    'center_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('stretch'),
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    imageId,
+    insetL,
+    insetT,
+    insetR,
+    insetB,
+    edgeMode,
+    centerMode,
+    position,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'frames';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FrameRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('image_id')) {
+      context.handle(
+        _imageIdMeta,
+        imageId.isAcceptableOrUnknown(data['image_id']!, _imageIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_imageIdMeta);
+    }
+    if (data.containsKey('inset_l')) {
+      context.handle(
+        _insetLMeta,
+        insetL.isAcceptableOrUnknown(data['inset_l']!, _insetLMeta),
+      );
+    }
+    if (data.containsKey('inset_t')) {
+      context.handle(
+        _insetTMeta,
+        insetT.isAcceptableOrUnknown(data['inset_t']!, _insetTMeta),
+      );
+    }
+    if (data.containsKey('inset_r')) {
+      context.handle(
+        _insetRMeta,
+        insetR.isAcceptableOrUnknown(data['inset_r']!, _insetRMeta),
+      );
+    }
+    if (data.containsKey('inset_b')) {
+      context.handle(
+        _insetBMeta,
+        insetB.isAcceptableOrUnknown(data['inset_b']!, _insetBMeta),
+      );
+    }
+    if (data.containsKey('edge_mode')) {
+      context.handle(
+        _edgeModeMeta,
+        edgeMode.isAcceptableOrUnknown(data['edge_mode']!, _edgeModeMeta),
+      );
+    }
+    if (data.containsKey('center_mode')) {
+      context.handle(
+        _centerModeMeta,
+        centerMode.isAcceptableOrUnknown(data['center_mode']!, _centerModeMeta),
+      );
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FrameRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FrameRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      imageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_id'],
+      )!,
+      insetL: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}inset_l'],
+      )!,
+      insetT: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}inset_t'],
+      )!,
+      insetR: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}inset_r'],
+      )!,
+      insetB: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}inset_b'],
+      )!,
+      edgeMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}edge_mode'],
+      )!,
+      centerMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}center_mode'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+    );
+  }
+
+  @override
+  $FramesTable createAlias(String alias) {
+    return $FramesTable(attachedDatabase, alias);
+  }
+}
+
+class FrameRow extends DataClass implements Insertable<FrameRow> {
+  final String id;
+  final String name;
+  final String imageId;
+  final double insetL;
+  final double insetT;
+  final double insetR;
+  final double insetB;
+  final String edgeMode;
+  final String centerMode;
+  final int position;
+  const FrameRow({
+    required this.id,
+    required this.name,
+    required this.imageId,
+    required this.insetL,
+    required this.insetT,
+    required this.insetR,
+    required this.insetB,
+    required this.edgeMode,
+    required this.centerMode,
+    required this.position,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['image_id'] = Variable<String>(imageId);
+    map['inset_l'] = Variable<double>(insetL);
+    map['inset_t'] = Variable<double>(insetT);
+    map['inset_r'] = Variable<double>(insetR);
+    map['inset_b'] = Variable<double>(insetB);
+    map['edge_mode'] = Variable<String>(edgeMode);
+    map['center_mode'] = Variable<String>(centerMode);
+    map['position'] = Variable<int>(position);
+    return map;
+  }
+
+  FramesCompanion toCompanion(bool nullToAbsent) {
+    return FramesCompanion(
+      id: Value(id),
+      name: Value(name),
+      imageId: Value(imageId),
+      insetL: Value(insetL),
+      insetT: Value(insetT),
+      insetR: Value(insetR),
+      insetB: Value(insetB),
+      edgeMode: Value(edgeMode),
+      centerMode: Value(centerMode),
+      position: Value(position),
+    );
+  }
+
+  factory FrameRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FrameRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      imageId: serializer.fromJson<String>(json['imageId']),
+      insetL: serializer.fromJson<double>(json['insetL']),
+      insetT: serializer.fromJson<double>(json['insetT']),
+      insetR: serializer.fromJson<double>(json['insetR']),
+      insetB: serializer.fromJson<double>(json['insetB']),
+      edgeMode: serializer.fromJson<String>(json['edgeMode']),
+      centerMode: serializer.fromJson<String>(json['centerMode']),
+      position: serializer.fromJson<int>(json['position']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'imageId': serializer.toJson<String>(imageId),
+      'insetL': serializer.toJson<double>(insetL),
+      'insetT': serializer.toJson<double>(insetT),
+      'insetR': serializer.toJson<double>(insetR),
+      'insetB': serializer.toJson<double>(insetB),
+      'edgeMode': serializer.toJson<String>(edgeMode),
+      'centerMode': serializer.toJson<String>(centerMode),
+      'position': serializer.toJson<int>(position),
+    };
+  }
+
+  FrameRow copyWith({
+    String? id,
+    String? name,
+    String? imageId,
+    double? insetL,
+    double? insetT,
+    double? insetR,
+    double? insetB,
+    String? edgeMode,
+    String? centerMode,
+    int? position,
+  }) => FrameRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    imageId: imageId ?? this.imageId,
+    insetL: insetL ?? this.insetL,
+    insetT: insetT ?? this.insetT,
+    insetR: insetR ?? this.insetR,
+    insetB: insetB ?? this.insetB,
+    edgeMode: edgeMode ?? this.edgeMode,
+    centerMode: centerMode ?? this.centerMode,
+    position: position ?? this.position,
+  );
+  FrameRow copyWithCompanion(FramesCompanion data) {
+    return FrameRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      imageId: data.imageId.present ? data.imageId.value : this.imageId,
+      insetL: data.insetL.present ? data.insetL.value : this.insetL,
+      insetT: data.insetT.present ? data.insetT.value : this.insetT,
+      insetR: data.insetR.present ? data.insetR.value : this.insetR,
+      insetB: data.insetB.present ? data.insetB.value : this.insetB,
+      edgeMode: data.edgeMode.present ? data.edgeMode.value : this.edgeMode,
+      centerMode: data.centerMode.present
+          ? data.centerMode.value
+          : this.centerMode,
+      position: data.position.present ? data.position.value : this.position,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FrameRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('imageId: $imageId, ')
+          ..write('insetL: $insetL, ')
+          ..write('insetT: $insetT, ')
+          ..write('insetR: $insetR, ')
+          ..write('insetB: $insetB, ')
+          ..write('edgeMode: $edgeMode, ')
+          ..write('centerMode: $centerMode, ')
+          ..write('position: $position')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    imageId,
+    insetL,
+    insetT,
+    insetR,
+    insetB,
+    edgeMode,
+    centerMode,
+    position,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FrameRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.imageId == this.imageId &&
+          other.insetL == this.insetL &&
+          other.insetT == this.insetT &&
+          other.insetR == this.insetR &&
+          other.insetB == this.insetB &&
+          other.edgeMode == this.edgeMode &&
+          other.centerMode == this.centerMode &&
+          other.position == this.position);
+}
+
+class FramesCompanion extends UpdateCompanion<FrameRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> imageId;
+  final Value<double> insetL;
+  final Value<double> insetT;
+  final Value<double> insetR;
+  final Value<double> insetB;
+  final Value<String> edgeMode;
+  final Value<String> centerMode;
+  final Value<int> position;
+  final Value<int> rowid;
+  const FramesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.imageId = const Value.absent(),
+    this.insetL = const Value.absent(),
+    this.insetT = const Value.absent(),
+    this.insetR = const Value.absent(),
+    this.insetB = const Value.absent(),
+    this.edgeMode = const Value.absent(),
+    this.centerMode = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  FramesCompanion.insert({
+    required String id,
+    required String name,
+    required String imageId,
+    this.insetL = const Value.absent(),
+    this.insetT = const Value.absent(),
+    this.insetR = const Value.absent(),
+    this.insetB = const Value.absent(),
+    this.edgeMode = const Value.absent(),
+    this.centerMode = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       imageId = Value(imageId);
+  static Insertable<FrameRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? imageId,
+    Expression<double>? insetL,
+    Expression<double>? insetT,
+    Expression<double>? insetR,
+    Expression<double>? insetB,
+    Expression<String>? edgeMode,
+    Expression<String>? centerMode,
+    Expression<int>? position,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (imageId != null) 'image_id': imageId,
+      if (insetL != null) 'inset_l': insetL,
+      if (insetT != null) 'inset_t': insetT,
+      if (insetR != null) 'inset_r': insetR,
+      if (insetB != null) 'inset_b': insetB,
+      if (edgeMode != null) 'edge_mode': edgeMode,
+      if (centerMode != null) 'center_mode': centerMode,
+      if (position != null) 'position': position,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  FramesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? imageId,
+    Value<double>? insetL,
+    Value<double>? insetT,
+    Value<double>? insetR,
+    Value<double>? insetB,
+    Value<String>? edgeMode,
+    Value<String>? centerMode,
+    Value<int>? position,
+    Value<int>? rowid,
+  }) {
+    return FramesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      imageId: imageId ?? this.imageId,
+      insetL: insetL ?? this.insetL,
+      insetT: insetT ?? this.insetT,
+      insetR: insetR ?? this.insetR,
+      insetB: insetB ?? this.insetB,
+      edgeMode: edgeMode ?? this.edgeMode,
+      centerMode: centerMode ?? this.centerMode,
+      position: position ?? this.position,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (imageId.present) {
+      map['image_id'] = Variable<String>(imageId.value);
+    }
+    if (insetL.present) {
+      map['inset_l'] = Variable<double>(insetL.value);
+    }
+    if (insetT.present) {
+      map['inset_t'] = Variable<double>(insetT.value);
+    }
+    if (insetR.present) {
+      map['inset_r'] = Variable<double>(insetR.value);
+    }
+    if (insetB.present) {
+      map['inset_b'] = Variable<double>(insetB.value);
+    }
+    if (edgeMode.present) {
+      map['edge_mode'] = Variable<String>(edgeMode.value);
+    }
+    if (centerMode.present) {
+      map['center_mode'] = Variable<String>(centerMode.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FramesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('imageId: $imageId, ')
+          ..write('insetL: $insetL, ')
+          ..write('insetT: $insetT, ')
+          ..write('insetR: $insetR, ')
+          ..write('insetB: $insetB, ')
+          ..write('edgeMode: $edgeMode, ')
+          ..write('centerMode: $centerMode, ')
+          ..write('position: $position, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $AppSettingsTable extends AppSettings
     with TableInfo<$AppSettingsTable, AppSetting> {
   @override
@@ -3064,6 +3649,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $RaritiesTable rarities = $RaritiesTable(this);
   late final $TextSymbolsTable textSymbols = $TextSymbolsTable(this);
   late final $SymbolsTable symbols = $SymbolsTable(this);
+  late final $FramesTable frames = $FramesTable(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -3077,6 +3663,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     rarities,
     textSymbols,
     symbols,
+    frames,
     appSettings,
   ];
   @override
@@ -4824,6 +5411,297 @@ typedef $$SymbolsTableProcessedTableManager =
       SymbolRow,
       PrefetchHooks Function()
     >;
+typedef $$FramesTableCreateCompanionBuilder =
+    FramesCompanion Function({
+      required String id,
+      required String name,
+      required String imageId,
+      Value<double> insetL,
+      Value<double> insetT,
+      Value<double> insetR,
+      Value<double> insetB,
+      Value<String> edgeMode,
+      Value<String> centerMode,
+      Value<int> position,
+      Value<int> rowid,
+    });
+typedef $$FramesTableUpdateCompanionBuilder =
+    FramesCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> imageId,
+      Value<double> insetL,
+      Value<double> insetT,
+      Value<double> insetR,
+      Value<double> insetB,
+      Value<String> edgeMode,
+      Value<String> centerMode,
+      Value<int> position,
+      Value<int> rowid,
+    });
+
+class $$FramesTableFilterComposer
+    extends Composer<_$AppDatabase, $FramesTable> {
+  $$FramesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imageId => $composableBuilder(
+    column: $table.imageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get insetL => $composableBuilder(
+    column: $table.insetL,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get insetT => $composableBuilder(
+    column: $table.insetT,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get insetR => $composableBuilder(
+    column: $table.insetR,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get insetB => $composableBuilder(
+    column: $table.insetB,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get edgeMode => $composableBuilder(
+    column: $table.edgeMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get centerMode => $composableBuilder(
+    column: $table.centerMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$FramesTableOrderingComposer
+    extends Composer<_$AppDatabase, $FramesTable> {
+  $$FramesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get imageId => $composableBuilder(
+    column: $table.imageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get insetL => $composableBuilder(
+    column: $table.insetL,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get insetT => $composableBuilder(
+    column: $table.insetT,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get insetR => $composableBuilder(
+    column: $table.insetR,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get insetB => $composableBuilder(
+    column: $table.insetB,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get edgeMode => $composableBuilder(
+    column: $table.edgeMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get centerMode => $composableBuilder(
+    column: $table.centerMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$FramesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FramesTable> {
+  $$FramesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get imageId =>
+      $composableBuilder(column: $table.imageId, builder: (column) => column);
+
+  GeneratedColumn<double> get insetL =>
+      $composableBuilder(column: $table.insetL, builder: (column) => column);
+
+  GeneratedColumn<double> get insetT =>
+      $composableBuilder(column: $table.insetT, builder: (column) => column);
+
+  GeneratedColumn<double> get insetR =>
+      $composableBuilder(column: $table.insetR, builder: (column) => column);
+
+  GeneratedColumn<double> get insetB =>
+      $composableBuilder(column: $table.insetB, builder: (column) => column);
+
+  GeneratedColumn<String> get edgeMode =>
+      $composableBuilder(column: $table.edgeMode, builder: (column) => column);
+
+  GeneratedColumn<String> get centerMode => $composableBuilder(
+    column: $table.centerMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+}
+
+class $$FramesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FramesTable,
+          FrameRow,
+          $$FramesTableFilterComposer,
+          $$FramesTableOrderingComposer,
+          $$FramesTableAnnotationComposer,
+          $$FramesTableCreateCompanionBuilder,
+          $$FramesTableUpdateCompanionBuilder,
+          (FrameRow, BaseReferences<_$AppDatabase, $FramesTable, FrameRow>),
+          FrameRow,
+          PrefetchHooks Function()
+        > {
+  $$FramesTableTableManager(_$AppDatabase db, $FramesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FramesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FramesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FramesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> imageId = const Value.absent(),
+                Value<double> insetL = const Value.absent(),
+                Value<double> insetT = const Value.absent(),
+                Value<double> insetR = const Value.absent(),
+                Value<double> insetB = const Value.absent(),
+                Value<String> edgeMode = const Value.absent(),
+                Value<String> centerMode = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FramesCompanion(
+                id: id,
+                name: name,
+                imageId: imageId,
+                insetL: insetL,
+                insetT: insetT,
+                insetR: insetR,
+                insetB: insetB,
+                edgeMode: edgeMode,
+                centerMode: centerMode,
+                position: position,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String imageId,
+                Value<double> insetL = const Value.absent(),
+                Value<double> insetT = const Value.absent(),
+                Value<double> insetR = const Value.absent(),
+                Value<double> insetB = const Value.absent(),
+                Value<String> edgeMode = const Value.absent(),
+                Value<String> centerMode = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FramesCompanion.insert(
+                id: id,
+                name: name,
+                imageId: imageId,
+                insetL: insetL,
+                insetT: insetT,
+                insetR: insetR,
+                insetB: insetB,
+                edgeMode: edgeMode,
+                centerMode: centerMode,
+                position: position,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$FramesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FramesTable,
+      FrameRow,
+      $$FramesTableFilterComposer,
+      $$FramesTableOrderingComposer,
+      $$FramesTableAnnotationComposer,
+      $$FramesTableCreateCompanionBuilder,
+      $$FramesTableUpdateCompanionBuilder,
+      (FrameRow, BaseReferences<_$AppDatabase, $FramesTable, FrameRow>),
+      FrameRow,
+      PrefetchHooks Function()
+    >;
 typedef $$AppSettingsTableCreateCompanionBuilder =
     AppSettingsCompanion Function({
       required String key,
@@ -4980,6 +5858,8 @@ class $AppDatabaseManager {
       $$TextSymbolsTableTableManager(_db, _db.textSymbols);
   $$SymbolsTableTableManager get symbols =>
       $$SymbolsTableTableManager(_db, _db.symbols);
+  $$FramesTableTableManager get frames =>
+      $$FramesTableTableManager(_db, _db.frames);
   $$AppSettingsTableTableManager get appSettings =>
       $$AppSettingsTableTableManager(_db, _db.appSettings);
 }

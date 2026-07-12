@@ -66,6 +66,7 @@ void main() {
       frac: const Rect.fromLTRB(0.05, 0.05, 0.95, 0.95),
       border: NineSliceSpec(
         imageId: 'img_9',
+        frameId: 'fr_test',
         insetL: 0.10,
         insetT: 0.20,
         insetR: 0.30,
@@ -82,6 +83,7 @@ void main() {
     final back = layersFromJson(json);
 
     final b = back.single.border!;
+    expect(b.frameId, equals('fr_test'));
     expect(b.insetL, equals(0.10));
     expect(b.insetT, equals(0.20));
     expect(b.insetR, equals(0.30));
@@ -101,6 +103,7 @@ void main() {
         '"frac":[0,0,1,1],"cr":0.02,"border":{"img":"i1","center":true}}]}');
     final b = back.single.border!;
     expect(b.imageId, equals('i1'));
+    expect(b.frameId, isNull);
     expect(b.insetL, equals(0.33));
     expect(b.insetB, equals(0.33));
     expect(b.thickness, equals(0.06));

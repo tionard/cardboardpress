@@ -16,6 +16,7 @@ import '../../data/palette_repository.dart';
 import '../../model/card_model.dart';
 import '../../state/providers.dart';
 import '../../widgets/color_picker/color_picker.dart';
+import 'frame_manager.dart';
 import 'rarity_manager.dart';
 import 'symbol_manager.dart';
 import 'text_symbol_manager.dart';
@@ -29,10 +30,10 @@ class CustomizationScreen extends ConsumerStatefulWidget {
 }
 
 class _CustomizationScreenState extends ConsumerState<CustomizationScreen> {
-  int _subTab = 0; // 0=Colors, 1=Rarities, 2=Symbols, 3=Text
+  int _subTab = 0; // 0=Colors, 1=Rarities, 2=Symbols, 3=Text, 4=Frames
   String? _selectedId;
 
-  static const _subTabNames = ['Colors', 'Rarities', 'Symbols', 'Text'];
+  static const _subTabNames = ['Colors', 'Rarities', 'Symbols', 'Text', 'Frames'];
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +58,7 @@ class _CustomizationScreenState extends ConsumerState<CustomizationScreen> {
               1 => const RarityManager(),
               2 => const SymbolManager(),
               3 => const TextSymbolManager(),
+              4 => const FrameManager(),
               _ => Center(
                   child: Text(
                       '${_subTabNames[_subTab]} — coming in a later session')),

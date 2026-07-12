@@ -117,3 +117,56 @@ class SetEntry {
     this.symbolId,
   });
 }
+
+/// A Frames-library entry: a 9-slice sprite plus its slicing definition (per-
+/// edge source cuts + tile modes). The library OWNS the slicing — templates
+/// reference a frame by id and keep only use-site properties (thickness,
+/// drawCenter, tint) on their border aspect. Editing a frame here updates
+/// every referencing template live; deleting one leaves referencing templates
+/// rendering from the snapshot they took when the frame was picked.
+class FrameEntry {
+  final String id;
+  final String name;
+  final String imageId;
+  final double insetL; // source cut, fraction of source WIDTH, 0..0.49
+  final double insetT; // source cut, fraction of source HEIGHT, 0..0.49
+  final double insetR; // source cut, fraction of source WIDTH, 0..0.49
+  final double insetB; // source cut, fraction of source HEIGHT, 0..0.49
+  final SliceFillMode edgeMode;
+  final SliceFillMode centerMode;
+  final int position;
+
+  const FrameEntry({
+    required this.id,
+    required this.name,
+    required this.imageId,
+    this.insetL = 0.33,
+    this.insetT = 0.33,
+    this.insetR = 0.33,
+    this.insetB = 0.33,
+    this.edgeMode = SliceFillMode.stretch,
+    this.centerMode = SliceFillMode.stretch,
+    this.position = 0,
+  });
+
+  /// Overlays this frame's library-owned values (reference id + image + cuts +
+  /// modes) onto a use-site spec, preserving the spec's own thickness,
+  /// drawCenter, and tint. THE single overlay definition — used both when a
+  /// frame is picked in the template editor (baking the snapshot) and when the
+  /// live library value resolves at compose time.
+  NineSliceSpec applyTo(NineSliceSpec use) => use.copyWith(
+        frameId: id,
+        imageId: imageId,
+        insetL: insetL,
+        insetT: insetT,
+        insetR: insetR,
+        insetB: insetB,
+        edgeMode: edgeMode,
+        centerMode: centerMode,
+      );
+
+  /// A ready-to-paint spec for library previews (grid tiles, the slicing
+  /// editor). [thickness] is representative only — the real value is per-use.
+  NineSliceSpec previewSpec({double thickness = 0.08}) =>
+      applyTo(NineSliceSpec(thickness: thickness));
+}

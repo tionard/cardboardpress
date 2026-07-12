@@ -416,3 +416,35 @@ String _fieldName(FieldType t) => switch (t) {
       FieldType.art => 'Art',
       FieldType.footer => 'Footer',
     };
+
+// ---------------------------------------------------------------------------
+// Frames library resolution (reference + snapshot)
+// ---------------------------------------------------------------------------
+
+/// Resolves each border-carrying layer's Frames-library reference: while a
+/// layer's `border.frameId` resolves in [frames], the library's LIVE values
+/// (image, cuts, tile modes) overlay the stored snapshot — so editing a
+/// library frame updates every referencing template. An unresolved id (frame
+/// deleted) leaves the snapshot rendering unchanged. Use-site properties
+/// (thickness, drawCenter, tint) always stay with the layer.
+///
+/// Applied ONCE, at compose time (composeCard), on the template's persisted
+/// layer list — so `imageIdsToDecode()` lists the live image and the renderer
+/// never sees a dangling reference. Returns the input list untouched (same
+/// identity) when nothing resolves.
+List<Layer> resolveFrameLayers(
+    List<Layer> layers, Map<String, FrameEntry> frames) {
+  if (frames.isEmpty) return layers;
+  var changed = false;
+  final out = <Layer>[
+    for (final l in layers)
+      () {
+        final b = l.border;
+        final f = b?.frameId == null ? null : frames[b!.frameId];
+        if (b == null || f == null) return l;
+        changed = true;
+        return l.copyWith(border: f.applyTo(b));
+      }(),
+  ];
+  return changed ? out : layers;
+}

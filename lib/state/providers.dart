@@ -10,6 +10,7 @@ import '../data/image_store.dart';
 import '../data/backup_service.dart';
 import '../data/card_exporter.dart';
 import '../data/card_repository.dart';
+import '../data/frame_repository.dart';
 import '../data/palette_repository.dart';
 import '../data/rarity_repository.dart';
 import '../data/set_repository.dart';
@@ -163,6 +164,27 @@ final symbolsMapProvider = Provider<Map<String, SymbolEntry>>((ref) {
   return async.maybeWhen(
     data: (list) => {for (final s in list) s.id: s},
     orElse: () => const <String, SymbolEntry>{},
+  );
+});
+
+/// Data API for the Frames library (shared 9-slice border sprites).
+final frameRepositoryProvider = Provider<FrameRepository>(
+  (ref) => FrameRepository(ref.watch(databaseProvider)),
+);
+
+/// Live list of frames (for the Customization "Frames" tab and the picker).
+final framesProvider = StreamProvider<List<FrameEntry>>(
+  (ref) => ref.watch(frameRepositoryProvider).watch(),
+);
+
+/// Frames as an id -> entry map, for resolving a border aspect's frame
+/// reference at compose time (live value wins; the snapshot covers deletes).
+/// Empty while loading — the snapshot renders in the meantime.
+final framesMapProvider = Provider<Map<String, FrameEntry>>((ref) {
+  final async = ref.watch(framesProvider);
+  return async.maybeWhen(
+    data: (list) => {for (final f in list) f.id: f},
+    orElse: () => const <String, FrameEntry>{},
   );
 });
 

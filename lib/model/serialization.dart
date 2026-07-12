@@ -167,6 +167,7 @@ FieldSpec _fieldFromMap(Map m) {
 // default mode so it's omitted when unchanged.
 Map<String, dynamic> _nineSliceToMap(NineSliceSpec s) => {
       'img': s.imageId,
+      if (s.frameId != null) 'fId': s.frameId,
       'iL': s.insetL,
       'iT': s.insetT,
       'iR': s.insetR,
@@ -180,6 +181,7 @@ Map<String, dynamic> _nineSliceToMap(NineSliceSpec s) => {
 
 NineSliceSpec _nineSliceFromMap(Map m) => NineSliceSpec(
       imageId: (m['img'] as String?) ?? '',
+      frameId: m['fId'] as String?,
       insetL: _d(m['iL'], 0.33),
       insetT: _d(m['iT'], 0.33),
       insetR: _d(m['iR'], 0.33),

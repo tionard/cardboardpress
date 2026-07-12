@@ -168,14 +168,22 @@ extension _TemplateLayerDialogs on _TemplateBodyState {
                 transform: const ArtTransform())));
   }
 
-  /// Pick the 9-slice sprite for the layer's border aspect.
+  /// Pick this layer's frame from the Frames library. The library is the only
+  /// way a border sprite exists ("Upload new" in the picker saves to it); the
+  /// chosen frame's values are overlaid onto the layer's border aspect —
+  /// reference id + a snapshot baked at pick time — keeping the layer's own
+  /// thickness / drawCenter / tint.
   Future<void> _pickLayerBorder(Layer layer) async {
-    final imageId = await _pickAndStoreImage();
-    if (imageId == null) return;
+    final choice =
+        await pickFrame(context, ref, currentId: layer.border?.frameId);
+    if (choice == null) return;
+    final f = ref.read(framesMapProvider)[choice.id];
+    if (f == null) return;
     _updateLayer(
         layer.id,
-        (l) => l.copyWith(
-            border: (l.border ?? const NineSliceSpec()).copyWith(imageId: imageId)));
+        (l) =>
+            l.copyWith(border: f.applyTo(l.border ?? const NineSliceSpec())));
+    _syncImages();
   }
 
   // ---- mutations (all promote-on-edit) ----

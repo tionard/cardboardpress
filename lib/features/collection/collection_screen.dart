@@ -210,6 +210,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       rarities: ref.watch(raritiesMapProvider),
       symbols: ref.watch(symbolsMapProvider),
       textSymbols: ref.watch(textSymbolMapProvider),
+      frames: ref.watch(framesMapProvider),
       imageStore: ref.read(imageStoreProvider),
     );
 
@@ -344,6 +345,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
       total: numberingOn ? folder.cards.length : null,
       symbolImageIds: ctx.textSymbols,
       symbolsById: ctx.symbols,
+      frames: ctx.frames,
     );
   }
 
@@ -851,6 +853,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
         rarities: ref.read(raritiesMapProvider),
         symbols: ref.read(symbolsMapProvider),
         textSymbols: ref.read(textSymbolMapProvider),
+        frames: ref.read(framesMapProvider),
         imageStore: ref.read(imageStoreProvider),
       );
 

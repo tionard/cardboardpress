@@ -113,6 +113,7 @@ class _TemplateBrowserState extends ConsumerState<_TemplateBrowser> {
       content: const CardContent(),
       symbolImageIds: ref.watch(textSymbolMapProvider),
       symbolsById: ref.watch(symbolsMapProvider),
+      frames: ref.watch(framesMapProvider),
       footerPlaceholder: _footerPlaceholder,
     );
     final aspect = data.widthInches / data.heightInches;

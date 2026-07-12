@@ -175,8 +175,17 @@ enum SliceFillMode { stretch, tile }
 /// skips the middle patch entirely, leaving the interior transparent (fill /
 /// art shows through a border-only frame). [tint] recolours the sprite's
 /// opaque pixels.
+///
+/// Reference + snapshot (like ColorRef / templateSnapshot): [frameId] points at
+/// a Frames-library entry that OWNS the slicing (image + cuts + tile modes).
+/// While the id resolves, the library's live values win — editing a frame
+/// updates every referencing template. The fields stored here are the snapshot
+/// taken when the frame was picked, so deleting a library frame never breaks a
+/// template. [thickness], [drawCenter], and [tint] are use-site (per-layer)
+/// and never come from the library.
 class NineSliceSpec {
   final String imageId;
+  final String? frameId; // Frames-library reference; null = snapshot only
   final double insetL; // source cut, fraction of source WIDTH, 0..0.49
   final double insetT; // source cut, fraction of source HEIGHT, 0..0.49
   final double insetR; // source cut, fraction of source WIDTH, 0..0.49
@@ -189,6 +198,7 @@ class NineSliceSpec {
 
   const NineSliceSpec({
     this.imageId = '',
+    this.frameId,
     this.insetL = 0.33,
     this.insetT = 0.33,
     this.insetR = 0.33,
@@ -204,6 +214,7 @@ class NineSliceSpec {
 
   NineSliceSpec copyWith({
     String? imageId,
+    Object? frameId = _sentinel,
     double? insetL,
     double? insetT,
     double? insetR,
@@ -216,6 +227,8 @@ class NineSliceSpec {
   }) =>
       NineSliceSpec(
         imageId: imageId ?? this.imageId,
+        frameId:
+            identical(frameId, _sentinel) ? this.frameId : frameId as String?,
         insetL: insetL ?? this.insetL,
         insetT: insetT ?? this.insetT,
         insetR: insetR ?? this.insetR,

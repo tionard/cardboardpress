@@ -33,6 +33,7 @@ part 'paint_colors.dart';
 part 'paint_text.dart';
 part 'paint_images.dart';
 part 'paint_card_layers.dart';
+part 'frame_preview.dart';
 
 /// Draws one card into [canvas], filling a card of [size]. THE single public
 /// render entry — the preview, collection thumbnails, and PNG export all call

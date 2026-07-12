@@ -252,6 +252,7 @@ CardData composeCard(
   int? total,
   Map<String, String> symbolImageIds = const {},
   Map<String, SymbolEntry> symbolsById = const {},
+  Map<String, FrameEntry> frames = const {},
   String? footerPlaceholder,
 }) {
   var footerValues = deriveFooterValues(
@@ -346,7 +347,12 @@ CardData composeCard(
     footerValues: footerValues,
     layerOrder: t.layerOrder,
     hiddenLayers: t.hiddenLayers,
-    layers: t.layers,
+    // Frames-library resolution happens HERE, once: the persisted layers get
+    // their live library frame values overlaid (snapshot kept when the id
+    // doesn't resolve), so imageIdsToDecode() and the renderer downstream see
+    // the resolved spec. Derived templates (layers == null) can't carry frame
+    // references — a border aspect only exists after promotion.
+    layers: t.layers == null ? null : resolveFrameLayers(t.layers!, frames),
     fillColors: content.fillColors,
     outlineColors: content.outlineColors,
     cardHiddenLayers: content.cardHiddenLayers,

@@ -10,6 +10,7 @@ class _CardCtx {
   final Map<String, RarityEntry> rarities;
   final Map<String, SymbolEntry> symbols;
   final Map<String, String> textSymbols;
+  final Map<String, FrameEntry> frames;
   final ImageStore imageStore;
 
   const _CardCtx({
@@ -18,6 +19,7 @@ class _CardCtx {
     required this.rarities,
     required this.symbols,
     required this.textSymbols,
+    required this.frames,
     required this.imageStore,
   });
 }

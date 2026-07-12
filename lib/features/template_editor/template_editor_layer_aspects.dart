@@ -147,11 +147,22 @@ extension _TemplateLayerAspects on _TemplateBodyState {
         ]),
       if (border != null)
         _section('l_border', 'Border (9-slice)', [
-          Text('A sprite frame. While on, it replaces the flat fill.',
+          Text(
+              'A sliced frame from your Frames library. While on, it replaces '
+              'the flat fill.',
               style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 6),
           Row(children: [
-            const SizedBox(width: 80, child: Text('Sprite')),
+            const SizedBox(width: 80, child: Text('Frame')),
+            Expanded(
+              child: Text(
+                ref.watch(framesMapProvider)[border.frameId]?.name ??
+                    (border.hasImage ? 'Saved copy (frame deleted)' : '(none)'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
             OutlinedButton.icon(
               onPressed: () => _pickLayerBorder(layer),
               icon: const Icon(Icons.image_outlined),
@@ -160,57 +171,46 @@ extension _TemplateLayerAspects on _TemplateBodyState {
           ]),
           if (border.hasImage) ...[
             const SizedBox(height: 8),
-            Text(
-                'Cuts: how far in from each edge of the sprite the slice sits. '
-                'Set a side to 0 to remove that band entirely — e.g. Top and '
-                'Bottom at 0 makes a left/center/right 3-slice.',
-                style: Theme.of(context).textTheme.bodySmall),
-            _labeledSlider('Cut left', border.insetL, 0, 0.49,
-                (v) => _updateLayer(id,
-                    (l) => l.copyWith(border: l.border?.copyWith(insetL: v)))),
-            _labeledSlider('Cut top', border.insetT, 0, 0.49,
-                (v) => _updateLayer(id,
-                    (l) => l.copyWith(border: l.border?.copyWith(insetT: v)))),
-            _labeledSlider('Cut right', border.insetR, 0, 0.49,
-                (v) => _updateLayer(id,
-                    (l) => l.copyWith(border: l.border?.copyWith(insetR: v)))),
-            _labeledSlider('Cut bottom', border.insetB, 0, 0.49,
-                (v) => _updateLayer(id,
-                    (l) => l.copyWith(border: l.border?.copyWith(insetB: v)))),
+            // The slicing (cuts + tile modes) is library-owned: editing it
+            // changes the frame for EVERY template that uses it. Only the
+            // use-site properties below belong to this layer.
+            Builder(builder: (_) {
+              final f = ref.watch(framesMapProvider)[border.frameId];
+              if (f == null) {
+                return Text(
+                    'This layer renders the copy it saved when the frame was '
+                    'picked. Choose a frame to follow the library again.',
+                    style: Theme.of(context).textTheme.bodySmall);
+              }
+              return Row(children: [
+                Expanded(
+                  child: Text(
+                      'Cuts and tiling come from the library frame (shared by '
+                      'every template using it).',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    await editFrameSlicing(context, ref, f);
+                    _syncImages();
+                  },
+                  child: const Text('Edit frame…'),
+                ),
+              ]);
+            }),
             _labeledSlider('Thickness', border.thickness, 0, 0.2,
                 (v) => _updateLayer(id,
                     (l) => l.copyWith(border: l.border?.copyWith(thickness: v)))),
             Text(
                 'Drawn size of the thickest side; the others scale in '
-                'proportion to their cuts.',
+                'proportion to the frame\'s cuts.',
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 4),
-            _aspectToggle(
-                'Tile edges',
-                border.edgeMode == SliceFillMode.tile,
-                (v) => _updateLayer(
-                    id,
-                    (l) => l.copyWith(
-                        border: l.border?.copyWith(
-                            edgeMode: v
-                                ? SliceFillMode.tile
-                                : SliceFillMode.stretch)))),
             _aspectToggle(
                 'Fill center',
                 border.drawCenter,
                 (v) => _updateLayer(id,
                     (l) => l.copyWith(border: l.border?.copyWith(drawCenter: v)))),
-            if (border.drawCenter)
-              _aspectToggle(
-                  'Tile center',
-                  border.centerMode == SliceFillMode.tile,
-                  (v) => _updateLayer(
-                      id,
-                      (l) => l.copyWith(
-                          border: l.border?.copyWith(
-                              centerMode: v
-                                  ? SliceFillMode.tile
-                                  : SliceFillMode.stretch)))),
             const SizedBox(height: 8),
             Text('Tint', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 6),
