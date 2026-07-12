@@ -56,6 +56,25 @@ Future<Uint8List> _render(CardData card, CardRefs refs, ui.Size size) async {
   }
 }
 
+/// Builds a test sprite where each pixel's colour comes from [argbAt] — used
+/// to author 9-slice sprites with recognisable corner/edge/center regions.
+Future<ui.Image> _pxImage(int w, int h, int Function(int x, int y) argbAt) {
+  final c = Completer<ui.Image>();
+  final px = Uint8List(w * h * 4);
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      final v = argbAt(x, y);
+      final i = (y * w + x) * 4;
+      px[i] = (v >> 16) & 0xFF;
+      px[i + 1] = (v >> 8) & 0xFF;
+      px[i + 2] = v & 0xFF;
+      px[i + 3] = (v >> 24) & 0xFF;
+    }
+  }
+  ui.decodeImageFromPixels(px, w, h, ui.PixelFormat.rgba8888, c.complete);
+  return c.future;
+}
+
 (int, int, int, int) _px(Uint8List b, int x, int y, int w) {
   final i = (y * w + x) * 4;
   return (b[i], b[i + 1], b[i + 2], b[i + 3]);
@@ -200,5 +219,153 @@ void main() {
 
     expect(_firstDiff(base, overridden), isNot(-1),
         reason: 'a per-card fill override must change the render');
+  });
+
+  // -------------------------------------------------------------------------
+  // 9-slice border aspect (per-edge insets + tile modes).
+  //
+  // Test card: white base + a border-aspect layer at _mid, so on the 200×280
+  // card the layer rect is (60,84)-(140,196). With thickness 0.1 the thickest
+  // band draws 20px (0.1 × 200). Sprites are 30×30 with colour-coded regions,
+  // sampled well inside each drawn patch (away from filtered seams).
+  // -------------------------------------------------------------------------
+
+  const red = 0xFFFF0000;
+  const green = 0xFF00FF00;
+  const blue = 0xFF0000FF;
+  const yellow = 0xFFFFFF00;
+
+  Layer borderLayer(NineSliceSpec spec) =>
+      Layer(id: 'frame', name: 'Frame', frac: _mid, border: spec);
+
+  CardData frameCard(NineSliceSpec spec) => CardData(
+        baseColor: _white,
+        fields: const [],
+        layers: [_baseFill(_white), borderLayer(spec)],
+      );
+
+  void expectColor(Uint8List px, int x, int y, int argb, String what,
+      {int imgW = w}) {
+    final (r, g, b, _) = _px(px, x, y, imgW);
+    final er = (argb >> 16) & 0xFF, eg = (argb >> 8) & 0xFF, eb = argb & 0xFF;
+    int lo(int c) => c > 127 ? 200 : -1;
+    int hi(int c) => c > 127 ? 256 : 60;
+    expect(r, allOf(greaterThan(lo(er)), lessThan(hi(er))), reason: '$what: R');
+    expect(g, allOf(greaterThan(lo(eg)), lessThan(hi(eg))), reason: '$what: G');
+    expect(b, allOf(greaterThan(lo(eb)), lessThan(hi(eb))), reason: '$what: B');
+  }
+
+  test('nine-slice: equal cuts draw fixed corners, edges, and center',
+      () async {
+    // Thirds: corners red, top/bottom edges green, left/right edges yellow,
+    // center blue.
+    final sprite = await _pxImage(30, 30, (x, y) {
+      final xe = x < 10 || x >= 20; // in a horizontal band
+      final ye = y < 10 || y >= 20; // in a vertical band
+      if (xe && ye) return red;
+      if (ye) return green;
+      if (xe) return yellow;
+      return blue;
+    });
+    const spec = NineSliceSpec(imageId: 'f', thickness: 0.1);
+    final px = await _render(frameCard(spec), CardRefs(images: {'f': sprite}), size);
+
+    expectColor(px, 68, 92, red, 'top-left corner (20px, fixed)');
+    expectColor(px, 132, 188, red, 'bottom-right corner (20px, fixed)');
+    expectColor(px, 100, 94, green, 'top edge');
+    expectColor(px, 68, 140, yellow, 'left edge');
+    expectColor(px, 100, 140, blue, 'center');
+    expectColor(px, 30, 140, 0xFFFFFFFF, 'outside the layer stays white');
+  });
+
+  test('nine-slice: zero top/bottom cuts make a horizontal 3-slice', () async {
+    // Vertical thirds only (uniform in y): red | green | blue.
+    final sprite = await _pxImage(
+        30, 30, (x, y) => x < 10 ? red : (x >= 20 ? blue : green));
+    const spec = NineSliceSpec(
+        imageId: 'f',
+        insetL: 1 / 3,
+        insetR: 1 / 3,
+        insetT: 0,
+        insetB: 0,
+        thickness: 0.1);
+    final px = await _render(frameCard(spec), CardRefs(images: {'f': sprite}), size);
+
+    // The side bands span the FULL layer height — no top/bottom bands exist.
+    expectColor(px, 68, 90, red, 'left band reaches the very top');
+    expectColor(px, 68, 190, red, 'left band reaches the very bottom');
+    expectColor(px, 132, 140, blue, 'right band');
+    expectColor(px, 100, 90, green, 'center reaches the top (no top band)');
+    expectColor(px, 100, 140, green, 'center middle');
+  });
+
+  test('nine-slice: asymmetric cuts draw proportionally thick bands',
+      () async {
+    // Horizontal bands matching the cuts: top 1/6 red, bottom 1/3 blue,
+    // middle green. thickness 0.1 → bottom (the thickest cut) draws 20px,
+    // top draws 10px (half the cut → half the thickness).
+    final sprite = await _pxImage(
+        30, 30, (x, y) => y < 5 ? red : (y >= 20 ? blue : green));
+    const spec = NineSliceSpec(
+        imageId: 'f',
+        insetL: 0,
+        insetR: 0,
+        insetT: 1 / 6,
+        insetB: 1 / 3,
+        thickness: 0.1);
+    final px = await _render(frameCard(spec), CardRefs(images: {'f': sprite}), size);
+
+    expectColor(px, 100, 88, red, 'inside the 10px top band');
+    expectColor(px, 100, 100, green, 'past the 10px top band (proportional)');
+    expectColor(px, 100, 170, green, 'above the 20px bottom band');
+    expectColor(px, 100, 186, blue, 'inside the 20px bottom band');
+  });
+
+  test('nine-slice: tiled edges and center render differently from stretched',
+      () async {
+    // Corners solid red; edge/center content varies per-pixel so tiling
+    // (repeat at corner scale) can't coincide with stretching.
+    const magenta = 0xFFFF00FF;
+    final sprite = await _pxImage(30, 30, (x, y) {
+      final xe = x < 10 || x >= 20;
+      final ye = y < 10 || y >= 20;
+      if (xe && ye) return red;
+      return (x + y).isEven ? green : magenta;
+    });
+    NineSliceSpec spec(SliceFillMode m) => NineSliceSpec(
+        imageId: 'f', thickness: 0.1, edgeMode: m, centerMode: m);
+    final refs = CardRefs(images: {'f': sprite});
+
+    final stretched =
+        await _render(frameCard(spec(SliceFillMode.stretch)), refs, size);
+    final tiled = await _render(frameCard(spec(SliceFillMode.tile)), refs, size);
+
+    expect(_firstDiff(stretched, tiled), isNot(-1),
+        reason: 'tile mode must sample the sprite differently from stretch');
+  });
+
+  test('nine-slice: render is resolution-independent', () async {
+    final sprite = await _pxImage(30, 30, (x, y) {
+      final xe = x < 10 || x >= 20;
+      final ye = y < 10 || y >= 20;
+      if (xe && ye) return red;
+      if (ye) return green;
+      if (xe) return yellow;
+      return blue;
+    });
+    const spec = NineSliceSpec(imageId: 'f', thickness: 0.1);
+    final refs = CardRefs(images: {'f': sprite});
+
+    final oneX = await _render(frameCard(spec), refs, size);
+    final twoX =
+        await _render(frameCard(spec), refs, const ui.Size(400, 560));
+
+    // The same proportional points land in the same patches at both scales.
+    expectColor(oneX, 68, 92, red, '1x corner');
+    expectColor(twoX, 136, 184, red, '2x corner', imgW: 400);
+    expectColor(oneX, 100, 94, green, '1x top edge');
+    expectColor(twoX, 200, 188, green, '2x top edge', imgW: 400);
+    expectColor(oneX, 100, 140, blue, '1x center');
+    expectColor(twoX, 200, 280, blue, '2x center', imgW: 400);
   });
 }

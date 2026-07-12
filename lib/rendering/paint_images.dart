@@ -83,12 +83,24 @@ void _drawImageContain(ui.Canvas canvas, ui.Image img, ui.Rect dst) {
 // 9-slice frame sprite
 // ---------------------------------------------------------------------------
 
-/// Draws [img] as a 9-slice frame filling [dst]: the four corners stay fixed,
-/// the edges stretch along one axis, and the center stretches both ways. Source
-/// insets come from [spec.slice] (a fraction of the sprite); the DRAWN corner
-/// size is [spec.inset] × card width, clamped to the field so it can't overrun a
-/// small box. With [spec.drawCenter] false the middle patch is skipped, leaving
-/// the field's interior (fill / art) showing through a border-only frame.
+/// Draws [img] as a 9-slice frame filling [dst]: the corners stay fixed, the
+/// edges scale along one axis, and the center fills both ways.
+///
+/// Source cuts are PER-EDGE ([spec.insetL/T/R/B], fractions of the source
+/// image); a zero cut removes that band entirely, so `insetT = insetB = 0` is
+/// a horizontal 3-slice with no special casing. The DRAWN thickness is
+/// resolution-independent: the thickest edge draws at [spec.thickness] × card
+/// width and the others proportionally to their source-cut FRACTIONS
+/// (fraction-proportional, not pixel-proportional, so a uniformly-cut
+/// non-square sprite still draws square corners). If the bands would overrun a
+/// small box, all four shrink together so the proportions hold.
+///
+/// Edges and center each honour a [SliceFillMode]: stretch, or tile at the
+/// scale implied by the adjacent drawn corner — tile size therefore also
+/// derives from card width, keeping preview and export pixel-equivalent. Tiles
+/// are centred so partial tiles split evenly between both ends. With
+/// [spec.drawCenter] false the middle patch is skipped, leaving the layer's
+/// interior (fill / art) showing through a border-only frame.
 void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
     NineSliceSpec spec, ui.Size size,
     {ColorValue? tint, double alpha = 1.0}) {
@@ -99,27 +111,7 @@ void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
   final a = alpha.clamp(0.0, 1.0);
   if (a <= 0) return;
 
-  final sliceF = spec.slice.clamp(0.0, 0.49);
-  final sl = sliceF * iw; // source insets (uniform fraction of the sprite)
-  final st = sliceF * ih;
-  final midSW = iw - sl * 2;
-  final midSH = ih - st * 2;
-
-  final base = spec.inset * size.width;
-  final diX = math.min(base, dst.width / 2); // drawn corner size, clamped
-  final diY = math.min(base, dst.height / 2);
-  final midDW = dst.width - diX * 2;
-  final midDH = dst.height - diY * 2;
-
   final paint = ui.Paint()..filterQuality = ui.FilterQuality.medium;
-  final l = dst.left, t = dst.top, r = dst.right, b = dst.bottom;
-
-  void patch(double sx, double sy, double sw, double sh, double dx, double dy,
-      double dw, double dh) {
-    if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) return;
-    canvas.drawImageRect(img, ui.Rect.fromLTWH(sx, sy, sw, sh),
-        ui.Rect.fromLTWH(dx, dy, dw, dh), paint);
-  }
 
   // A tint multiplies a palette colour (single or double) onto the sprite,
   // preserving its shading and respecting alpha — transparent stays transparent.
@@ -133,20 +125,7 @@ void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
     canvas.saveLayer(dst, ui.Paint()..color = ui.Color.fromRGBO(0, 0, 0, a));
   }
 
-  // Corners (never scaled out of proportion — fixed source → fixed dest).
-  patch(0, 0, sl, st, l, t, diX, diY);
-  patch(iw - sl, 0, sl, st, r - diX, t, diX, diY);
-  patch(0, ih - st, sl, st, l, b - diY, diX, diY);
-  patch(iw - sl, ih - st, sl, st, r - diX, b - diY, diX, diY);
-  // Edges (stretch along one axis).
-  patch(sl, 0, midSW, st, l + diX, t, midDW, diY); // top
-  patch(sl, ih - st, midSW, st, l + diX, b - diY, midDW, diY); // bottom
-  patch(0, st, sl, midSH, l, t + diY, diX, midDH); // left
-  patch(iw - sl, st, sl, midSH, r - diX, t + diY, diX, midDH); // right
-  // Center (stretches both ways).
-  if (spec.drawCenter) {
-    patch(sl, st, midSW, midSH, l + diX, t + diY, midDW, midDH);
-  }
+  _paintNineSlicePatches(canvas, dst, img, spec, size, paint);
 
   if (tinted) {
     final tp = ui.Paint()..blendMode = ui.BlendMode.modulate;
@@ -160,6 +139,175 @@ void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
   }
 
   if (needLayer) canvas.restore();
+}
+
+/// The geometry half of [_paintNineSlice]: cuts the sprite by the per-edge
+/// insets and draws corners / edges / center into [dst].
+void _paintNineSlicePatches(ui.Canvas canvas, ui.Rect dst, ui.Image img,
+    NineSliceSpec spec, ui.Size size, ui.Paint paint) {
+  final iw = img.width.toDouble();
+  final ih = img.height.toDouble();
+
+  // Source cut fractions (L/R of source width, T/B of source height).
+  final fL = spec.insetL.clamp(0.0, 0.49);
+  final fT = spec.insetT.clamp(0.0, 0.49);
+  final fR = spec.insetR.clamp(0.0, 0.49);
+  final fB = spec.insetB.clamp(0.0, 0.49);
+  final fMax = math.max(math.max(fL, fR), math.max(fT, fB));
+
+  if (fMax <= 0) {
+    // No cuts at all — the whole sprite is one center patch. Tiling has no
+    // corner scale to derive a tile size from here, so the degenerate case
+    // always stretches.
+    if (spec.drawCenter) {
+      canvas.drawImageRect(img, ui.Rect.fromLTWH(0, 0, iw, ih), dst, paint);
+    }
+    return;
+  }
+
+  // Source geometry (px).
+  final sl = fL * iw, sr = fR * iw, st = fT * ih, sb = fB * ih;
+  final midSW = iw - sl - sr;
+  final midSH = ih - st - sb;
+
+  // Drawn geometry: the thickest cut draws at [thickness] × card width, the
+  // others proportionally to their fractions — so a zero cut draws nothing and
+  // the sides keep their sprite ratios. If the bands would overrun the box,
+  // all four shrink together (uniform clamp preserves the proportions).
+  final base = spec.thickness * size.width;
+  var dL = base * fL / fMax;
+  var dT = base * fT / fMax;
+  var dR = base * fR / fMax;
+  var dB = base * fB / fMax;
+  var k = 1.0;
+  if (dL + dR > 0) k = math.min(k, dst.width / (dL + dR));
+  if (dT + dB > 0) k = math.min(k, dst.height / (dT + dB));
+  if (k < 1.0) {
+    dL *= k;
+    dT *= k;
+    dR *= k;
+    dB *= k;
+  }
+  final midDW = dst.width - dL - dR;
+  final midDH = dst.height - dT - dB;
+
+  final l = dst.left, t = dst.top, r = dst.right, b = dst.bottom;
+
+  void patch(double sx, double sy, double sw, double sh, double dx, double dy,
+      double dw, double dh) {
+    if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) return;
+    canvas.drawImageRect(img, ui.Rect.fromLTWH(sx, sy, sw, sh),
+        ui.Rect.fromLTWH(dx, dy, dw, dh), paint);
+  }
+
+  // Corners — fixed source → fixed dest, never distorted. patch() skips any
+  // corner with a zero band on either axis (that's the 3-slice case).
+  patch(0, 0, sl, st, l, t, dL, dT);
+  patch(iw - sr, 0, sr, st, r - dR, t, dR, dT);
+  patch(0, ih - sb, sl, sb, l, b - dB, dL, dB);
+  patch(iw - sr, ih - sb, sr, sb, r - dR, b - dB, dR, dB);
+
+  // Edges — stretch along the edge, or tile at the drawn/source scale of the
+  // band's cross-axis (which derives from card width → resolution-exact).
+  final tileEdges = spec.edgeMode == SliceFillMode.tile;
+  // top / bottom
+  if (midSW > 0 && midDW > 0) {
+    final topSrc = ui.Rect.fromLTWH(sl, 0, midSW, st);
+    final topDst = ui.Rect.fromLTWH(l + dL, t, midDW, dT);
+    final botSrc = ui.Rect.fromLTWH(sl, ih - sb, midSW, sb);
+    final botDst = ui.Rect.fromLTWH(l + dL, b - dB, midDW, dB);
+    if (tileEdges) {
+      if (st > 0 && dT > 0) {
+        _tilePatch(canvas, img, topSrc, topDst, dT / st, dT / st, paint);
+      }
+      if (sb > 0 && dB > 0) {
+        _tilePatch(canvas, img, botSrc, botDst, dB / sb, dB / sb, paint);
+      }
+    } else {
+      patch(topSrc.left, topSrc.top, topSrc.width, topSrc.height, topDst.left,
+          topDst.top, topDst.width, topDst.height);
+      patch(botSrc.left, botSrc.top, botSrc.width, botSrc.height, botDst.left,
+          botDst.top, botDst.width, botDst.height);
+    }
+  }
+  // left / right
+  if (midSH > 0 && midDH > 0) {
+    final leftSrc = ui.Rect.fromLTWH(0, st, sl, midSH);
+    final leftDst = ui.Rect.fromLTWH(l, t + dT, dL, midDH);
+    final rightSrc = ui.Rect.fromLTWH(iw - sr, st, sr, midSH);
+    final rightDst = ui.Rect.fromLTWH(r - dR, t + dT, dR, midDH);
+    if (tileEdges) {
+      if (sl > 0 && dL > 0) {
+        _tilePatch(canvas, img, leftSrc, leftDst, dL / sl, dL / sl, paint);
+      }
+      if (sr > 0 && dR > 0) {
+        _tilePatch(canvas, img, rightSrc, rightDst, dR / sr, dR / sr, paint);
+      }
+    } else {
+      patch(leftSrc.left, leftSrc.top, leftSrc.width, leftSrc.height,
+          leftDst.left, leftDst.top, leftDst.width, leftDst.height);
+      patch(rightSrc.left, rightSrc.top, rightSrc.width, rightSrc.height,
+          rightDst.left, rightDst.top, rightDst.width, rightDst.height);
+    }
+  }
+
+  // Center — fills both ways. Tile scale per axis comes from whichever band
+  // exists on that axis (falling back to the other axis for 3-slices, so a
+  // horizontal 3-slice's center still tiles at a sensible uniform scale).
+  if (spec.drawCenter && midSW > 0 && midSH > 0 && midDW > 0 && midDH > 0) {
+    final cSrc = ui.Rect.fromLTWH(sl, st, midSW, midSH);
+    final cDst = ui.Rect.fromLTWH(l + dL, t + dT, midDW, midDH);
+    var tiled = false;
+    if (spec.centerMode == SliceFillMode.tile) {
+      double? kx, ky;
+      if (sl > 0 && dL > 0) {
+        kx = dL / sl;
+      } else if (sr > 0 && dR > 0) {
+        kx = dR / sr;
+      }
+      if (st > 0 && dT > 0) {
+        ky = dT / st;
+      } else if (sb > 0 && dB > 0) {
+        ky = dB / sb;
+      }
+      kx ??= ky;
+      ky ??= kx;
+      if (kx != null && ky != null) {
+        _tilePatch(canvas, img, cSrc, cDst, kx, ky, paint);
+        tiled = true;
+      }
+    }
+    if (!tiled) {
+      patch(cSrc.left, cSrc.top, cSrc.width, cSrc.height, cDst.left, cDst.top,
+          cDst.width, cDst.height);
+    }
+  }
+}
+
+/// Tiles [src] (a sprite patch) across [dstRect] at [scaleX]/[scaleY] (drawn
+/// px per source px), clipped to the rect. The grid is CENTRED so any partial
+/// tiles split evenly between both ends — the two ends of a frame edge mirror
+/// each other instead of one clean end and one chopped end.
+void _tilePatch(ui.Canvas canvas, ui.Image img, ui.Rect src, ui.Rect dstRect,
+    double scaleX, double scaleY, ui.Paint paint) {
+  final tw = src.width * scaleX;
+  final th = src.height * scaleY;
+  if (tw < 0.01 || th < 0.01 || dstRect.width <= 0 || dstRect.height <= 0) {
+    return;
+  }
+  final nx = (dstRect.width / tw).ceil();
+  final ny = (dstRect.height / th).ceil();
+  final x0 = dstRect.center.dx - nx * tw / 2;
+  final y0 = dstRect.center.dy - ny * th / 2;
+  canvas.save();
+  canvas.clipRect(dstRect);
+  for (var j = 0; j < ny; j++) {
+    for (var i = 0; i < nx; i++) {
+      canvas.drawImageRect(img, src,
+          ui.Rect.fromLTWH(x0 + i * tw, y0 + j * th, tw, th), paint);
+    }
+  }
+  canvas.restore();
 }
 
 // ---------------------------------------------------------------------------

@@ -57,4 +57,54 @@ void main() {
     expect(back.single.exposed[ExposedAspect.fill], equals(EditorTab.color));
     expect(layersToJson(back), equals(json));
   });
+
+  test('border aspect with per-edge insets and tile modes round-trips', () {
+    final ref = ColorRef.literal(const ColorValue.single(Color(0xFF8A6D3B)));
+    final layer = Layer(
+      id: 'lb',
+      name: 'Frame',
+      frac: const Rect.fromLTRB(0.05, 0.05, 0.95, 0.95),
+      border: NineSliceSpec(
+        imageId: 'img_9',
+        insetL: 0.10,
+        insetT: 0.20,
+        insetR: 0.30,
+        insetB: 0.40,
+        thickness: 0.08,
+        edgeMode: SliceFillMode.tile,
+        centerMode: SliceFillMode.tile,
+        drawCenter: false,
+        tint: ref,
+      ),
+    );
+
+    final json = layersToJson([layer]);
+    final back = layersFromJson(json);
+
+    final b = back.single.border!;
+    expect(b.insetL, equals(0.10));
+    expect(b.insetT, equals(0.20));
+    expect(b.insetR, equals(0.30));
+    expect(b.insetB, equals(0.40));
+    expect(b.thickness, equals(0.08));
+    expect(b.edgeMode, equals(SliceFillMode.tile));
+    expect(b.centerMode, equals(SliceFillMode.tile));
+    expect(b.drawCenter, isFalse);
+    expect(b.tint, isNotNull);
+    expect(layersToJson(back), equals(json));
+  });
+
+  test('a bare border map decodes with safe defaults (stretch, equal cuts)',
+      () {
+    final back = layersFromJson(
+        '{"v":1,"layers":[{"id":"x","name":"X","kind":"generic",'
+        '"frac":[0,0,1,1],"cr":0.02,"border":{"img":"i1","center":true}}]}');
+    final b = back.single.border!;
+    expect(b.imageId, equals('i1'));
+    expect(b.insetL, equals(0.33));
+    expect(b.insetB, equals(0.33));
+    expect(b.thickness, equals(0.06));
+    expect(b.edgeMode, equals(SliceFillMode.stretch));
+    expect(b.centerMode, equals(SliceFillMode.stretch));
+  });
 }

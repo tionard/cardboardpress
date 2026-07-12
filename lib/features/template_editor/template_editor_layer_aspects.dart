@@ -159,17 +159,58 @@ extension _TemplateLayerAspects on _TemplateBodyState {
             ),
           ]),
           if (border.hasImage) ...[
-            _labeledSlider('Slice', border.slice, 0, 0.49,
+            const SizedBox(height: 8),
+            Text(
+                'Cuts: how far in from each edge of the sprite the slice sits. '
+                'Set a side to 0 to remove that band entirely — e.g. Top and '
+                'Bottom at 0 makes a left/center/right 3-slice.',
+                style: Theme.of(context).textTheme.bodySmall),
+            _labeledSlider('Cut left', border.insetL, 0, 0.49,
                 (v) => _updateLayer(id,
-                    (l) => l.copyWith(border: l.border?.copyWith(slice: v)))),
-            _labeledSlider('Corner', border.inset, 0, 0.2,
+                    (l) => l.copyWith(border: l.border?.copyWith(insetL: v)))),
+            _labeledSlider('Cut top', border.insetT, 0, 0.49,
                 (v) => _updateLayer(id,
-                    (l) => l.copyWith(border: l.border?.copyWith(inset: v)))),
+                    (l) => l.copyWith(border: l.border?.copyWith(insetT: v)))),
+            _labeledSlider('Cut right', border.insetR, 0, 0.49,
+                (v) => _updateLayer(id,
+                    (l) => l.copyWith(border: l.border?.copyWith(insetR: v)))),
+            _labeledSlider('Cut bottom', border.insetB, 0, 0.49,
+                (v) => _updateLayer(id,
+                    (l) => l.copyWith(border: l.border?.copyWith(insetB: v)))),
+            _labeledSlider('Thickness', border.thickness, 0, 0.2,
+                (v) => _updateLayer(id,
+                    (l) => l.copyWith(border: l.border?.copyWith(thickness: v)))),
+            Text(
+                'Drawn size of the thickest side; the others scale in '
+                'proportion to their cuts.',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 4),
+            _aspectToggle(
+                'Tile edges',
+                border.edgeMode == SliceFillMode.tile,
+                (v) => _updateLayer(
+                    id,
+                    (l) => l.copyWith(
+                        border: l.border?.copyWith(
+                            edgeMode: v
+                                ? SliceFillMode.tile
+                                : SliceFillMode.stretch)))),
             _aspectToggle(
                 'Fill center',
                 border.drawCenter,
                 (v) => _updateLayer(id,
                     (l) => l.copyWith(border: l.border?.copyWith(drawCenter: v)))),
+            if (border.drawCenter)
+              _aspectToggle(
+                  'Tile center',
+                  border.centerMode == SliceFillMode.tile,
+                  (v) => _updateLayer(
+                      id,
+                      (l) => l.copyWith(
+                          border: l.border?.copyWith(
+                              centerMode: v
+                                  ? SliceFillMode.tile
+                                  : SliceFillMode.stretch)))),
             const SizedBox(height: 8),
             Text('Tint', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 6),

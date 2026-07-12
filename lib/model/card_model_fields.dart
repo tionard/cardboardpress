@@ -143,27 +143,59 @@ class WatermarkSpec {
       );
 }
 
-/// A 9-slice (nine-patch) frame sprite for a field's background (spec §3.6): the
-/// sprite's four corners stay fixed while its edges and center stretch, so an
-/// ornate border/bevel never distorts at any field size. [imageId] points into
-/// the ImageStore (user-supplied art, like card art / the template background).
-/// [slice] is the source cut — how far in from each edge of the SPRITE the slice
-/// sits, as a fraction of the sprite (uniform on all four sides). [inset] is the
-/// DRAWN corner size as a fraction of the CARD WIDTH, so corners scale with the
-/// card (preview ↔ print) but NOT with the field's size — that's the whole point
-/// of 9-slice. [drawCenter] paints the stretched middle patch; turn it off for a
-/// border-only frame whose interior stays transparent (fill/art shows through).
+/// How a 9-slice patch fills the space it's given.
+///
+/// [stretch] scales the source patch to fit (the classic look); [tile] repeats
+/// it at the size implied by the drawn corner scale, centred so any partial
+/// tiles split evenly between both ends — better for textured parchment/metal
+/// frames that smear when stretched. Designed to grow: a planned third mode
+/// fits as many whole tiles as possible then stretches them equally to absorb
+/// the remainder (CSS border-image "round").
+enum SliceFillMode { stretch, tile }
+
+/// A 9-slice (nine-patch) frame sprite for a layer's background: the sprite's
+/// corners stay fixed while its edges and center stretch or tile, so an ornate
+/// border/bevel never distorts at any layer size. [imageId] points into the
+/// ImageStore (user-supplied art, like card art / the template background).
+///
+/// The four insets say where to CUT the source sprite — each as a fraction of
+/// the SOURCE IMAGE ([insetL]/[insetR] of its width, [insetT]/[insetB] of its
+/// height, 0..0.49). A zero inset removes that band entirely, which is how a
+/// 3-slice falls out for free: `insetT = insetB = 0` is a horizontal
+/// (left/center/right) 3-slice, `insetL = insetR = 0` a vertical one.
+///
+/// [thickness] is the DRAWN size of the thickest edge as a fraction of the
+/// CARD WIDTH, so the frame scales with the card (preview ↔ print) but NOT
+/// with the layer's size — that's the whole point of 9-slice. Edges with
+/// smaller source insets draw proportionally thinner
+/// (drawn = thickness × cardWidth × inset / maxInset), so the sides keep the
+/// same ratios to each other that they have in the sprite.
+///
+/// [edgeMode]/[centerMode] pick stretch or tile per region. [drawCenter] off
+/// skips the middle patch entirely, leaving the interior transparent (fill /
+/// art shows through a border-only frame). [tint] recolours the sprite's
+/// opaque pixels.
 class NineSliceSpec {
   final String imageId;
-  final double slice; // 0..0.49, fraction of the sprite
-  final double inset; // fraction of card width
+  final double insetL; // source cut, fraction of source WIDTH, 0..0.49
+  final double insetT; // source cut, fraction of source HEIGHT, 0..0.49
+  final double insetR; // source cut, fraction of source WIDTH, 0..0.49
+  final double insetB; // source cut, fraction of source HEIGHT, 0..0.49
+  final double thickness; // drawn thickest-edge size, fraction of card width
+  final SliceFillMode edgeMode;
+  final SliceFillMode centerMode;
   final bool drawCenter;
   final ColorRef? tint; // optional recolour of the sprite's opaque pixels
 
   const NineSliceSpec({
     this.imageId = '',
-    this.slice = 0.33,
-    this.inset = 0.06,
+    this.insetL = 0.33,
+    this.insetT = 0.33,
+    this.insetR = 0.33,
+    this.insetB = 0.33,
+    this.thickness = 0.06,
+    this.edgeMode = SliceFillMode.stretch,
+    this.centerMode = SliceFillMode.stretch,
     this.drawCenter = true,
     this.tint,
   });
@@ -172,15 +204,25 @@ class NineSliceSpec {
 
   NineSliceSpec copyWith({
     String? imageId,
-    double? slice,
-    double? inset,
+    double? insetL,
+    double? insetT,
+    double? insetR,
+    double? insetB,
+    double? thickness,
+    SliceFillMode? edgeMode,
+    SliceFillMode? centerMode,
     bool? drawCenter,
     Object? tint = _sentinel,
   }) =>
       NineSliceSpec(
         imageId: imageId ?? this.imageId,
-        slice: slice ?? this.slice,
-        inset: inset ?? this.inset,
+        insetL: insetL ?? this.insetL,
+        insetT: insetT ?? this.insetT,
+        insetR: insetR ?? this.insetR,
+        insetB: insetB ?? this.insetB,
+        thickness: thickness ?? this.thickness,
+        edgeMode: edgeMode ?? this.edgeMode,
+        centerMode: centerMode ?? this.centerMode,
         drawCenter: drawCenter ?? this.drawCenter,
         tint: identical(tint, _sentinel) ? this.tint : tint as ColorRef?,
       );

@@ -136,14 +136,7 @@ Map<String, dynamic> _fieldToMap(FieldSpec f) => {
           'a': f.watermark!.alpha,
         },
       if (f.footer != null) 'footer': _footerToMap(f.footer!),
-      if (f.frame != null)
-        'frame': {
-          'img': f.frame!.imageId,
-          'slice': f.frame!.slice,
-          'inset': f.frame!.inset,
-          'center': f.frame!.drawCenter,
-          if (f.frame!.tint != null) 'tint': _colorRefToMap(f.frame!.tint!),
-        },
+      if (f.frame != null) 'frame': _nineSliceToMap(f.frame!),
     };
 
 FieldSpec _fieldFromMap(Map m) {
@@ -168,10 +161,32 @@ FieldSpec _fieldFromMap(Map m) {
   );
 }
 
+// ---- NineSliceSpec ----
+// One encoder/decoder shared by the legacy field 'frame' and the layer
+// 'border' aspect. Insets are per-edge source-cut fractions; stretch is the
+// default mode so it's omitted when unchanged.
+Map<String, dynamic> _nineSliceToMap(NineSliceSpec s) => {
+      'img': s.imageId,
+      'iL': s.insetL,
+      'iT': s.insetT,
+      'iR': s.insetR,
+      'iB': s.insetB,
+      'th': s.thickness,
+      if (s.edgeMode != SliceFillMode.stretch) 'eM': s.edgeMode.name,
+      if (s.centerMode != SliceFillMode.stretch) 'cM': s.centerMode.name,
+      'center': s.drawCenter,
+      if (s.tint != null) 'tint': _colorRefToMap(s.tint!),
+    };
+
 NineSliceSpec _nineSliceFromMap(Map m) => NineSliceSpec(
       imageId: (m['img'] as String?) ?? '',
-      slice: _d(m['slice'], 0.33),
-      inset: _d(m['inset'], 0.06),
+      insetL: _d(m['iL'], 0.33),
+      insetT: _d(m['iT'], 0.33),
+      insetR: _d(m['iR'], 0.33),
+      insetB: _d(m['iB'], 0.33),
+      thickness: _d(m['th'], 0.06),
+      edgeMode: _byName(SliceFillMode.values, m['eM'], SliceFillMode.stretch),
+      centerMode: _byName(SliceFillMode.values, m['cM'], SliceFillMode.stretch),
       drawCenter: _b(m['center'], true),
       tint: m['tint'] == null ? null : _colorRefFromMap(m['tint'] as Map),
     );
@@ -433,14 +448,7 @@ Map<String, dynamic> _layerToMap(Layer l) => {
               'y': l.image!.transform.panY,
             },
         },
-      if (l.border != null)
-        'border': {
-          'img': l.border!.imageId,
-          'slice': l.border!.slice,
-          'inset': l.border!.inset,
-          'center': l.border!.drawCenter,
-          if (l.border!.tint != null) 'tint': _colorRefToMap(l.border!.tint!),
-        },
+      if (l.border != null) 'border': _nineSliceToMap(l.border!),
       if (l.outline != null) 'outline': _outlineToMap(l.outline!),
       if (l.foil != null) 'foil': l.foil!.name,
       if (l.text != null)
