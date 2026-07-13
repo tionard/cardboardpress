@@ -40,6 +40,7 @@ dependencies:
   file_picker: 12.0.0-beta.7  # 11.x fails to build on Android (missing kotlin plugin, file_picker issue #1973); fix is in the 12.0 line, which keeps the same static API. Drop the -beta suffix once 12.0.0 ships stable.
   path_provider: ^2.1.6
   path: ^1.9.1
+  crypto: ^3.0.6     # SHA-256 content hashing: uploads are stored content-addressed, so identical bytes dedup to one file
   gal: ^2.3.0          # save exported PNGs to the device gallery (Android)
   archive: ^3.6.1      # zip read/write for Backup & Restore. Pinned to 3.x: the 4.x line moved file content behind streams; 3.x keeps the simple in-memory Archive/ZipEncoder/ZipDecoder API.
   share_plus: ^13.1.0  # 13.x uses win32 ^6.x, matching file_picker 12.x (12.x needs win32 ^6.3.0, share_plus 12.x pinned win32 ^5.5.3 — incompatible). Same SharePlus.instance.share API.

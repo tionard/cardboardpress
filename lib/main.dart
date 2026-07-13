@@ -8,7 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'dart:async' show unawaited;
+
 import 'app/app_shell.dart';
+import 'data/image_gc.dart';
 import 'data/symbol_seeder.dart';
 import 'state/providers.dart';
 import 'state/settings.dart';
@@ -32,6 +35,16 @@ Future<void> main() async {
   runApp(UncontrolledProviderScope(
     container: container,
     child: const CardboardPressApp(),
+  ));
+
+  // Image garbage collection: with content-addressed uploads, files are
+  // shared and only this sweep deletes them. Startup is the one moment no
+  // editor holds an unsaved reference, and firing AFTER runApp keeps it off
+  // the first frame's critical path (the store's own recency guard covers an
+  // upload racing the sweep).
+  unawaited(collectGarbageImages(
+    container.read(databaseProvider),
+    container.read(imageStoreProvider),
   ));
 }
 

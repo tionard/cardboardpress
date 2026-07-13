@@ -28,6 +28,7 @@
 // canvas and each preview sit behind RepaintBoundary so a tick repaints
 // nothing but the guide layer itself.
 
+import 'dart:collection' show LinkedHashMap;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -535,19 +536,30 @@ class FramePreviewPainter extends CustomPainter {
       old.spec.thickness != spec.thickness;
 }
 
-/// Decode a stored image into a ui.Image, via a small process-wide cache.
-/// Image ids are immutable (a replaced image gets a new id), so entries never
-/// go stale.
-final Map<String, ui.Image> _imageCache = {};
+/// Decode a stored image into a ui.Image, via a small process-wide LRU cache.
+/// Image ids are immutable (content-addressed; edited content = new id), so
+/// entries never go stale — the cache is bounded purely to cap native memory
+/// on mobile. The capacity comfortably exceeds anything visible at once
+/// (frames grid + picker + slicing dialog), so an evicted-and-disposed image
+/// is never one a live painter still holds; an evicted frame simply re-decodes
+/// next time its thumb builds.
+const _imageCacheCap = 48;
+final LinkedHashMap<String, ui.Image> _imageCache = LinkedHashMap();
 
 Future<ui.Image?> decodedFrameImage(WidgetRef ref, String imageId) async {
   if (imageId.isEmpty) return null;
-  final cached = _imageCache[imageId];
-  if (cached != null) return cached;
+  final cached = _imageCache.remove(imageId);
+  if (cached != null) {
+    _imageCache[imageId] = cached; // re-insert: most recently used
+    return cached;
+  }
   final bytes = await ref.read(imageStoreProvider).load(imageId);
   if (bytes == null) return null;
   final codec = await ui.instantiateImageCodec(bytes);
   final frame = await codec.getNextFrame();
   _imageCache[imageId] = frame.image;
+  while (_imageCache.length > _imageCacheCap) {
+    _imageCache.remove(_imageCache.keys.first)?.dispose();
+  }
   return frame.image;
 }
