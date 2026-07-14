@@ -344,6 +344,76 @@ void main() {
         reason: 'tile mode must sample the sprite differently from stretch');
   });
 
+  test('nine-slice: fit equals tile when tiles divide the space exactly',
+      () async {
+    // Every number here is binary-exact so the identity holds with zero
+    // floating-point noise: 32px sprite with 0.25 cuts (8px bands, 16px
+    // middles), thickness 0.125 on a 200-wide card (25px drawn bands, edge
+    // scale 25/8), so the ideal tile is exactly 50px. The layer fractions sit
+    // on the 1/32 grid: rect (50,30)-(150,280) → horizontal runs 50 (1 tile),
+    // vertical runs 200 (4 tiles). With nothing to cut off, fit's whole-tile
+    // grid IS tile's centred grid.
+    const magenta = 0xFFFF00FF;
+    final sprite = await _pxImage(32, 32, (x, y) {
+      final xe = x < 8 || x >= 24;
+      final ye = y < 8 || y >= 24;
+      if (xe && ye) return red;
+      return (x + y).isEven ? green : magenta;
+    });
+    Layer layerWith(SliceFillMode m) => Layer(
+        id: 'frame',
+        name: 'Frame',
+        frac: const ui.Rect.fromLTRB(0.25, 0.09375, 0.75, 0.875),
+        border: NineSliceSpec(
+            imageId: 'f',
+            insetL: 0.25,
+            insetT: 0.25,
+            insetR: 0.25,
+            insetB: 0.25,
+            thickness: 0.125,
+            edgeMode: m));
+    CardData cardWith(SliceFillMode m) => CardData(
+        baseColor: _white,
+        fields: const [],
+        layers: [_baseFill(_white), layerWith(m)]);
+    final refs = CardRefs(images: {'f': sprite});
+    const bigSize = ui.Size(200, 320);
+
+    final tiled = await _render(cardWith(SliceFillMode.tile), refs, bigSize);
+    final fitted = await _render(cardWith(SliceFillMode.fit), refs, bigSize);
+
+    expect(_firstDiff(tiled, fitted), equals(-1),
+        reason: 'an exact-multiple space makes fit and tile identical');
+  });
+
+  test('nine-slice: fit differs from tile and stretch on non-multiple spaces',
+      () async {
+    // The standard 200×280 card + _mid layer with default 0.33 cuts: the
+    // ideal tile (~20.6px) divides neither the 40px horizontal runs nor the
+    // 72px vertical ones — tile cuts partial tiles, fit squeezes whole ones
+    // in, stretch doesn't repeat at all.
+    const magenta = 0xFFFF00FF;
+    final sprite = await _pxImage(30, 30, (x, y) {
+      final xe = x < 10 || x >= 20;
+      final ye = y < 10 || y >= 20;
+      if (xe && ye) return red;
+      return (x + y).isEven ? green : magenta;
+    });
+    NineSliceSpec spec(SliceFillMode m) => NineSliceSpec(
+        imageId: 'f', thickness: 0.1, edgeMode: m, centerMode: m);
+    final refs = CardRefs(images: {'f': sprite});
+
+    final stretched =
+        await _render(frameCard(spec(SliceFillMode.stretch)), refs, size);
+    final tiled = await _render(frameCard(spec(SliceFillMode.tile)), refs, size);
+    final fitted = await _render(frameCard(spec(SliceFillMode.fit)), refs, size);
+
+    expect(_firstDiff(fitted, tiled), isNot(-1),
+        reason: 'fit resizes tiles to fit whole; tile keeps size and cuts');
+    expect(_firstDiff(fitted, stretched), isNot(-1),
+        reason: 'fit repeats the pattern; stretch does not');
+  });
+
   test('nine-slice: render is resolution-independent', () async {
     final sprite = await _pxImage(30, 30, (x, y) {
       final xe = x < 10 || x >= 20;

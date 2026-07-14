@@ -209,7 +209,9 @@ void _paintNineSlicePatches(ui.Canvas canvas, ui.Rect dst, ui.Image img,
 
   // Edges — stretch along the edge, or tile at the drawn/source scale of the
   // band's cross-axis (which derives from card width → resolution-exact).
-  final tileEdges = spec.edgeMode == SliceFillMode.tile;
+  // fit is tiling with whole tiles only (see _tilePatch's `round`).
+  final tileEdges = spec.edgeMode != SliceFillMode.stretch;
+  final roundEdges = spec.edgeMode == SliceFillMode.fit;
   // top / bottom
   if (midSW > 0 && midDW > 0) {
     final topSrc = ui.Rect.fromLTWH(sl, 0, midSW, st);
@@ -218,10 +220,12 @@ void _paintNineSlicePatches(ui.Canvas canvas, ui.Rect dst, ui.Image img,
     final botDst = ui.Rect.fromLTWH(l + dL, b - dB, midDW, dB);
     if (tileEdges) {
       if (st > 0 && dT > 0) {
-        _tilePatch(canvas, img, topSrc, topDst, dT / st, dT / st, paint);
+        _tilePatch(canvas, img, topSrc, topDst, dT / st, dT / st, paint,
+            round: roundEdges);
       }
       if (sb > 0 && dB > 0) {
-        _tilePatch(canvas, img, botSrc, botDst, dB / sb, dB / sb, paint);
+        _tilePatch(canvas, img, botSrc, botDst, dB / sb, dB / sb, paint,
+            round: roundEdges);
       }
     } else {
       patch(topSrc.left, topSrc.top, topSrc.width, topSrc.height, topDst.left,
@@ -238,10 +242,12 @@ void _paintNineSlicePatches(ui.Canvas canvas, ui.Rect dst, ui.Image img,
     final rightDst = ui.Rect.fromLTWH(r - dR, t + dT, dR, midDH);
     if (tileEdges) {
       if (sl > 0 && dL > 0) {
-        _tilePatch(canvas, img, leftSrc, leftDst, dL / sl, dL / sl, paint);
+        _tilePatch(canvas, img, leftSrc, leftDst, dL / sl, dL / sl, paint,
+            round: roundEdges);
       }
       if (sr > 0 && dR > 0) {
-        _tilePatch(canvas, img, rightSrc, rightDst, dR / sr, dR / sr, paint);
+        _tilePatch(canvas, img, rightSrc, rightDst, dR / sr, dR / sr, paint,
+            round: roundEdges);
       }
     } else {
       patch(leftSrc.left, leftSrc.top, leftSrc.width, leftSrc.height,
@@ -258,7 +264,7 @@ void _paintNineSlicePatches(ui.Canvas canvas, ui.Rect dst, ui.Image img,
     final cSrc = ui.Rect.fromLTWH(sl, st, midSW, midSH);
     final cDst = ui.Rect.fromLTWH(l + dL, t + dT, midDW, midDH);
     var tiled = false;
-    if (spec.centerMode == SliceFillMode.tile) {
+    if (spec.centerMode != SliceFillMode.stretch) {
       double? kx, ky;
       if (sl > 0 && dL > 0) {
         kx = dL / sl;
@@ -273,7 +279,8 @@ void _paintNineSlicePatches(ui.Canvas canvas, ui.Rect dst, ui.Image img,
       kx ??= ky;
       ky ??= kx;
       if (kx != null && ky != null) {
-        _tilePatch(canvas, img, cSrc, cDst, kx, ky, paint);
+        _tilePatch(canvas, img, cSrc, cDst, kx, ky, paint,
+            round: spec.centerMode == SliceFillMode.fit);
         tiled = true;
       }
     }
@@ -285,20 +292,40 @@ void _paintNineSlicePatches(ui.Canvas canvas, ui.Rect dst, ui.Image img,
 }
 
 /// Tiles [src] (a sprite patch) across [dstRect] at [scaleX]/[scaleY] (drawn
-/// px per source px), clipped to the rect. The grid is CENTRED so any partial
-/// tiles split evenly between both ends — the two ends of a frame edge mirror
-/// each other instead of one clean end and one chopped end.
+/// px per source px), clipped to the rect.
+///
+/// Plain tiling ([round] false) keeps the ideal tile size and CENTRES the
+/// grid, so any partial tiles split evenly between both ends — the two ends
+/// of a frame edge mirror each other instead of one clean end and one chopped
+/// end. Round/fit tiling ([round] true) draws WHOLE tiles only: per axis it
+/// fits as many ideal-size tiles as possible (at least one) and stretches them
+/// all equally to fill exactly — no cut-offs, slight per-tile distortion (CSS
+/// border-image "round"). An exact-multiple space makes the two identical.
 void _tilePatch(ui.Canvas canvas, ui.Image img, ui.Rect src, ui.Rect dstRect,
-    double scaleX, double scaleY, ui.Paint paint) {
-  final tw = src.width * scaleX;
-  final th = src.height * scaleY;
+    double scaleX, double scaleY, ui.Paint paint,
+    {required bool round}) {
+  var tw = src.width * scaleX;
+  var th = src.height * scaleY;
   if (tw < 0.01 || th < 0.01 || dstRect.width <= 0 || dstRect.height <= 0) {
     return;
   }
-  final nx = (dstRect.width / tw).ceil();
-  final ny = (dstRect.height / th).ceil();
-  final x0 = dstRect.center.dx - nx * tw / 2;
-  final y0 = dstRect.center.dy - ny * th / 2;
+  final int nx;
+  final int ny;
+  final double x0;
+  final double y0;
+  if (round) {
+    nx = math.max(1, (dstRect.width / tw).round());
+    ny = math.max(1, (dstRect.height / th).round());
+    tw = dstRect.width / nx;
+    th = dstRect.height / ny;
+    x0 = dstRect.left;
+    y0 = dstRect.top;
+  } else {
+    nx = (dstRect.width / tw).ceil();
+    ny = (dstRect.height / th).ceil();
+    x0 = dstRect.center.dx - nx * tw / 2;
+    y0 = dstRect.center.dy - ny * th / 2;
+  }
   canvas.save();
   canvas.clipRect(dstRect);
   for (var j = 0; j < ny; j++) {

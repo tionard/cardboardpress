@@ -19,8 +19,9 @@ class FrameRepository {
   final AppDatabase _db;
   FrameRepository(this._db);
 
-  static SliceFillMode _mode(String name) =>
-      name == SliceFillMode.tile.name ? SliceFillMode.tile : SliceFillMode.stretch;
+  static SliceFillMode _mode(String name) => SliceFillMode.values.firstWhere(
+      (m) => m.name == name,
+      orElse: () => SliceFillMode.stretch);
 
   /// Live, ordered frames. Re-emits on any change to the table.
   Stream<List<FrameEntry>> watch() => _db.watchFrames().map((rows) => rows

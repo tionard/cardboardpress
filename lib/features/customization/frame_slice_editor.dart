@@ -134,27 +134,25 @@ Future<void> editFrameSlicing(
                       preview('Banner', 150, 84),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Tile edges'),
-                    subtitle: const Text(
-                        'Repeat the edge pattern instead of stretching it'),
-                    value: edgeMode == SliceFillMode.tile,
-                    onChanged: (v) => setLocal(() => edgeMode =
-                        v ? SliceFillMode.tile : SliceFillMode.stretch),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Stretch scales the pattern; Tile repeats it at its '
+                    'natural size (partial tiles split evenly at the ends); '
+                    'Fit repeats whole tiles only, stretched evenly to fill '
+                    'exactly.',
+                    style: Theme.of(ctx).textTheme.bodySmall,
                   ),
-                  SwitchListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Tile center'),
-                    subtitle: const Text(
-                        'Applies when a template fills the center with this '
-                        'frame'),
-                    value: centerMode == SliceFillMode.tile,
-                    onChanged: (v) => setLocal(() => centerMode =
-                        v ? SliceFillMode.tile : SliceFillMode.stretch),
+                  const SizedBox(height: 8),
+                  _modeRow(ctx, 'Edges', edgeMode,
+                      (m) => setLocal(() => edgeMode = m)),
+                  const SizedBox(height: 8),
+                  _modeRow(ctx, 'Center', centerMode,
+                      (m) => setLocal(() => centerMode = m)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Center mode applies when a template fills the center '
+                    'with this frame.',
+                    style: Theme.of(ctx).textTheme.bodySmall,
                   ),
                 ],
               ),
@@ -190,6 +188,31 @@ Future<void> editFrameSlicing(
 // ---------------------------------------------------------------------------
 // Guide editor
 // ---------------------------------------------------------------------------
+
+/// A labelled Stretch | Tile | Fit picker for one 9-slice region.
+Widget _modeRow(BuildContext context, String label, SliceFillMode value,
+    ValueChanged<SliceFillMode> onChanged) {
+  return Row(
+    children: [
+      SizedBox(width: 60, child: Text(label)),
+      Expanded(
+        child: SegmentedButton<SliceFillMode>(
+          showSelectedIcon: false,
+          style: const ButtonStyle(
+              visualDensity: VisualDensity(horizontal: -2, vertical: -2)),
+          segments: const [
+            ButtonSegment(
+                value: SliceFillMode.stretch, label: Text('Stretch')),
+            ButtonSegment(value: SliceFillMode.tile, label: Text('Tile')),
+            ButtonSegment(value: SliceFillMode.fit, label: Text('Fit')),
+          ],
+          selected: {value},
+          onSelectionChanged: (s) => onChanged(s.first),
+        ),
+      ),
+    ],
+  );
+}
 
 enum _Guide { left, top, right, bottom }
 

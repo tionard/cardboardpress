@@ -148,10 +148,12 @@ class WatermarkSpec {
 /// [stretch] scales the source patch to fit (the classic look); [tile] repeats
 /// it at the size implied by the drawn corner scale, centred so any partial
 /// tiles split evenly between both ends — better for textured parchment/metal
-/// frames that smear when stretched. Designed to grow: a planned third mode
-/// fits as many whole tiles as possible then stretches them equally to absorb
-/// the remainder (CSS border-image "round").
-enum SliceFillMode { stretch, tile }
+/// frames that smear when stretched. [fit] repeats WHOLE tiles only: it fits
+/// as many as it can (at least one), then stretches them all equally to close
+/// the gap — no cut-off tiles, at the cost of slight per-tile distortion (CSS
+/// border-image "round"). When the space is an exact multiple of the tile
+/// size, [fit] and [tile] render identically.
+enum SliceFillMode { stretch, tile, fit }
 
 /// A 9-slice (nine-patch) frame sprite for a layer's background: the sprite's
 /// corners stay fixed while its edges and center stretch or tile, so an ornate
