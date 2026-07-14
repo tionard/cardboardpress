@@ -38,6 +38,7 @@ import '../../widgets/labeled_slider.dart';
 import '../../widgets/preview_dock.dart';
 import '../../widgets/swatch_picker.dart';
 import '../../widgets/color_picker/color_picker.dart';
+import '../../data/image_import.dart';
 import '../customization/frame_picker.dart';
 import '../customization/frame_slice_editor.dart';
 import '../customization/symbol_picker.dart';
@@ -482,10 +483,27 @@ class _TemplateBodyState extends ConsumerState<_TemplateBody> {
     if (result == null) return null;
     final file = result.files.first;
     final bytes = await file.readAsBytes();
+    final ImportedImage imported;
+    try {
+      imported = await processImportedImage(bytes,
+          kind: ImageImportKind.artwork,
+          ext: (file.extension ?? 'png').toLowerCase());
+    } on ImageImportException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+      return null;
+    }
     final imageId = await widget.imageStore
-        .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
-    final img = await _decode(bytes);
+        .save(imported.bytes, ext: imported.ext);
+    final img = await _decode(imported.bytes);
     if (!mounted) return null;
+    final notice = imported.notice;
+    if (notice != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(notice)));
+    }
     setState(() => _images[imageId] = img);
     return imageId;
   }

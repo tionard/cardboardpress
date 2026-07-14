@@ -16,6 +16,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/image_import.dart';
 import '../../model/card_model.dart';
 import '../../state/providers.dart';
 
@@ -173,9 +174,26 @@ class TextSymbolManager extends ConsumerWidget {
                       if (res == null) return;
                       final f = res.files.first;
                       final picked = await f.readAsBytes();
+                      final ImportedImage imported;
+                      try {
+                        imported = await processImportedImage(picked,
+                            kind: ImageImportKind.textSymbol,
+                            ext: (f.extension ?? 'png').toLowerCase());
+                      } on ImageImportException catch (e) {
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(content: Text(e.message)));
+                        }
+                        return;
+                      }
+                      final notice = imported.notice;
+                      if (notice != null && ctx.mounted) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(content: Text(notice)));
+                      }
                       setLocal(() {
-                        bytes = picked;
-                        ext = (f.extension ?? 'png').toLowerCase();
+                        bytes = imported.bytes;
+                        ext = imported.ext;
                       });
                     },
                     icon: const Icon(Icons.upload_outlined),
@@ -270,11 +288,28 @@ class TextSymbolManager extends ConsumerWidget {
     if (res == null) return;
     final f = res.files.first;
     final bytes = await f.readAsBytes();
+    final ImportedImage imported;
+    try {
+      imported = await processImportedImage(bytes,
+          kind: ImageImportKind.textSymbol,
+          ext: (f.extension ?? 'png').toLowerCase());
+    } on ImageImportException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+      return;
+    }
+    final notice = imported.notice;
+    if (notice != null && context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(notice)));
+    }
     final id = await ref
         .read(imageStoreProvider)
-        .save(bytes, ext: (f.extension ?? 'png').toLowerCase());
+        .save(imported.bytes, ext: imported.ext);
     await ref.read(textSymbolRepositoryProvider).replaceImage(s.id, id);
-    // (The old image file is left on disk; orphan cleanup is handled elsewhere.)
+    // (The old file becomes unreferenced; the startup image GC collects it.)
   }
 
   Future<void> _delete(

@@ -16,6 +16,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/image_import.dart';
 import '../../model/card_model.dart';
 import '../../state/providers.dart';
 import 'frame_manager.dart';
@@ -131,6 +132,23 @@ Future<void> _uploadNew(BuildContext dialogCtx, WidgetRef ref) async {
   if (res == null) return;
   final file = res.files.first;
   final bytes = await file.readAsBytes();
+  final ImportedImage imported;
+  try {
+    imported = await processImportedImage(bytes,
+        kind: ImageImportKind.frame,
+        ext: (file.extension ?? 'png').toLowerCase());
+  } on ImageImportException catch (e) {
+    if (dialogCtx.mounted) {
+      ScaffoldMessenger.of(dialogCtx)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    }
+    return;
+  }
+  final notice = imported.notice;
+  if (notice != null && dialogCtx.mounted) {
+    ScaffoldMessenger.of(dialogCtx)
+        .showSnackBar(SnackBar(content: Text(notice)));
+  }
   if (!dialogCtx.mounted) return;
 
   final nameCtl = TextEditingController();
@@ -167,7 +185,7 @@ Future<void> _uploadNew(BuildContext dialogCtx, WidgetRef ref) async {
 
   final imageId = await ref
       .read(imageStoreProvider)
-      .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
+      .save(imported.bytes, ext: imported.ext);
   final frameId = await ref
       .read(frameRepositoryProvider)
       .add(name: name, imageId: imageId);

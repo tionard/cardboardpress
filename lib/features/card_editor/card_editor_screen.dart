@@ -27,6 +27,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/card_exporter.dart';
 import '../../data/card_repository.dart';
+import '../../data/image_import.dart';
 import '../../data/image_store.dart';
 import '../../model/card_model.dart';
 import '../../model/layer_migration.dart';
@@ -304,10 +305,27 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
     if (result == null) return;
     final file = result.files.first;
     final bytes = await file.readAsBytes();
+    final ImportedImage imported;
+    try {
+      imported = await processImportedImage(bytes,
+          kind: ImageImportKind.artwork,
+          ext: (file.extension ?? 'png').toLowerCase());
+    } on ImageImportException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+      return;
+    }
     final imageId = await widget.imageStore
-        .save(bytes, ext: (file.extension ?? 'png').toLowerCase());
-    final img = await _decode(bytes);
+        .save(imported.bytes, ext: imported.ext);
+    final img = await _decode(imported.bytes);
     if (!mounted) return;
+    final notice = imported.notice;
+    if (notice != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(notice)));
+    }
     setState(() {
       _images[imageId] = img;
       _working = _working.copyWith(
