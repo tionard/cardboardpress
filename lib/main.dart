@@ -11,7 +11,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async' show unawaited;
 
 import 'app/app_shell.dart';
+import 'data/database.dart';
 import 'data/image_gc.dart';
+import 'data/migration_snapshot.dart';
 import 'data/symbol_seeder.dart';
 import 'state/providers.dart';
 import 'state/settings.dart';
@@ -22,6 +24,13 @@ import 'state/settings.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _registerFontLicenses();
+  // Pre-migration safety snapshot: if the database on disk is from an older
+  // schema, copy the raw file aside BEFORE anything opens it (the very next
+  // line is the first open, which runs migrations). Best-effort — a failure
+  // logs and never blocks launch.
+  await runStartupMigrationSnapshot(
+      currentSchemaVersion: AppDatabase.latestSchemaVersion);
+
   final container = ProviderContainer();
   await seedDefaultTextSymbols(
     container.read(databaseProvider),

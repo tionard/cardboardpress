@@ -174,8 +174,13 @@ class AppDatabase extends _$AppDatabase {
   /// schema automatically.
   AppDatabase.forFile(File file) : super(NativeDatabase(file));
 
+  /// The schema version this build writes. A static so startup code (the
+  /// pre-migration snapshot) can compare it against the file on disk WITHOUT
+  /// opening the database. Bump here — the getter follows.
+  static const latestSchemaVersion = 12;
+
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => latestSchemaVersion;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
