@@ -66,14 +66,18 @@ Map<String, dynamic> cardToJsonMap(
 
 /// A whole selection as one pretty-printed JSON document:
 /// `{set?, exported, cards: [...]}`. Cards must be passed in collection
-/// order — [numbered] adds 1-based collector numbers over that order (pass
-/// the set's `numbering` flag).
+/// order — [numbered] adds 1-based collector numbers over that order. When
+/// the selection is a SUBSET of a set, pass [numbers]/[total] explicitly
+/// (positions within the FULL set, matching the footer) — they win over
+/// [numbered]'s index-based fallback.
 String cardsToJson(
   List<CardEntry> cards, {
   required Map<String, TemplateData> liveTemplates,
   Map<String, RarityEntry> rarities = const {},
   SetEntry? set,
   bool numbered = false,
+  List<int?>? numbers,
+  int? total,
   DateTime? now,
 }) {
   final doc = <String, dynamic>{
@@ -89,8 +93,8 @@ String cardsToJson(
           cards[i],
           template: cards[i].effectiveTemplate(liveTemplates),
           rarity: rarities[cards[i].content.rarityId],
-          number: numbered ? i + 1 : null,
-          total: numbered ? cards.length : null,
+          number: numbers != null ? numbers[i] : (numbered ? i + 1 : null),
+          total: total ?? (numbered ? cards.length : null),
         ),
     ],
   };

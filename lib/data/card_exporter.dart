@@ -12,6 +12,7 @@
 // same paintCard.
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:gal/gal.dart';
@@ -107,6 +108,66 @@ class CardExporter {
       ShareParams(files: [XFile(file.path, mimeType: 'image/png')]),
     );
     return result.status == ShareResultStatus.success;
+  }
+
+  // ---- pre-rendered document delivery (sheets, PDFs, JSON) ----
+  // These take BYTES, not cards — the sheet/JSON composers render upstream;
+  // this half only lands files, mirroring the single-card split above.
+
+  /// Android: save several pre-rendered PNGs into the photo gallery. Returns
+  /// how many were saved; throws [GalleryAccessDenied] on refusal.
+  Future<int> saveImagesToGallery(List<(String, Uint8List)> images) async {
+    final granted = await Gal.requestAccess();
+    if (!granted) throw const GalleryAccessDenied();
+    var saved = 0;
+    for (final (name, bytes) in images) {
+      final bare = _safe(name).replaceAll(RegExp(r'\.png$'), '');
+      await Gal.putImageBytes(bytes, name: bare);
+      saved++;
+    }
+    return saved;
+  }
+
+  /// Desktop: pick a folder once and write every image into it. Returns the
+  /// chosen directory, or null if the user cancelled.
+  Future<String?> saveImagesToDirectory(
+    List<(String, Uint8List)> images, {
+    String dialogTitle = 'Choose a folder for the exported sheets',
+  }) async {
+    final dir = await FilePicker.getDirectoryPath(dialogTitle: dialogTitle);
+    if (dir == null) return null;
+    for (final (name, bytes) in images) {
+      await File('$dir${Platform.pathSeparator}${_safe(name)}')
+          .writeAsBytes(bytes, flush: true);
+    }
+    return dir;
+  }
+
+  /// Save a single non-image document (PDF, JSON) via a Save-as dialog on
+  /// desktop or the system file saver on mobile. Returns the written path
+  /// (desktop) / the picker's result (mobile), or null when cancelled.
+  Future<String?> saveDocument(
+    Uint8List bytes, {
+    required String fileName,
+    required String extension,
+    String dialogTitle = 'Save file',
+  }) async {
+    final path = await FilePicker.saveFile(
+      dialogTitle: dialogTitle,
+      fileName: _safe(fileName),
+      type: FileType.custom,
+      allowedExtensions: [extension],
+      bytes: bytes, // used on mobile; desktop returns a path to write
+    );
+    if (path == null) return null;
+    final out =
+        path.toLowerCase().endsWith('.$extension') ? path : '$path.$extension';
+    // On mobile the picker already wrote the bytes; writing again is a no-op
+    // overwrite. On desktop this IS the write.
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      await File(out).writeAsBytes(bytes, flush: true);
+    }
+    return out;
   }
 
   // The card's name comes from its Name field's content.

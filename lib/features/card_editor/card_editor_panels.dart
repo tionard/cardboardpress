@@ -367,6 +367,12 @@ extension _CardEditorPanels on _CardEditorBodyState {
             icon: spinner ?? const Icon(Icons.download_outlined),
             label: Text(_exporting ? 'Exporting…' : 'Export PNG…'),
           ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _exporting ? null : _exportJson,
+          icon: const Icon(Icons.data_object),
+          label: const Text('Export data (JSON)…'),
+        ),
         for (final g in _exposedByLayer(EditorTab.export))
           ..._exposedLayerBlock(g, EditorTab.export),
       ],

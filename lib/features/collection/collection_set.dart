@@ -212,17 +212,14 @@ extension _SetView on _CollectionScreenState {
   }
 
   Widget _cardSelectionBar() {
-    final android = defaultTargetPlatform == TargetPlatform.android;
     final empty = _selected.isEmpty;
     return _SelectionBar(
       count: _selected.length,
       actions: [
         IconButton(
-          tooltip: android ? 'Save to Photos' : 'Export PNG',
-          icon: Icon(android
-              ? Icons.photo_library_outlined
-              : Icons.download_outlined),
-          onPressed: empty ? null : _bulkExport,
+          tooltip: 'Export…',
+          icon: const Icon(Icons.download_outlined),
+          onPressed: empty ? null : _bulkExportChooser,
         ),
         IconButton(
           tooltip: 'Share',

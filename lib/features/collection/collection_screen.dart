@@ -22,6 +22,8 @@
 // The screen is one library split across part files: this root holds all state and
 // the action/mutation logic; the parts build the two views and the leaf widgets.
 
+import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -32,13 +34,18 @@ import '../../data/card_exporter.dart';
 import '../../data/image_store.dart';
 import '../../model/card_model.dart';
 import '../../model/layer_migration.dart';
+import '../../model/card_json.dart';
 import '../../model/sample_card.dart';
+import '../../rendering/export.dart';
+import '../../rendering/sheet_export.dart';
+import '../../rendering/sheet_pdf.dart';
 import '../../state/providers.dart';
 import '../../state/settings.dart';
 import '../../widgets/decoded_card_preview.dart';
 import '../../widgets/labeled_slider.dart';
 import '../customization/symbol_picker.dart';
 
+part 'collection_export.dart';
 part 'collection_root.dart';
 part 'collection_set.dart';
 part 'collection_widgets.dart';
@@ -105,6 +112,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
   // ---- small state transitions (extensions can't call setState directly) ----
 
   void _setView(_View v) => setState(() => _view = v);
+  void _setBusy(bool v) => setState(() => _busy = v);
   void _setDensity(double d) => setState(() => _density = d);
   void _setSort(_SetSort s) => setState(() => _sort = s);
 

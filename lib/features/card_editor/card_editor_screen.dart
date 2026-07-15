@@ -17,6 +17,7 @@
 // live in card_editor_panels.dart / card_editor_widgets.dart as, respectively,
 // an extension on _CardEditorBodyState and plain widget classes.
 
+import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -29,6 +30,7 @@ import '../../data/card_exporter.dart';
 import '../../data/card_repository.dart';
 import '../../data/image_import.dart';
 import '../../data/image_store.dart';
+import '../../model/card_json.dart';
 import '../../model/card_model.dart';
 import '../../model/layer_migration.dart';
 import '../../model/layers.dart';
@@ -363,6 +365,48 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(path == null ? 'Export cancelled' : 'Exported to $path')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  /// Export this card's DATA (the card-edit surface) as JSON — single-card
+  /// version of the collection's bulk export, same model/card_json format.
+  Future<void> _exportJson() async {
+    setState(() => _exporting = true);
+    try {
+      final (number, total) = _collectorInfo;
+      final json = cardsToJson(
+        [_working],
+        liveTemplates: widget.templatesMap,
+        rarities: {for (final r in widget.rarities) r.id: r},
+        set: _currentSet,
+        numbers: [number],
+        total: total,
+      );
+      var name = 'card';
+      for (final f in _effective.fields) {
+        if (f.type == FieldType.name) {
+          final v = _working.content.text[f.id]?.trim();
+          if (v != null && v.isNotEmpty) name = v;
+          break;
+        }
+      }
+      final safe = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '-');
+      final path = await widget.exporter.saveDocument(
+        Uint8List.fromList(utf8.encode(json)),
+        fileName: '${safe}_data.json',
+        extension: 'json',
+        dialogTitle: 'Export card data (JSON)',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content:
+              Text(path == null ? 'Export cancelled' : 'Exported to $path')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)

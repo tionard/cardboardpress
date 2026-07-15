@@ -99,6 +99,26 @@ void main() {
     expect((map['number'], map['total']), equals((3, 60)));
   });
 
+  test('explicit numbers override the index fallback (partial selections)',
+      () {
+    final json = cardsToJson(
+      [
+        _card(text: {'f_name': 'Seventh'}),
+        _card(text: {'f_name': 'Unnumbered'}),
+      ],
+      liveTemplates: const {},
+      numbers: [7, null],
+      total: 60,
+      now: DateTime(2026, 7, 14),
+    );
+    final cards = (jsonDecode(json) as Map<String, dynamic>)['cards'] as List;
+    expect(cards[0]['number'], equals(7),
+        reason: 'position within the FULL set, not the selection');
+    expect(cards[0]['total'], equals(60));
+    expect((cards[1] as Map).containsKey('number'), isFalse);
+    expect(cards[1]['total'], equals(60));
+  });
+
   test('cardsToJson wraps the set and numbers cards in collection order', () {
     final json = cardsToJson(
       [
