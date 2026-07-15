@@ -8,7 +8,6 @@ import 'dart:ui' as ui;
 
 import 'package:cardboardpress/model/card_model.dart';
 import 'package:cardboardpress/model/layers.dart';
-import 'package:cardboardpress/rendering/paint_card.dart';
 import 'package:cardboardpress/rendering/sheet_export.dart';
 import 'package:cardboardpress/rendering/sheet_pdf.dart';
 import 'package:flutter_test/flutter_test.dart';
