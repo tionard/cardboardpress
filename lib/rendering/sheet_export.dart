@@ -111,7 +111,7 @@ SheetLayout computeSheetLayout(
   final cols = ((usableW + gapIn) / (cardWIn + gapIn)).floor();
   final rows = ((usableH + gapIn) / (cardHIn + gapIn)).floor();
   if (cols < 1 || rows < 1) {
-    throw StateError('A $cardWIn×$cardHIn in card does not fit '
+    throw StateError('A ${cardWIn}×$cardHIn in card does not fit '
         '${s.paper.label} with ${s.marginMm} mm margins.');
   }
   final dpi = s.dpi;
@@ -155,18 +155,22 @@ Future<List<Uint8List>> composeSheetPages(
         (start + layout.perPage) > cards.length
             ? cards.length
             : start + layout.perPage);
-    pages.add(await _renderPage(pageCards, refs, layout,
+    pages.add(await composeSheetPage(pageCards, refs, layout,
         cutMarks: settings.cutMarks, watermark: watermark));
   }
   return pages;
 }
 
-Future<Uint8List> _renderPage(
+/// Renders ONE page: a slice of at most [SheetLayout.perPage] cards onto the
+/// layout's page canvas. This is composeSheetPages' worker, public so the
+/// settings dialog's live preview renders exactly the export (at a thumbnail
+/// dpi) — one render path, extended to the preview.
+Future<Uint8List> composeSheetPage(
   List<CardData> cards,
   CardRefs refs,
   SheetLayout l, {
-  required bool cutMarks,
-  required bool watermark,
+  bool cutMarks = true,
+  bool watermark = false,
 }) async {
   final recorder = ui.PictureRecorder();
   final canvas =

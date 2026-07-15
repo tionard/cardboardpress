@@ -113,6 +113,27 @@ extension _ExportFlows on _CollectionScreenState {
     final pro = ref.read(proUnlockedProvider);
     final cardT = picked.first.$1.effectiveTemplate(ctx.templates);
 
+    // Compose each unique card once and decode refs BEFORE the dialog — the
+    // live preview needs them, and the final export reuses the exact same
+    // objects (CardData is dpi-independent). Refs merge into one map (palette
+    // is shared; image ids are content-hashed, so collisions are identical
+    // images anyway).
+    _setBusy(true);
+    final uniqueDatas = <CardData>[];
+    final images = <String, ui.Image>{};
+    try {
+      for (final (card, idx) in picked) {
+        final data = _compose(folder, card, idx, ctx);
+        final refs = await _decodeRefs(data, ctx);
+        images.addAll(refs.images);
+        uniqueDatas.add(data);
+      }
+    } finally {
+      _setBusy(false);
+    }
+    if (!mounted) return;
+    final refs = CardRefs(palette: ctx.palette, images: images);
+
     final choice = await showDialog<_SheetChoice>(
       context: context,
       builder: (_) => _SheetSettingsDialog(
@@ -120,6 +141,9 @@ extension _ExportFlows on _CollectionScreenState {
         cardWidthIn: cardT.widthInches,
         cardHeightIn: cardT.heightInches,
         entries: [for (final (c, _) in picked) (c.id, _entryName(c, ctx))],
+        datas: uniqueDatas,
+        refs: refs,
+        watermark: !pro,
       ),
     );
     if (choice == null || !mounted) return;
@@ -138,21 +162,13 @@ extension _ExportFlows on _CollectionScreenState {
         marginMm: choice.marginMm,
         cutMarks: choice.cutMarks,
       );
-      // Compose each unique card once; copies reuse the same CardData. Refs
-      // merge into one map (palette is shared; image ids are content-hashed,
-      // so collisions are identical images anyway).
       final datas = <CardData>[];
-      final images = <String, ui.Image>{};
-      for (final (card, idx) in picked) {
-        final data = _compose(folder, card, idx, ctx);
-        final refs = await _decodeRefs(data, ctx);
-        images.addAll(refs.images);
-        final copies = choice.copies[card.id] ?? 1;
+      for (var i = 0; i < picked.length; i++) {
+        final copies = choice.copies[picked[i].$1.id] ?? 1;
         for (var c = 0; c < copies; c++) {
-          datas.add(data);
+          datas.add(uniqueDatas[i]);
         }
       }
-      final refs = CardRefs(palette: ctx.palette, images: images);
       final pages = await composeSheetPages(datas, refs, settings,
           watermark: q.watermark);
       final base = _exportBase(folder.set, 'sheet');
@@ -314,12 +330,18 @@ class _SheetSettingsDialog extends StatefulWidget {
   final double cardWidthIn;
   final double cardHeightIn;
   final List<(String, String)> entries; // (card id, display name)
+  final List<CardData> datas; // aligned with [entries]
+  final CardRefs refs;
+  final bool watermark; // preview honestly shows the free-tier watermark
 
   const _SheetSettingsDialog({
     required this.pro,
     required this.cardWidthIn,
     required this.cardHeightIn,
     required this.entries,
+    required this.datas,
+    required this.refs,
+    required this.watermark,
   });
 
   @override
@@ -338,26 +360,134 @@ class _SheetSettingsDialogState extends State<_SheetSettingsDialog> {
     for (final (id, _) in widget.entries) id: 1,
   };
 
-  int get _totalCards =>
-      _copies.values.fold(0, (a, b) => a + b);
+  // Live preview: the REAL composer at a thumbnail dpi, current page only,
+  // debounced so slider drags don't render per tick.
+  Uint8List? _previewPng;
+  int _previewPageCount = 0;
+  int _page = 0;
+  bool _previewStale = true;
+  Timer? _debounce;
+
+  // Responsive shape: wide (desktop) puts settings left and a BIG preview in
+  // its own right pane; compact (phone) is a single column with the preview
+  // collapsed behind a toggle — nothing renders while it's hidden.
+  bool? _wide; // null until the first build measures the window
+  bool _showPreviewCompact = false;
+  bool? _copiesOpen; // null = default: open when wide, collapsed when compact
+
+  /// Preview render resolution follows the pane size, so the big desktop
+  /// preview is actually crisp instead of an upscaled thumbnail.
+  double get _previewDpi => (_wide ?? false) ? 90 : 55;
+
+  bool get _previewVisible => (_wide ?? false) || _showPreviewCompact;
+
+  int get _totalCards => _copies.values.fold(0, (a, b) => a + b);
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  /// Apply a setting change and refresh the preview after a short quiet
+  /// period (drags fire per tick; the preview follows on release-ish).
+  void _set(VoidCallback fn) {
+    setState(() {
+      fn();
+      _previewStale = true;
+    });
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 200), _renderPreview);
+  }
+
+  SheetSettings _settingsAt(double dpi) => SheetSettings(
+        paper: _paper,
+        landscape: _landscape,
+        dpi: dpi,
+        gapMm: _gapMm,
+        marginMm: _marginMm,
+        cutMarks: _cutMarks,
+      );
+
+  List<CardData> _expanded() => [
+        for (var i = 0; i < widget.entries.length; i++)
+          for (var c = 0; c < (_copies[widget.entries[i].$1] ?? 1); c++)
+            widget.datas[i],
+      ];
+
+  Future<void> _renderPreview() async {
+    if (!_previewVisible) return; // hidden on mobile — skip the work entirely
+    final SheetLayout l;
+    try {
+      l = computeSheetLayout(
+          _settingsAt(_previewDpi), widget.cardWidthIn, widget.cardHeightIn);
+    } on StateError {
+      if (mounted) {
+        setState(() {
+          _previewPng = null;
+          _previewPageCount = 0;
+          _previewStale = false;
+        });
+      }
+      return;
+    }
+    final expanded = _expanded();
+    final pages = (expanded.length + l.perPage - 1) ~/ l.perPage;
+    final page = _page.clamp(0, pages - 1);
+    final slice = expanded.sublist(
+        page * l.perPage,
+        (page + 1) * l.perPage > expanded.length
+            ? expanded.length
+            : (page + 1) * l.perPage);
+    final png = await composeSheetPage(slice, widget.refs, l,
+        cutMarks: _cutMarks, watermark: widget.watermark);
+    if (!mounted) return;
+    setState(() {
+      _previewPng = png;
+      _previewPageCount = pages;
+      _page = page;
+      _previewStale = false;
+    });
+  }
+
+  void _goToPage(int delta) {
+    setState(() {
+      _page = (_page + delta).clamp(0, _previewPageCount - 1);
+      _previewStale = true;
+    });
+    _debounce?.cancel();
+    _renderPreview(); // page flips render immediately, no debounce
+  }
+
+  _SheetChoice _choice() => _SheetChoice(
+        paper: _paper,
+        landscape: _landscape,
+        dpi: _dpi,
+        gapMm: _gapMm,
+        marginMm: _marginMm,
+        cutMarks: _cutMarks,
+        pdf: _pdf,
+        copies: Map.of(_copies),
+      );
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final wide = MediaQuery.sizeOf(context).width >= 700;
+    if (wide != _wide) {
+      // First build, or the window crossed the breakpoint mid-dialog: the
+      // preview dpi (and visibility) changed, so re-render after this frame.
+      _wide = wide;
+      _debounce?.cancel();
+      Future.microtask(_renderPreview);
+    }
 
     // Live fit line — the same math the export will use.
     String fitLine;
     var fits = true;
     try {
-      final l = computeSheetLayout(
-          SheetSettings(
-              paper: _paper,
-              landscape: _landscape,
-              dpi: _dpi.toDouble(),
-              gapMm: _gapMm,
-              marginMm: _marginMm),
-          widget.cardWidthIn,
-          widget.cardHeightIn);
+      final l = computeSheetLayout(_settingsAt(_dpi.toDouble()),
+          widget.cardWidthIn, widget.cardHeightIn);
       final pages = (_totalCards + l.perPage - 1) ~/ l.perPage;
       fitLine = '${l.cols} × ${l.rows} per page — $_totalCards card'
           '${_totalCards == 1 ? '' : 's'} on $pages page'
@@ -367,34 +497,301 @@ class _SheetSettingsDialogState extends State<_SheetSettingsDialog> {
       fitLine = 'Cards don\'t fit this page with these margins.';
     }
 
-    Widget seg<T>(String label, List<(T, String, bool)> options, T selected,
-        ValueChanged<T> onChanged) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(children: [
-          SizedBox(width: 86, child: Text(label)),
-          Expanded(
-            child: SegmentedButton<T>(
-              showSelectedIcon: false,
-              style: const ButtonStyle(
-                  visualDensity: VisualDensity(horizontal: -2, vertical: -2)),
-              segments: [
-                for (final (v, l, locked) in options)
-                  ButtonSegment(
-                      value: v,
-                      label: Text(l),
-                      icon: locked
-                          ? const Icon(Icons.lock_outline, size: 14)
-                          : null),
+    return wide
+        ? _wideDialog(theme, fitLine, fits)
+        : _compactDialog(theme, fitLine, fits);
+  }
+
+  // ---- shared pieces ----
+
+  Widget _seg<T>(String label, List<(T, String, bool)> options, T selected,
+      ValueChanged<T> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(children: [
+        SizedBox(width: 86, child: Text(label)),
+        Expanded(
+          child: SegmentedButton<T>(
+            showSelectedIcon: false,
+            style: const ButtonStyle(
+                visualDensity: VisualDensity(horizontal: -2, vertical: -2)),
+            segments: [
+              for (final (v, l, locked) in options)
+                ButtonSegment(
+                    value: v,
+                    label: Text(l),
+                    icon: locked
+                        ? const Icon(Icons.lock_outline, size: 14)
+                        : null),
+            ],
+            selected: {selected},
+            onSelectionChanged: (s) => onChanged(s.first),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  List<Widget> _settingRows() => [
+        _seg<SheetPaper>(
+            'Paper',
+            [
+              (SheetPaper.a4, 'A4', false),
+              (SheetPaper.letter, 'Letter', false),
+            ],
+            _paper,
+            (v) => _set(() => _paper = v)),
+        _seg<bool>(
+            'Orientation',
+            [(false, 'Portrait', false), (true, 'Landscape', false)],
+            _landscape,
+            (v) => _set(() => _landscape = v)),
+        _seg<int>('Resolution',
+            [(300, '300 DPI', false), (600, '600 DPI', !widget.pro)], _dpi,
+            (v) {
+          if (v == 600 && !widget.pro) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text(
+                    '600 DPI is a Pro feature — free sheets render at 300 DPI '
+                    'with a watermark.')));
+            return;
+          }
+          _set(() => _dpi = v);
+        }),
+        _seg<bool>(
+            'Format',
+            [(false, 'PNG pages', false), (true, 'PDF', false)],
+            _pdf,
+            (v) => _set(() => _pdf = v)),
+        LabeledSlider(
+          label: 'Gap (mm)',
+          value: _gapMm,
+          min: 0,
+          max: 5,
+          step: 0.5,
+          labelWidth: 86,
+          onChanged: (v) => _set(() => _gapMm = v),
+        ),
+        LabeledSlider(
+          label: 'Margin (mm)',
+          value: _marginMm,
+          min: 0,
+          max: 15,
+          step: 1,
+          labelWidth: 86,
+          onChanged: (v) => _set(() => _marginMm = v),
+        ),
+        SwitchListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Cut guides'),
+          subtitle: Text(_gapMm <= 0
+              ? 'Hairlines along the shared cut edges'
+              : 'Crop marks at each card\'s corners'),
+          value: _cutMarks,
+          onChanged: (v) => _set(() => _cutMarks = v),
+        ),
+      ];
+
+  /// Collapsible, scroll-bounded copies list. Open by default on desktop,
+  /// collapsed by default on mobile; the header always shows the total.
+  Widget _copiesSection(ThemeData theme) {
+    final open = _copiesOpen ?? (_wide ?? false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _copiesOpen = !open),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(children: [
+              Text('Copies', style: theme.textTheme.labelLarge),
+              const SizedBox(width: 8),
+              Text(
+                  '$_totalCards card${_totalCards == 1 ? '' : 's'} from '
+                  '${widget.entries.length}',
+                  style: theme.textTheme.bodySmall),
+              const Spacer(),
+              Icon(open ? Icons.expand_less : Icons.expand_more, size: 20),
+            ]),
+          ),
+        ),
+        if (open)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 190),
+            child: ListView(
+              shrinkWrap: true,
+              physics: const ClampingScrollPhysics(),
+              children: [
+                for (final (id, name) in widget.entries)
+                  Row(children: [
+                    Expanded(
+                        child: Text(name,
+                            maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    IconButton(
+                      icon: const Icon(Icons.remove, size: 18),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _copies[id]! <= 1
+                          ? null
+                          : () => _set(() => _copies[id] = _copies[id]! - 1),
+                    ),
+                    SizedBox(
+                        width: 24,
+                        child: Text('${_copies[id]}',
+                            textAlign: TextAlign.center)),
+                    IconButton(
+                      icon: const Icon(Icons.add, size: 18),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _copies[id]! >= 99
+                          ? null
+                          : () => _set(() => _copies[id] = _copies[id]! + 1),
+                    ),
+                  ]),
               ],
-              selected: {selected},
-              onSelectionChanged: (s) => onChanged(s.first),
             ),
           ),
-        ]),
-      );
-    }
+      ],
+    );
+  }
 
+  Widget _previewBox(ThemeData theme, bool fits, {double? height}) {
+    final png = _previewPng;
+    return Container(
+      height: height,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: png == null
+            ? SizedBox(
+                width: 160,
+                child: Center(
+                  child: fits
+                      ? const CircularProgressIndicator()
+                      : Icon(Icons.block, color: theme.colorScheme.error),
+                ),
+              )
+            : AnimatedOpacity(
+                opacity: _previewStale ? 0.4 : 1,
+                duration: const Duration(milliseconds: 120),
+                child: Image.memory(
+                  png,
+                  gaplessPlayback: true,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.medium,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _pager(ThemeData theme, {required bool large}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left),
+          iconSize: large ? 28 : 24,
+          visualDensity: large ? null : VisualDensity.compact,
+          onPressed: _page <= 0 ? null : () => _goToPage(-1),
+        ),
+        Text('Page ${_page + 1} / $_previewPageCount',
+            style: large
+                ? theme.textTheme.titleMedium
+                : theme.textTheme.bodySmall),
+        IconButton(
+          icon: const Icon(Icons.chevron_right),
+          iconSize: large ? 28 : 24,
+          visualDensity: large ? null : VisualDensity.compact,
+          onPressed:
+              _page >= _previewPageCount - 1 ? null : () => _goToPage(1),
+        ),
+      ],
+    );
+  }
+
+  // ---- desktop: settings left, big preview right ----
+
+  Widget _wideDialog(ThemeData theme, String fitLine, bool fits) {
+    final size = MediaQuery.sizeOf(context);
+    final w = (size.width - 160).clamp(640.0, 920.0);
+    final h = (size.height - 140).clamp(400.0, 660.0);
+    return Dialog(
+      child: SizedBox(
+        width: w,
+        height: h,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Print sheet', style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 16),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: 380,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ..._settingRows(),
+                            const Divider(height: 20),
+                            _copiesSection(theme),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(child: _previewBox(theme, fits)),
+                          if (_previewPageCount > 1)
+                            _pager(theme, large: true)
+                          else
+                            const SizedBox(height: 10),
+                          Text(fitLine,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: fits
+                                      ? null
+                                      : theme.colorScheme.error)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel')),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: !fits
+                        ? null
+                        : () => Navigator.pop(context, _choice()),
+                    child: const Text('Export'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---- phone: single column, preview behind a toggle ----
+
+  Widget _compactDialog(ThemeData theme, String fitLine, bool fits) {
     return AlertDialog(
       title: const Text('Print sheet'),
       content: SizedBox(
@@ -404,96 +801,36 @@ class _SheetSettingsDialogState extends State<_SheetSettingsDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              seg<SheetPaper>(
-                  'Paper',
-                  [
-                    (SheetPaper.a4, 'A4', false),
-                    (SheetPaper.letter, 'Letter', false),
-                  ],
-                  _paper,
-                  (v) => setState(() => _paper = v)),
-              seg<bool>(
-                  'Orientation',
-                  [(false, 'Portrait', false), (true, 'Landscape', false)],
-                  _landscape,
-                  (v) => setState(() => _landscape = v)),
-              seg<int>(
-                  'Resolution',
-                  [(300, '300 DPI', false), (600, '600 DPI', !widget.pro)],
-                  _dpi, (v) {
-                if (v == 600 && !widget.pro) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text(
-                          '600 DPI is a Pro feature — free sheets render at '
-                          '300 DPI with a watermark.')));
-                  return;
-                }
-                setState(() => _dpi = v);
-              }),
-              seg<bool>(
-                  'Format',
-                  [(false, 'PNG pages', false), (true, 'PDF', false)],
-                  _pdf,
-                  (v) => setState(() => _pdf = v)),
-              LabeledSlider(
-                label: 'Gap (mm)',
-                value: _gapMm,
-                min: 0,
-                max: 5,
-                step: 0.5,
-                labelWidth: 86,
-                onChanged: (v) => setState(() => _gapMm = v),
-              ),
-              LabeledSlider(
-                label: 'Margin (mm)',
-                value: _marginMm,
-                min: 0,
-                max: 15,
-                step: 1,
-                labelWidth: 86,
-                onChanged: (v) => setState(() => _marginMm = v),
-              ),
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Cut guides'),
-                subtitle: Text(_gapMm <= 0
-                    ? 'Hairlines along the shared cut edges'
-                    : 'Crop marks at each card\'s corners'),
-                value: _cutMarks,
-                onChanged: (v) => setState(() => _cutMarks = v),
-              ),
+              ..._settingRows(),
               const SizedBox(height: 4),
               Text(fitLine,
                   style: theme.textTheme.bodySmall?.copyWith(
                       color: fits ? null : theme.colorScheme.error)),
-              const Divider(height: 24),
-              Text('Copies', style: theme.textTheme.labelLarge),
               const SizedBox(height: 4),
-              for (final (id, name) in widget.entries)
-                Row(children: [
-                  Expanded(
-                      child: Text(name,
-                          maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  IconButton(
-                    icon: const Icon(Icons.remove, size: 18),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _copies[id]! <= 1
-                        ? null
-                        : () => setState(() => _copies[id] = _copies[id]! - 1),
-                  ),
-                  SizedBox(
-                      width: 24,
-                      child: Text('${_copies[id]}',
-                          textAlign: TextAlign.center)),
-                  IconButton(
-                    icon: const Icon(Icons.add, size: 18),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _copies[id]! >= 99
-                        ? null
-                        : () => setState(() => _copies[id] = _copies[id]! + 1),
-                  ),
-                ]),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  icon: Icon(_showPreviewCompact
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined),
+                  label: Text(_showPreviewCompact
+                      ? 'Hide preview'
+                      : 'Show preview'),
+                  onPressed: () {
+                    setState(() {
+                      _showPreviewCompact = !_showPreviewCompact;
+                      _previewStale = true;
+                    });
+                    if (_showPreviewCompact) _renderPreview();
+                  },
+                ),
+              ),
+              if (_showPreviewCompact) ...[
+                Center(child: _previewBox(theme, fits, height: 320)),
+                if (_previewPageCount > 1) _pager(theme, large: false),
+              ],
+              const Divider(height: 24),
+              _copiesSection(theme),
             ],
           ),
         ),
@@ -503,20 +840,7 @@ class _SheetSettingsDialogState extends State<_SheetSettingsDialog> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel')),
         FilledButton(
-          onPressed: !fits
-              ? null
-              : () => Navigator.pop(
-                  context,
-                  _SheetChoice(
-                    paper: _paper,
-                    landscape: _landscape,
-                    dpi: _dpi,
-                    gapMm: _gapMm,
-                    marginMm: _marginMm,
-                    cutMarks: _cutMarks,
-                    pdf: _pdf,
-                    copies: Map.of(_copies),
-                  )),
+          onPressed: !fits ? null : () => Navigator.pop(context, _choice()),
           child: const Text('Export'),
         ),
       ],

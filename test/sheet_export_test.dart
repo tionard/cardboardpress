@@ -8,6 +8,7 @@ import 'dart:ui' as ui;
 
 import 'package:cardboardpress/model/card_model.dart';
 import 'package:cardboardpress/model/layers.dart';
+import 'package:cardboardpress/rendering/paint_card.dart';
 import 'package:cardboardpress/rendering/sheet_export.dart';
 import 'package:cardboardpress/rendering/sheet_pdf.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -141,6 +142,23 @@ void main() {
       final cards = List<CardData>.filled(20, _solidCard(_blue));
       final pages = await composeSheetPages(cards, CardRefs(), settings);
       expect(pages, hasLength(3), reason: '9 per page → 9 + 9 + 2');
+    });
+
+    test('composeSheetPage is exactly composeSheetPages, one page at a time',
+        () async {
+      // The settings dialog's live preview renders single pages through the
+      // public worker — this pins that a page rendered alone is byte-identical
+      // to the same page from the full run (one render path, previewed).
+      final cards = [
+        for (var i = 0; i < 12; i++) _solidCard(i.isEven ? _blue : _grey),
+      ];
+      final refs = CardRefs();
+      final pages = await composeSheetPages(cards, refs, settings);
+      expect(pages, hasLength(2));
+      final l = computeSheetLayout(settings, 2.5, 3.5);
+      final second = await composeSheetPage(cards.sublist(9), refs, l,
+          cutMarks: false, watermark: false);
+      expect(second, equals(pages[1]));
     });
 
     test('cut guides darken the trim line between shared edges', () async {
