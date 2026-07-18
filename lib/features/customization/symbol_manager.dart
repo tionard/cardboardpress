@@ -69,22 +69,35 @@ class SymbolManager extends ConsumerWidget {
                   style: Theme.of(context).textTheme.bodyMedium),
             )
           else
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (final s in symbols) _tile(context, ref, s),
-              ],
-            ),
+            LayoutBuilder(builder: (context, box) {
+              // Same fill-the-width column math as the Text {tag} tab: as
+              // many >=110px columns as fit (never fewer than 2), tiles
+              // stretched so no half-empty column is left over on phones.
+              const spacing = 12.0;
+              const minTile = 110.0;
+              final cols = ((box.maxWidth + spacing) / (minTile + spacing))
+                  .floor()
+                  .clamp(2, 8);
+              final tileW =
+                  ((box.maxWidth - spacing * (cols - 1)) / cols).floorToDouble();
+              return Wrap(
+                spacing: spacing,
+                runSpacing: 12,
+                children: [
+                  for (final s in symbols) _tile(context, ref, s, width: tileW),
+                ],
+              );
+            }),
         ],
       ),
     );
   }
 
-  Widget _tile(BuildContext context, WidgetRef ref, SymbolEntry s) {
+  Widget _tile(BuildContext context, WidgetRef ref, SymbolEntry s,
+      {required double width}) {
     final scheme = Theme.of(context).colorScheme;
     return SizedBox(
-      width: 120,
+      width: width,
       child: Card(
         margin: EdgeInsets.zero,
         child: Padding(

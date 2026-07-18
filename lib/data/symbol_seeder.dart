@@ -28,7 +28,7 @@ import 'database.dart';
 import 'image_store.dart';
 
 /// Bump when the bundled pack changes (new pips, replaced art, retirements).
-const _packVersion = 1;
+const _packVersion = 4;
 const _packVersionKey = 'seed.textSymbols.packVersion';
 
 /// Where the pack's PNGs live. Must match the pubspec asset entry (folder
@@ -55,19 +55,16 @@ const _pack = <_SeedSymbol>[
   _SeedSymbol('Earth.png', 'E'),
   _SeedSymbol('Wind.png', 'Y'),
   _SeedSymbol('Lightning.png', 'B'),
-  _SeedSymbol('Nature.png', 'N'),
-  _SeedSymbol('Roots.png', 'R'),
-  _SeedSymbol('Iron.png', 'I'),
   // Opposing pairs.
   _SeedSymbol('Life.png', 'L'),
   _SeedSymbol('Death.png', 'D'),
   _SeedSymbol('Sun.png', 'S'),
   _SeedSymbol('Moon.png', 'M'),
+  _SeedSymbol('Nature.png', 'N'),
+  _SeedSymbol('Rage.png', 'R'),
   // Mind and magic.
   _SeedSymbol('Arcane.png', 'A'),
-  _SeedSymbol('Psychic.png', 'P'),
-  _SeedSymbol('Knowledge.png', 'K'),
-  _SeedSymbol('Essence.png', 'U'),
+  _SeedSymbol('Faith.png', 'U'),
   _SeedSymbol('Void.png', 'V'),
   // Everything else.
   _SeedSymbol('Money.png', 'G'),

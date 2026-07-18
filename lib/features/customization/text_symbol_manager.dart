@@ -67,22 +67,37 @@ class TextSymbolManager extends ConsumerWidget {
                   style: Theme.of(context).textTheme.bodyMedium),
             )
           else
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (final s in symbols) _tile(context, ref, s),
-              ],
-            ),
+            LayoutBuilder(builder: (context, box) {
+              // Fill the available width: as many >=100px columns as fit
+              // (never fewer than 2), tiles stretched so the row leaves no
+              // half-empty column. The old fixed 108px tile needed exactly
+              // 348px for three columns — one scrollbar width short on
+              // phones, which collapsed the grid to two.
+              const spacing = 12.0;
+              const minTile = 100.0;
+              final cols = ((box.maxWidth + spacing) / (minTile + spacing))
+                  .floor()
+                  .clamp(2, 8);
+              final tileW =
+                  ((box.maxWidth - spacing * (cols - 1)) / cols).floorToDouble();
+              return Wrap(
+                spacing: spacing,
+                runSpacing: 12,
+                children: [
+                  for (final s in symbols) _tile(context, ref, s, width: tileW),
+                ],
+              );
+            }),
         ],
       ),
     );
   }
 
-  Widget _tile(BuildContext context, WidgetRef ref, TextSymbolEntry s) {
+  Widget _tile(BuildContext context, WidgetRef ref, TextSymbolEntry s,
+      {required double width}) {
     final scheme = Theme.of(context).colorScheme;
     return SizedBox(
-      width: 108,
+      width: width,
       child: Card(
         margin: EdgeInsets.zero,
         child: Padding(
@@ -143,96 +158,113 @@ class TextSymbolManager extends ConsumerWidget {
     Uint8List? bytes;
     var ext = 'png';
 
+    // Tags already in use, lowercased: the renderer matches tags
+    // case-insensitively ({R} == {r}), so uniqueness must too.
+    final taken = {
+      for (final s in ref.read(textSymbolsProvider).value ??
+          const <TextSymbolEntry>[])
+        s.tag.trim().toLowerCase(),
+    };
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('Add text symbol'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                          color: Theme.of(ctx).colorScheme.outlineVariant),
-                      borderRadius: BorderRadius.circular(8),
+        builder: (ctx, setLocal) {
+          final tag = tagCtl.text.trim();
+          final dupe = taken.contains(tag.toLowerCase());
+          return AlertDialog(
+            title: const Text('Add text symbol'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                            color: Theme.of(ctx).colorScheme.outlineVariant),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: bytes == null
+                          ? const Icon(Icons.image_outlined)
+                          : Image.memory(bytes!, fit: BoxFit.contain),
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: bytes == null
-                        ? const Icon(Icons.image_outlined)
-                        : Image.memory(bytes!, fit: BoxFit.contain),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final res = await FilePicker.pickFiles(
-                          type: FileType.image);
-                      if (res == null) return;
-                      final f = res.files.first;
-                      final picked = await f.readAsBytes();
-                      final ImportedImage imported;
-                      try {
-                        imported = await processImportedImage(picked,
-                            kind: ImageImportKind.textSymbol,
-                            ext: (f.extension ?? 'png').toLowerCase());
-                      } on ImageImportException catch (e) {
-                        if (ctx.mounted) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                              SnackBar(content: Text(e.message)));
+                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final res = await FilePicker.pickFiles(
+                            type: FileType.image);
+                        if (res == null) return;
+                        final f = res.files.first;
+                        final picked = await f.readAsBytes();
+                        final ImportedImage imported;
+                        try {
+                          imported = await processImportedImage(picked,
+                              kind: ImageImportKind.textSymbol,
+                              ext: (f.extension ?? 'png').toLowerCase());
+                        } on ImageImportException catch (e) {
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(content: Text(e.message)));
+                          }
+                          return;
                         }
-                        return;
-                      }
-                      final notice = imported.notice;
-                      if (notice != null && ctx.mounted) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                            SnackBar(content: Text(notice)));
-                      }
-                      setLocal(() {
-                        bytes = imported.bytes;
-                        ext = imported.ext;
-                      });
-                    },
-                    icon: const Icon(Icons.upload_outlined),
-                    label: Text(bytes == null ? 'Choose image' : 'Change'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: tagCtl,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Tag',
-                  hintText: 'e.g. R',
-                  prefixText: '{',
-                  suffixText: '}',
-                  border: OutlineInputBorder(),
+                        final notice = imported.notice;
+                        if (notice != null && ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(content: Text(notice)));
+                        }
+                        setLocal(() {
+                          bytes = imported.bytes;
+                          ext = imported.ext;
+                        });
+                      },
+                      icon: const Icon(Icons.upload_outlined),
+                      label: Text(bytes == null ? 'Choose image' : 'Change'),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Avoid spaces and the characters { } / ^ in a tag.',
-                style: Theme.of(ctx).textTheme.bodySmall,
+                const SizedBox(height: 14),
+                TextField(
+                  controller: tagCtl,
+                  autofocus: true,
+                  onChanged: (_) => setLocal(() {}), // re-run the dupe check
+                  decoration: InputDecoration(
+                    labelText: 'Tag',
+                    hintText: 'e.g. R',
+                    prefixText: '{',
+                    suffixText: '}',
+                    border: const OutlineInputBorder(),
+                    errorText: dupe
+                        ? 'Tag {$tag} is already used by another symbol.'
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Avoid spaces and the characters { } / ^ in a tag.',
+                  style: Theme.of(ctx).textTheme.bodySmall,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel')),
+              FilledButton(
+                // Disabled until valid: an image is picked, the tag is
+                // non-empty, and the tag isn't taken.
+                onPressed: (tag.isEmpty || bytes == null || dupe)
+                    ? null
+                    : () => Navigator.pop(ctx, true),
+                child: const Text('Add'),
               ),
             ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () {
-                if (tagCtl.text.trim().isEmpty || bytes == null) return;
-                Navigator.pop(ctx, true);
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
 
@@ -240,7 +272,7 @@ class TextSymbolManager extends ConsumerWidget {
       final id = await ref.read(imageStoreProvider).save(bytes!, ext: ext);
       await ref
           .read(textSymbolRepositoryProvider)
-          .add(tag: tagCtl.text, imageId: id);
+          .add(tag: tagCtl.text.trim(), imageId: id);
     }
     tagCtl.dispose();
   }
@@ -248,31 +280,49 @@ class TextSymbolManager extends ConsumerWidget {
   Future<void> _rename(
       BuildContext context, WidgetRef ref, TextSymbolEntry s) async {
     final ctl = TextEditingController(text: s.tag);
+
+    // Tags used by OTHER symbols (case-insensitive, matching the renderer).
+    // Excluding this symbol's own id keeps case-only renames ({R} → {r}) legal.
+    final taken = {
+      for (final other in ref.read(textSymbolsProvider).value ??
+          const <TextSymbolEntry>[])
+        if (other.id != s.id) other.tag.trim().toLowerCase(),
+    };
+
     final tag = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Rename tag'),
-        content: TextField(
-          controller: ctl,
-          autofocus: true,
-          decoration: const InputDecoration(
-            prefixText: '{',
-            suffixText: '}',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              if (ctl.text.trim().isEmpty) return;
-              Navigator.pop(ctx, ctl.text.trim());
-            },
-            child: const Text('Save'),
-          ),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final t = ctl.text.trim();
+          final dupe = taken.contains(t.toLowerCase());
+          return AlertDialog(
+            title: const Text('Rename tag'),
+            content: TextField(
+              controller: ctl,
+              autofocus: true,
+              onChanged: (_) => setLocal(() {}), // re-run the dupe check
+              decoration: InputDecoration(
+                prefixText: '{',
+                suffixText: '}',
+                border: const OutlineInputBorder(),
+                errorText: dupe
+                    ? 'Tag {$t} is already used by another symbol.'
+                    : null,
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel')),
+              FilledButton(
+                onPressed: (t.isEmpty || dupe)
+                    ? null
+                    : () => Navigator.pop(ctx, t),
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
     ctl.dispose();
