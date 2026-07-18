@@ -46,6 +46,14 @@ class LabeledSlider extends StatefulWidget {
   final bool showStepper;
   final bool editable;
 
+  /// Stacked layout for narrow (phone) screens: the label on its own line,
+  /// then a full-width [−][slider][+][value] row beneath it. Default false
+  /// keeps the established inline row (label left of the controls) — only the
+  /// Card Editor passes true, and only at its phone breakpoint; every other
+  /// caller (template editor, colour picker, collection) stays inline.
+  /// [labelWidth] is ignored when stacked.
+  final bool stacked;
+
   const LabeledSlider({
     super.key,
     required this.label,
@@ -59,6 +67,7 @@ class LabeledSlider extends StatefulWidget {
     this.labelWidth = 80,
     this.showStepper = true,
     this.editable = true,
+    this.stacked = false,
   });
 
   @override
@@ -173,35 +182,55 @@ class _LabeledSliderState extends State<LabeledSlider> {
             ),
     );
 
+    // The [−][slider][+][value] control run, shared by both layouts. Steppers
+    // and the tappable readout behave identically inline and stacked.
+    final controls = <Widget>[
+      if (widget.showStepper)
+        _StepButton(
+          icon: Icons.remove,
+          onTap: shown > widget.min ? () => _nudge(-_step) : null,
+        ),
+      Expanded(
+        child: Slider(
+          value: shown,
+          min: widget.min,
+          max: widget.max,
+          divisions: _divisions,
+          onChanged: (v) {
+            if (_editing) _commitEdit();
+            widget.onChanged(_clamp(v));
+          },
+        ),
+      ),
+      if (widget.showStepper)
+        _StepButton(
+          icon: Icons.add,
+          onTap: shown < widget.max ? () => _nudge(_step) : null,
+        ),
+      readout,
+    ];
+
+    if (widget.stacked) {
+      // Phone layout: label line, then the controls stretched to full width.
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(widget.label, style: theme.textTheme.bodySmall),
+          ),
+          Row(children: controls),
+        ],
+      );
+    }
+
     return Row(
       children: [
         SizedBox(
           width: widget.labelWidth,
           child: Text(widget.label, style: theme.textTheme.bodySmall),
         ),
-        if (widget.showStepper)
-          _StepButton(
-            icon: Icons.remove,
-            onTap: shown > widget.min ? () => _nudge(-_step) : null,
-          ),
-        Expanded(
-          child: Slider(
-            value: shown,
-            min: widget.min,
-            max: widget.max,
-            divisions: _divisions,
-            onChanged: (v) {
-              if (_editing) _commitEdit();
-              widget.onChanged(_clamp(v));
-            },
-          ),
-        ),
-        if (widget.showStepper)
-          _StepButton(
-            icon: Icons.add,
-            onTap: shown < widget.max ? () => _nudge(_step) : null,
-          ),
-        readout,
+        ...controls,
       ],
     );
   }

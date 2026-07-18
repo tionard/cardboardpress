@@ -39,13 +39,16 @@ extension _CardEditorPanels on _CardEditorBodyState {
           ),
         for (final g in tabGroups)
           if (g.aspects.length == 1 && g.aspects.single == ExposedAspect.text) ...[
-            TextField(
-              controller: _controllerFor(g.layer.id),
-              maxLines: g.layer.text?.multiline == true ? 4 : 1,
-              decoration: InputDecoration(
-                labelText: g.layer.name,
-                isDense: true,
-                border: const OutlineInputBorder(),
+            _inlineHelpWrap(
+              g.layer,
+              TextField(
+                controller: _controllerFor(g.layer.id),
+                maxLines: g.layer.text?.multiline == true ? 4 : 1,
+                decoration: InputDecoration(
+                  labelText: g.layer.name,
+                  isDense: true,
+                  border: const OutlineInputBorder(),
+                ),
               ),
             ),
             const SizedBox(height: 14),
@@ -174,6 +177,7 @@ extension _CardEditorPanels on _CardEditorBodyState {
         max: max,
         percent: true,
         labelWidth: 78,
+        stacked: _compact,
         onChanged: onChanged,
       );
     }
@@ -464,13 +468,16 @@ extension _CardEditorPanels on _CardEditorBodyState {
     switch (aspect) {
       case ExposedAspect.text:
         // Bound text never reaches here (filtered); this is free per-card text.
-        return TextField(
-          controller: _controllerFor(layer.id),
-          maxLines: layer.text?.multiline == true ? 4 : 1,
-          decoration: const InputDecoration(
-            labelText: 'Text',
-            isDense: true,
-            border: OutlineInputBorder(),
+        return _inlineHelpWrap(
+          layer,
+          TextField(
+            controller: _controllerFor(layer.id),
+            maxLines: layer.text?.multiline == true ? 4 : 1,
+            decoration: const InputDecoration(
+              labelText: 'Text',
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
           ),
         );
       case ExposedAspect.image:
@@ -514,6 +521,7 @@ extension _CardEditorPanels on _CardEditorBodyState {
               step: 0.01,
               percent: true,
               labelWidth: 78,
+              stacked: _compact,
               onChanged: (v) => _setLayerImageAlpha(layer.id, v),
             ),
             const SizedBox(height: 8),
@@ -556,6 +564,7 @@ extension _CardEditorPanels on _CardEditorBodyState {
               step: 0.01,
               percent: true,
               labelWidth: 78,
+              stacked: _compact,
               onChanged: (v) => _setLayerFillAlpha(layer.id, v),
             ),
           ],
@@ -587,8 +596,10 @@ extension _CardEditorPanels on _CardEditorBodyState {
         final override =
             _working.content.foilOverrides[layer.id] ?? legacyFoil;
         final current = override ?? layer.foil ?? FoilType.none;
+        // No leading label: the exposed block's header already shows the layer
+        // name ("Foil"), so a second label only duplicated it and squeezed the
+        // segments on phones. The SegmentedButton takes the full row instead.
         return Row(children: [
-          const SizedBox(width: 80, child: Text('Foil')),
           Expanded(
             child: SegmentedButton<FoilType>(
               showSelectedIcon: false,
@@ -644,11 +655,34 @@ extension _CardEditorPanels on _CardEditorBodyState {
               step: 0.01,
               percent: true,
               labelWidth: 78,
+              stacked: _compact,
               onChanged: (v) => _setLayerWatermarkAlpha(layer.id, v),
             ),
           ],
         );
     }
+  }
+
+  /// Puts a small (i) help button beside an INLINE-capable text field — the
+  /// flag that turns on {tag} symbol / **markup** parsing for that layer's
+  /// text. Single-line inline fields (e.g. the legacy Cost) get the {tag}
+  /// symbol popup; multiline (rules-like) fields get the formatting popup as
+  /// well. Non-inline text renders braces and asterisks literally, so it gets
+  /// the bare field — a syntax popup there would mislead. Selection is purely
+  /// by the aspect's flags, so any custom template layer qualifies.
+  Widget _inlineHelpWrap(Layer layer, Widget field) {
+    final t = layer.text;
+    if (t == null || !t.inline) return field;
+    final multiline = t.multiline;
+    return Row(
+      crossAxisAlignment:
+          multiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      children: [
+        Expanded(child: field),
+        const SizedBox(width: 2),
+        _TextInfoButton(multiline: multiline),
+      ],
+    );
   }
 
   Widget _exposedColorRow({

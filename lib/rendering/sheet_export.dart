@@ -111,7 +111,7 @@ SheetLayout computeSheetLayout(
   final cols = ((usableW + gapIn) / (cardWIn + gapIn)).floor();
   final rows = ((usableH + gapIn) / (cardHIn + gapIn)).floor();
   if (cols < 1 || rows < 1) {
-    throw StateError('A ${cardWIn}×$cardHIn in card does not fit '
+    throw StateError('A $cardWIn×$cardHIn in card does not fit '
         '${s.paper.label} with ${s.marginMm} mm margins.');
   }
   final dpi = s.dpi;

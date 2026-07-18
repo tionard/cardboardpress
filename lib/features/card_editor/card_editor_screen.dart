@@ -185,6 +185,10 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
   late final TextEditingController _artist;
   bool _dirty = false; // unsaved edits to the working copy
   bool _suppressDirty = false; // guards controller resync during revert
+  // True on the phone layout (the same <720 breakpoint build() switches on).
+  // Assigned in build's LayoutBuilder before the panels are constructed, so
+  // panel code in the same build pass (sliders) can stack for narrow screens.
+  bool _compact = false;
   _Cat _cat = _Cat.card;
   bool _exporting = false;
   int _dpi = 300; // requested export DPI (300/600); free is pinned to 300
@@ -273,11 +277,19 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
 
   /// Apply an in-memory edit and flag the working copy dirty. Nothing persists
   /// until the user taps Save (mirrors the Template Editor's working-copy model).
+  ///
+  /// Every edit also re-runs the image sync: typing a {tag}, overriding a
+  /// watermark symbol, or otherwise referencing a not-yet-decoded image must
+  /// decode it NOW for the live preview — previously only initState /
+  /// didUpdateWidget (i.e. Save) triggered a decode, so a first-used symbol
+  /// stayed invisible until the card was saved. The sync is idempotent
+  /// (already-decoded ids are skipped), so this is cheap per keystroke.
   void _markDirty(VoidCallback change) {
     setState(() {
       change();
       _dirty = true;
     });
+    _syncArtImages();
   }
 
   // ---- art images ----
@@ -731,6 +743,7 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final wide = constraints.maxWidth >= 720;
+          _compact = !wide; // read by the panels built just below
 
           if (wide) {
             // Tablet / desktop: header on top, then preview · rail · settings.
