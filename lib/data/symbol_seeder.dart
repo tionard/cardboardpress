@@ -28,7 +28,7 @@ import 'database.dart';
 import 'image_store.dart';
 
 /// Bump when the bundled pack changes (new pips, replaced art, retirements).
-const _packVersion = 4;
+const _packVersion = 5;
 const _packVersionKey = 'seed.textSymbols.packVersion';
 
 /// Where the pack's PNGs live. Must match the pubspec asset entry (folder
