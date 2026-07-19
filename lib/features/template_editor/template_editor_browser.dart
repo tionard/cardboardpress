@@ -55,6 +55,12 @@ class _TemplateBrowserState extends ConsumerState<_TemplateBrowser> {
             children: [
               Text('Templates', style: Theme.of(context).textTheme.titleLarge),
               const Spacer(),
+              OutlinedButton.icon(
+                onPressed: _importTemplate,
+                icon: const Icon(Icons.file_download_outlined, size: 18),
+                label: const Text('Import'),
+              ),
+              const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: widget.onNew,
                 icon: const Icon(Icons.add, size: 18),
@@ -192,13 +198,70 @@ class _TemplateBrowserState extends ConsumerState<_TemplateBrowser> {
       onSelected: (v) {
         if (v == 'edit') widget.onOpen(t.id);
         if (v == 'duplicate') widget.onDuplicate(t);
+        if (v == 'export') _exportTemplate(t);
         if (v == 'delete') widget.onDelete(t);
       },
       itemBuilder: (context) => const [
         PopupMenuItem(value: 'edit', child: Text('Edit')),
         PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
+        PopupMenuItem(value: 'export', child: Text('Export JSON…')),
         PopupMenuItem(value: 'delete', child: Text('Delete')),
       ],
     );
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  // ---- Template share: export / import (model/template_share.dart) --------
+  // Images are not part of a template file: the spec references ImageStore ids
+  // that only exist on the exporting machine. Seeded-frame borders and palette
+  // snapshots travel intact; anything else image-backed shows placeholders on
+  // the importing side.
+
+  Future<void> _exportTemplate(TemplateEntry t) async {
+    final json = templateShareToJson(t.name, t.data);
+    final path = await ref.read(cardExporterProvider).saveDocument(
+          Uint8List.fromList(utf8.encode(json)),
+          fileName: '${t.name.trim().isEmpty ? 'template' : t.name}_template',
+          extension: 'json',
+          dialogTitle: 'Export template JSON',
+        );
+    if (path == null) return; // cancelled
+    _snack('Template exported: $path');
+  }
+
+  Future<void> _importTemplate() async {
+    // FileType.any, same reasoning as Backup restore: json-extension filters
+    // are unreliable on some Android pickers.
+    final res = await FilePicker.pickFiles(type: FileType.any);
+    if (res == null || res.files.isEmpty) return;
+    final picked = res.files.single;
+    final Uint8List bytes;
+    try {
+      bytes = picked.path != null
+          ? await File(picked.path!).readAsBytes()
+          : await picked.readAsBytes();
+    } catch (_) {
+      _snack("Couldn't read the selected file.");
+      return;
+    }
+
+    final TemplateShare share;
+    try {
+      share = templateShareFromJson(utf8.decode(bytes, allowMalformed: true));
+    } on FormatException catch (e) {
+      _snack(e.message);
+      return;
+    }
+
+    // Always a NEW template (fresh id, appended position) — imports never
+    // overwrite, even if the sender exported one of the seeded defaults.
+    await ref.read(templateRepositoryProvider).create(share.name, share.data);
+    _snack('Imported "${share.name}". Images aren\'t included in template '
+        'files, so any custom sprites need re-attaching.');
   }
 }

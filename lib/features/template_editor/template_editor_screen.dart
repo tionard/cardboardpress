@@ -15,6 +15,8 @@
 // helpers live in the template_editor_{layout,fields,widgets}.dart parts as
 // extensions on _TemplateBodyState.
 
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -30,6 +32,7 @@ import '../../model/layer_migration.dart';
 import '../../model/layers.dart';
 import '../../model/markup.dart';
 import '../../model/sample_card.dart';
+import '../../model/template_share.dart';
 import '../../state/providers.dart';
 import '../../widgets/card_preview.dart';
 import '../../widgets/preview_backdrop.dart';
