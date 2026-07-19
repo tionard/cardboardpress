@@ -111,7 +111,23 @@ void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
   final a = alpha.clamp(0.0, 1.0);
   if (a <= 0) return;
 
-  final paint = ui.Paint()..filterQuality = ui.FilterQuality.medium;
+  // No edge anti-aliasing: every patch (and every tile) is an axis-aligned
+  // rect, and adjacent rects share their boundary coordinate exactly. With AA
+  // on, the shared fractional edge gets partial coverage from BOTH sides that
+  // never sums back to full opacity — the hairline "slice lines" between
+  // patches and between tiles, in every fill mode. With AA off each device
+  // pixel belongs to exactly one rect: no gaps, no double-cover. Nothing here
+  // rotates, so there are no diagonal edges that would want AA.
+  //
+  // FilterQuality.low, not medium: medium's mipmaps average across the slice
+  // cut lines when the frame draws smaller than the sprite, tinting each
+  // patch's boundary pixels with the NEIGHBOURING patch's content — another
+  // seam that varies with preview scale. Bilinear-only sampling stays inside
+  // a texel of the cut. (Export draws at or above sprite scale, where the two
+  // are identical anyway.)
+  final paint = ui.Paint()
+    ..filterQuality = ui.FilterQuality.low
+    ..isAntiAlias = false;
 
   // A tint multiplies a palette colour (single or double) onto the sprite,
   // preserving its shading and respecting alpha — transparent stays transparent.
@@ -121,8 +137,14 @@ void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
   // fade together rather than overlapping seams double-blending.
   final tinted = tint != null;
   final needLayer = tinted || a < 1.0;
+  // Inflated by a pixel: boundary snapping in the patch pass can land the
+  // outer edges up to half a device pixel outside [dst], and a tight layer
+  // would shave that sliver off — a seam at the frame's outer edge, but only
+  // when tinted or faded. The modulate rect below inflates to match.
+  final layerBounds = dst.inflate(1);
   if (needLayer) {
-    canvas.saveLayer(dst, ui.Paint()..color = ui.Color.fromRGBO(0, 0, 0, a));
+    canvas.saveLayer(
+        layerBounds, ui.Paint()..color = ui.Color.fromRGBO(0, 0, 0, a));
   }
 
   _paintNineSlicePatches(canvas, dst, img, spec, size, paint);
@@ -135,7 +157,7 @@ void _paintNineSlice(ui.Canvas canvas, ui.Rect dst, ui.Image img,
     } else {
       tp.color = tint.c1; // single colour
     }
-    canvas.drawRect(dst, tp);
+    canvas.drawRect(layerBounds, tp);
   }
 
   if (needLayer) canvas.restore();
@@ -188,10 +210,37 @@ void _paintNineSlicePatches(ui.Canvas canvas, ui.Rect dst, ui.Image img,
     dR *= k;
     dB *= k;
   }
-  final midDW = dst.width - dL - dR;
-  final midDH = dst.height - dT - dB;
+  // --- Device-pixel snapping ---------------------------------------------
+  // Even with AA off, patches meeting at a FRACTIONAL device pixel sample the
+  // shared boundary pixel from slightly different source coordinates (each
+  // drawImageRect maps src→dst independently), showing as an intermittent
+  // seam that comes and goes with preview scale and thickness. Snapping every
+  // boundary onto the device pixel grid makes patches abut pixel-for-pixel.
+  // The canvas transform here is pure translate+scale (nothing in the model
+  // rotates), so the device scale lives at m[0]/m[5].
+  final mtx = canvas.getTransform();
+  final psx = mtx[0].abs() > 1e-9 ? mtx[0].abs() : 1.0;
+  final psy = mtx[5].abs() > 1e-9 ? mtx[5].abs() : 1.0;
+  double snapX(double v) => (v * psx).roundToDouble() / psx;
+  double snapY(double v) => (v * psy).roundToDouble() / psy;
 
-  final l = dst.left, t = dst.top, r = dst.right, b = dst.bottom;
+  final l = snapX(dst.left), r = snapX(dst.right);
+  final t = snapY(dst.top), b = snapY(dst.bottom);
+  var xB = dL > 0 ? snapX(dst.left + dL) : l;
+  var xC = dR > 0 ? snapX(dst.right - dR) : r;
+  var yB = dT > 0 ? snapY(dst.top + dT) : t;
+  var yC = dB > 0 ? snapY(dst.bottom - dB) : b;
+  // A nonzero band must survive snapping with at least one device pixel.
+  if (dL > 0 && xB <= l) xB = l + 1 / psx;
+  if (dR > 0 && xC >= r) xC = r - 1 / psx;
+  if (dT > 0 && yB <= t) yB = t + 1 / psy;
+  if (dB > 0 && yC >= b) yC = b - 1 / psy;
+  dL = xB - l;
+  dR = r - xC;
+  dT = yB - t;
+  dB = b - yC;
+  final midDW = r - l - dL - dR;
+  final midDH = b - t - dT - dB;
 
   void patch(double sx, double sy, double sw, double sh, double dx, double dy,
       double dw, double dh) {
@@ -321,17 +370,47 @@ void _tilePatch(ui.Canvas canvas, ui.Image img, ui.Rect src, ui.Rect dstRect,
     x0 = dstRect.left;
     y0 = dstRect.top;
   } else {
-    nx = (dstRect.width / tw).ceil();
-    ny = (dstRect.height / th).ceil();
+    // Tolerance before ceil: an edge band's cross-axis tile size EQUALS the
+    // band thickness by construction, so the ratio is exactly 1 — except
+    // float noise can land at 1.0000000002, which ceil turns into TWO tiles
+    // and the centring below then phase-shifts the pattern by half a tile.
+    // Which bands trip it depends on rounding (right/bottom accumulate
+    // differently than left/top), producing an asymmetric-looking frame.
+    const eps = 1e-6;
+    nx = math.max(1, (dstRect.width / tw - eps).ceil());
+    ny = math.max(1, (dstRect.height / th - eps).ceil());
     x0 = dstRect.center.dx - nx * tw / 2;
     y0 = dstRect.center.dy - ny * th / 2;
   }
+  // Snap every tile edge to the device pixel grid (see the snapping note in
+  // _paintNineSlicePatches — same intermittent-seam mechanism, between tiles
+  // instead of patches). Adjacent tiles share the snapped edge exactly; each
+  // tile absorbs the sub-pixel difference as invisible stretch. A tile whose
+  // snapped span collapses to zero is skipped.
+  final mtx = canvas.getTransform();
+  final psx = mtx[0].abs() > 1e-9 ? mtx[0].abs() : 1.0;
+  final psy = mtx[5].abs() > 1e-9 ? mtx[5].abs() : 1.0;
+  double snapX(double v) => (v * psx).roundToDouble() / psx;
+  double snapY(double v) => (v * psy).roundToDouble() / psy;
+
   canvas.save();
-  canvas.clipRect(dstRect);
+  // Hard clip, no AA: plain tiling's centred grid OVERHANGS the band and this
+  // clip trims the partial end tiles — an anti-aliased clip edge leaves them
+  // partial-coverage at the band boundary, a seam only Tile mode can produce
+  // (fit's tiles end exactly at the rect and never get trimmed). The band
+  // rect arrives already snapped to the device grid by the caller, so a hard
+  // clip lands exactly on a pixel boundary.
+  canvas.clipRect(dstRect, doAntiAlias: false);
   for (var j = 0; j < ny; j++) {
+    final ty0 = snapY(y0 + j * th);
+    final ty1 = snapY(y0 + (j + 1) * th);
+    if (ty1 <= ty0) continue;
     for (var i = 0; i < nx; i++) {
-      canvas.drawImageRect(img, src,
-          ui.Rect.fromLTWH(x0 + i * tw, y0 + j * th, tw, th), paint);
+      final tx0 = snapX(x0 + i * tw);
+      final tx1 = snapX(x0 + (i + 1) * tw);
+      if (tx1 <= tx0) continue;
+      canvas.drawImageRect(
+          img, src, ui.Rect.fromLTRB(tx0, ty0, tx1, ty1), paint);
     }
   }
   canvas.restore();
