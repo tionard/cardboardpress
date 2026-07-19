@@ -439,6 +439,12 @@ extension _TemplateLayersPane on _TemplateBodyState {
       layerOrder: const [],
       hiddenLayers: const [],
     ));
+    // Any layer edit can newly reference an undecoded image — a {tag} typed
+    // into a text placeholder being the everyday case (mirrors the card
+    // editor's _markDirty → _syncArtImages fix). The sync skips ids already
+    // decoded, so it's cheap; without it a new glyph only appeared after
+    // save + reopen re-ran the initState sync.
+    _syncImages();
   }
 
   /// Replace one layer (by id) with [f] applied to it — the workhorse behind the

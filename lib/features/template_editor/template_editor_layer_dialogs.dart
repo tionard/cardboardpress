@@ -9,100 +9,15 @@ part of 'template_editor_screen.dart';
 
 extension _TemplateLayerDialogs on _TemplateBodyState {
   Future<void> _editTextParts(Layer layer) async {
-    final chosen = List<TextSource>.from(layer.text?.parts ?? const []);
-    final sepCtl = TextEditingController(text: layer.text?.separator ?? '·');
-    final saved = await showDialog<bool>(
+    final result = await showDialog<(List<TextSource>, String)>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) {
-          final available = [
-            for (final src in TextSource.values)
-              if (!chosen.contains(src)) src,
-          ];
-          return AlertDialog(
-            title: const Text('Text sources'),
-            content: SizedBox(
-              width: 420,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    const SizedBox(width: 90, child: Text('Separator')),
-                    Expanded(
-                      child: TextField(
-                        controller: sepCtl,
-                        decoration: const InputDecoration(
-                            isDense: true, hintText: '· (leave blank for none)'),
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 12),
-                  Text('Available', style: Theme.of(ctx).textTheme.labelLarge),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      if (available.isEmpty)
-                        Text('All sources added',
-                            style: Theme.of(ctx).textTheme.bodySmall),
-                      for (final src in available)
-                        ActionChip(
-                          avatar: const Icon(Icons.add, size: 16),
-                          label: Text(_textSourceLabel(src)),
-                          onPressed: () => setLocal(() => chosen.add(src)),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text('In this text (drag to reorder)',
-                      style: Theme.of(ctx).textTheme.labelLarge),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    height: 200,
-                    child: chosen.isEmpty
-                        ? Center(
-                            child: Text('Empty = free text (typed on the card)',
-                                style: Theme.of(ctx).textTheme.bodySmall))
-                        : ReorderableListView.builder(
-                            itemCount: chosen.length,
-                            onReorderItem: (o, n) => setLocal(() {
-                              if (n > o) n -= 1;
-                              final m = chosen.removeAt(o);
-                              chosen.insert(n.clamp(0, chosen.length), m);
-                            }),
-                            itemBuilder: (c, i) => ListTile(
-                              key: ValueKey(chosen[i]),
-                              dense: true,
-                              leading: const Icon(Icons.drag_handle),
-                              title: Text(_textSourceLabel(chosen[i])),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.close, size: 18),
-                                onPressed: () =>
-                                    setLocal(() => chosen.removeAt(i)),
-                              ),
-                            ),
-                          ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel')),
-              FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Save')),
-            ],
-          );
-        },
+      builder: (_) => _TextPartsDialog(
+        initialParts: layer.text?.parts ?? const [],
+        initialSeparator: layer.text?.separator ?? '\u00b7',
       ),
     );
-    final sep = sepCtl.text;
-    sepCtl.dispose();
-    if (saved != true) return;
+    if (result == null) return;
+    final (chosen, sep) = result;
     _updateLayer(
         layer.id,
         (l) => l.copyWith(
@@ -110,31 +25,11 @@ extension _TemplateLayerDialogs on _TemplateBodyState {
   }
 
   Future<void> _editLayerPlaceholder(Layer layer) async {
-    final ctl = TextEditingController(text: layer.text?.placeholder ?? '');
     final value = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Placeholder text'),
-        content: TextField(
-          controller: ctl,
-          autofocus: true,
-          minLines: 1,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            labelText: 'Placeholder',
-            hintText: 'Dummy text shown only in the template preview',
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctl.text),
-              child: const Text('Save')),
-        ],
-      ),
+      builder: (_) =>
+          _PlaceholderDialog(initial: layer.text?.placeholder ?? ''),
     );
-    ctl.dispose();
     if (value == null) return;
     _updateLayer(layer.id,
         (l) => l.copyWith(text: l.text?.copyWith(placeholder: value)));
@@ -192,29 +87,231 @@ extension _TemplateLayerDialogs on _TemplateBodyState {
   /// effective list (baking any arrangement overlay into it), apply [edit], and
   /// store it as the explicit `_d.layers`, clearing the now-superseded overlay.
   Future<void> _renameLayer(Layer layer) async {
-    final ctl = TextEditingController(text: layer.name);
     final name = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Rename layer'),
-        content: TextField(
-          controller: ctl,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Name'),
-          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctl.text.trim()),
-              child: const Text('Rename')),
-        ],
-      ),
+      builder: (_) => _RenameLayerDialog(initial: layer.name),
     );
-    ctl.dispose();
     if (name == null || name.isEmpty) return;
     _updateLayer(layer.id, (l) => l.copyWith(name: name));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dialog widgets
+//
+// Each dialog OWNS its TextEditingController and disposes it in its own
+// State.dispose — i.e. only after the route has fully left the tree. The old
+// pattern (create controller in the launcher, `ctl.dispose()` right after
+// `await showDialog` returns) disposed the controller while the dialog was
+// still on screen playing its exit transition, with a live TextField (and on
+// mobile a dismissing keyboard) attached to it. That corrupted teardown
+// ordering — the Windows a11y bridge's "Nodes left pending by the update"
+// console error, and on Android the `'_dependents.isEmpty'` framework
+// assertion (full red screen). Focus is also released before popping so the
+// IME dismissal never races the route teardown.
+// ---------------------------------------------------------------------------
+
+/// Bound-text parts editor. Pops `(chosen sources, separator)` on Save.
+class _TextPartsDialog extends StatefulWidget {
+  final List<TextSource> initialParts;
+  final String initialSeparator;
+  const _TextPartsDialog(
+      {required this.initialParts, required this.initialSeparator});
+
+  @override
+  State<_TextPartsDialog> createState() => _TextPartsDialogState();
+}
+
+class _TextPartsDialogState extends State<_TextPartsDialog> {
+  late final List<TextSource> chosen = List.of(widget.initialParts);
+  late final TextEditingController sepCtl =
+      TextEditingController(text: widget.initialSeparator);
+
+  @override
+  void dispose() {
+    sepCtl.dispose();
+    super.dispose();
+  }
+
+  void _pop(BuildContext ctx, (List<TextSource>, String)? result) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.pop(ctx, result);
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final available = [
+      for (final src in TextSource.values)
+        if (!chosen.contains(src)) src,
+    ];
+    return AlertDialog(
+      title: const Text('Text sources'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const SizedBox(width: 90, child: Text('Separator')),
+              Expanded(
+                child: TextField(
+                  controller: sepCtl,
+                  decoration: const InputDecoration(
+                      isDense: true, hintText: '· (leave blank for none)'),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            Text('Available', style: Theme.of(ctx).textTheme.labelLarge),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (available.isEmpty)
+                  Text('All sources added',
+                      style: Theme.of(ctx).textTheme.bodySmall),
+                for (final src in available)
+                  ActionChip(
+                    avatar: const Icon(Icons.add, size: 16),
+                    label: Text(_textSourceLabel(src)),
+                    onPressed: () => setState(() => chosen.add(src)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text('In this text (drag to reorder)',
+                style: Theme.of(ctx).textTheme.labelLarge),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 200,
+              child: chosen.isEmpty
+                  ? Center(
+                      child: Text('Empty = free text (typed on the card)',
+                          style: Theme.of(ctx).textTheme.bodySmall))
+                  : ReorderableListView.builder(
+                      itemCount: chosen.length,
+                      onReorderItem: (o, n) => setState(() {
+                        if (n > o) n -= 1;
+                        final m = chosen.removeAt(o);
+                        chosen.insert(n.clamp(0, chosen.length), m);
+                      }),
+                      itemBuilder: (c, i) => ListTile(
+                        key: ValueKey(chosen[i]),
+                        dense: true,
+                        leading: const Icon(Icons.drag_handle),
+                        title: Text(_textSourceLabel(chosen[i])),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () => setState(() => chosen.removeAt(i)),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => _pop(ctx, null), child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => _pop(ctx, (chosen, sepCtl.text)),
+            child: const Text('Save')),
+      ],
+    );
+  }
+}
+
+/// Free-text placeholder editor. Pops the new placeholder string on Save.
+class _PlaceholderDialog extends StatefulWidget {
+  final String initial;
+  const _PlaceholderDialog({required this.initial});
+
+  @override
+  State<_PlaceholderDialog> createState() => _PlaceholderDialogState();
+}
+
+class _PlaceholderDialogState extends State<_PlaceholderDialog> {
+  late final TextEditingController ctl =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    ctl.dispose();
+    super.dispose();
+  }
+
+  void _pop(BuildContext ctx, String? value) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.pop(ctx, value);
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return AlertDialog(
+      title: const Text('Placeholder text'),
+      content: TextField(
+        controller: ctl,
+        autofocus: true,
+        minLines: 1,
+        maxLines: 5,
+        decoration: const InputDecoration(
+          labelText: 'Placeholder',
+          hintText: 'Dummy text shown only in the template preview',
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => _pop(ctx, null), child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => _pop(ctx, ctl.text), child: const Text('Save')),
+      ],
+    );
+  }
+}
+
+/// Layer rename. Pops the trimmed new name on Rename / submit.
+class _RenameLayerDialog extends StatefulWidget {
+  final String initial;
+  const _RenameLayerDialog({required this.initial});
+
+  @override
+  State<_RenameLayerDialog> createState() => _RenameLayerDialogState();
+}
+
+class _RenameLayerDialogState extends State<_RenameLayerDialog> {
+  late final TextEditingController ctl =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    ctl.dispose();
+    super.dispose();
+  }
+
+  void _pop(BuildContext ctx, String? value) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.pop(ctx, value);
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return AlertDialog(
+      title: const Text('Rename layer'),
+      content: TextField(
+        controller: ctl,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: 'Name'),
+        onSubmitted: (v) => _pop(ctx, v.trim()),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => _pop(ctx, null), child: const Text('Cancel')),
+        FilledButton(
+            onPressed: () => _pop(ctx, ctl.text.trim()),
+            child: const Text('Rename')),
+      ],
+    );
   }
 }
