@@ -13,6 +13,7 @@ import 'dart:async' show unawaited;
 import 'app/app_shell.dart';
 import 'data/database.dart';
 import 'data/image_gc.dart';
+import 'data/frame_seeder.dart';
 import 'data/migration_snapshot.dart';
 import 'data/symbol_seeder.dart';
 import 'state/providers.dart';
@@ -33,6 +34,14 @@ Future<void> main() async {
 
   final container = ProviderContainer();
   await seedDefaultTextSymbols(
+    container.read(databaseProvider),
+    container.read(imageStoreProvider),
+  );
+  // Frames before settings hydration for the same reason as symbols: the DB
+  // migration that may insert the frame-referencing Wings template has already
+  // run by now (first DB open above), and the sprites it snapshots must be on
+  // disk before the first template preview decodes them.
+  await seedDefaultFrames(
     container.read(databaseProvider),
     container.read(imageStoreProvider),
   );

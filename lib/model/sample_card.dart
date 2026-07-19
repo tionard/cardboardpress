@@ -34,6 +34,30 @@ const _inkRef =
     ColorRef(id: 'c_ink', snapshot: ColorValue.single(Color(0xFF2C2B27)));
 const _paperRef =
     ColorRef(id: 'c_paper', snapshot: ColorValue.single(Color(0xFFF1EFE8)));
+const _blackRef =
+    ColorRef(id: 'c_black', snapshot: ColorValue.single(Color(0xFF000000)));
+
+// ---------------------------------------------------------------------------
+// Seeded Frames-library constants — the single source of truth shared by the
+// frame seeder (lib/data/frame_seeder.dart, which writes the library rows +
+// image files) and the Wings template below (which bakes the same values into
+// its border-aspect SNAPSHOTS). Keeping them identical is what makes the
+// template render correctly even before/without the library row resolving.
+// ---------------------------------------------------------------------------
+
+/// Frames-library row ids ('fr_seed_' prefix = minted only by the seeder).
+const kWingsFrameId = 'fr_seed_wings_frame';
+const kWingsPanelId = 'fr_seed_wings_panel';
+
+/// Stable ImageStore ids for the bundled sprites.
+const kWingsFrameImageId = 'frm_seed_frame_wings.png';
+const kWingsPanelImageId = 'frm_seed_panel_wings.png';
+
+/// Source cuts for both wings sprites (fractions of sprite width/height —
+/// the slice editor's "L 28% · 110px" readout is the same 0.28 shown against
+/// this sprite's pixel size).
+const kWingsInsetLR = 0.28;
+const kWingsInsetTB = 0.25;
 
 // The shared field layout. Only the Name text colour varies between templates.
 // List order = draw order (later fields paint on top):
@@ -149,10 +173,171 @@ TemplateData _parchment() => TemplateData(
       fields: _fields(nameTextRef: _inkRef), // single ink title, no border
     );
 
+// ---------------------------------------------------------------------------
+// Wings — the frame-bearing example template.
+//
+// HOW TO AUTHOR A SEEDED TEMPLATE THAT USES FRAMES (the recipe to copy):
+//
+//  1. A border (9-slice) aspect lives on a LAYER, and only promoted templates
+//     have explicit layers — a fields-only template like Thornwood derives its
+//     layers on the fly and "can't carry frame references" (composeCard). So:
+//     lay out the fields as usual, then PROMOTE by running them through
+//     effectiveTemplateLayers() and storing the result as `layers`.
+//  2. Overlay the border aspect onto the target layer(s) with copyWith. Set
+//     BOTH frameId (the live library reference — library edits update this
+//     template) AND the full snapshot (imageId + insets + modes — renders
+//     even if the library row is deleted or hasn't seeded yet). Use the
+//     shared kWings* constants so seeder and snapshot never drift.
+//  3. Use-site properties stay the layer's own: `thickness` (thickest edge as
+//     a fraction of card width), `drawCenter` (true = the sprite's center
+//     panel becomes the box background — clear the layer's fill then).
+// ---------------------------------------------------------------------------
+
+// const _wingsFrameRef = NineSliceSpec(
+//   frameId: kWingsFrameId,
+//   imageId: kWingsFrameImageId,
+//   insetL: kWingsInsetLR,
+//   insetT: kWingsInsetTB,
+//   insetR: kWingsInsetLR,
+//   insetB: kWingsInsetTB,
+//   edgeMode: SliceFillMode.tile,
+//   centerMode: SliceFillMode.tile,
+//   thickness: 0.05,
+//   drawCenter: true,
+// );
+
+// const _wingsPanelRef = NineSliceSpec(
+//   frameId: kWingsPanelId,
+//   imageId: kWingsPanelImageId,
+//   insetL: kWingsInsetLR,
+//   insetT: kWingsInsetTB,
+//   insetR: kWingsInsetLR,
+//   insetB: kWingsInsetTB,
+//   edgeMode: SliceFillMode.tile,
+//   centerMode: SliceFillMode.tile,
+//   thickness: 0.045,
+//   drawCenter: true,
+// );
+
+/// The Wings field layout — deliberately unlike the shared default: dark ink
+/// base (no outer black border), sprite panels instead of flat fills on the
+/// Name and Rules boxes, light type/footer text sitting directly on the base.
+// List<FieldSpec> _wingsFields() => [
+//       const FieldSpec(
+//           id: fArtId,
+//           type: FieldType.art,
+//           frac: Rect.fromLTRB(0.05, 0.115, 0.95, 0.54)),
+//       const FieldSpec(
+//         id: fNameId,
+//         type: FieldType.name,
+//         frac: Rect.fromLTRB(0.05, 0.04, 0.95, 0.115),
+//         // No fill/outline: the WingsPanel sprite (overlaid in _wings) IS the
+//         // bar. Ink text reads on its light center panel.
+//         text: TextStyleSpec(
+//             sizeFrac: 0.035,
+//             bold: true,
+//             vAlign: VAlign.middle,
+//             padX: 0.04,
+//             colorRef: _inkRef),
+//       ),
+//       const FieldSpec(
+//         id: fCostId,
+//         type: FieldType.cost,
+//         frac: Rect.fromLTRB(0.05, 0.04, 0.95, 0.115),
+//         text: TextStyleSpec(
+//           sizeFrac: 0.04,
+//           align: TextAlign.right,
+//           vAlign: VAlign.middle,
+//           padX: 0.03,
+//           colorRef: _inkRef,
+//         ),
+//       ),
+//       // Type line: light text straight on the dark base — no bar at all.
+//       const FieldSpec(
+//         id: fTypeId,
+//         type: FieldType.type,
+//         frac: Rect.fromLTRB(0.05, 0.54, 0.95, 0.6),
+//         text: TextStyleSpec(
+//             sizeFrac: 0.025,
+//             bold: true,
+//             vAlign: VAlign.middle,
+//             padX: 0.045,
+//             colorRef: _paperRef),
+//       ),
+//       const FieldSpec(
+//         id: fRulesId,
+//         type: FieldType.rules,
+//         frac: Rect.fromLTRB(0.05, 0.60, 0.95, 0.905),
+//         // No fill: the WingsFrame sprite's center is the rules background.
+//         text: TextStyleSpec(
+//             sizeFrac: 0.03,
+//             vAlign: VAlign.top,
+//             padX: 0.045,
+//             padY: 0.025,
+//             colorRef: _inkRef),
+//       ),
+//       const FieldSpec(
+//         id: fStatId,
+//         type: FieldType.stat,
+//         frac: Rect.fromLTRB(0.77, 0.86, 0.93, 0.94),
+//         fill: _paperRef,
+//         fillAlpha: 1.0,
+//         outline: OutlineSpec(intensity: 0.45),
+//         text: TextStyleSpec(
+//           sizeFrac: 0.04,
+//           bold: true,
+//           align: TextAlign.center,
+//           vAlign: VAlign.middle,
+//           colorRef: _inkRef,
+//           colorAlpha: 1.0,
+//         ),
+//       ),
+//       const FieldSpec(
+//         id: fFooterId,
+//         type: FieldType.footer,
+//         frac: Rect.fromLTRB(0.025, 0.945, 0.975, 0.98),
+//         fill: _blackRef,
+//         footer: FooterSpec.defaults(),
+//         text: TextStyleSpec(
+//             sizeFrac: 0.02,
+//             align: TextAlign.left,
+//             vAlign: VAlign.middle,
+//             padX: 0.035,
+//             colorRef: _paperRef,
+//             colorAlpha: 1.0),
+//       ),
+//     ];
+
+// TemplateData _wings() {
+//   final base = TemplateData(
+//     cornerRadiusFrac: 0.05,
+//     baseColor: _inkRef,
+//     border: const BorderSpec(black: true, thickness: 0.03),
+//     fields: _wingsFields(),
+//   );
+//   // PROMOTE: derive the layer list from the fields, then overlay the frame
+//   // border-aspects onto the Name and Rules layers (derived layer ids equal
+//   // the field ids). Storing `layers` makes this the template's source of
+//   // truth — exactly what saving in the template editor would have produced.
+//   final layers = [
+//     for (final l in effectiveTemplateLayers(base))
+//       switch (l.id) {
+//         fArtId => l.copyWith(border: _wingsPanelRef),
+//         fNameId => l.copyWith(border: _wingsFrameRef),
+//         fTypeId => l.copyWith(border: _wingsPanelRef),
+//         fRulesId => l.copyWith(border: _wingsPanelRef),
+//         _ => l,
+//       },
+//   ];
+//   return base.copyWith(
+//       layers: layers, layerOrder: const [], hiddenLayers: const []);
+// }
+
 /// The templates seeded into the database.
 List<TemplateEntry> defaultTemplates() => [
       TemplateEntry(id: 't_thornwood', name: 'Thornwood', data: _thornwood()),
       TemplateEntry(id: 't_parchment', name: 'Parchment', data: _parchment()),
+      //TemplateEntry(id: 't_wings', name: 'Wings', data: _wings()),
     ];
 
 /// A reasonable default layout for a newly-created template.

@@ -177,7 +177,7 @@ class AppDatabase extends _$AppDatabase {
   /// The schema version this build writes. A static so startup code (the
   /// pre-migration snapshot) can compare it against the file on disk WITHOUT
   /// opening the database. Bump here — the getter follows.
-  static const latestSchemaVersion = 12;
+  static const latestSchemaVersion = 13;
 
   @override
   int get schemaVersion => latestSchemaVersion;
@@ -257,6 +257,13 @@ class AppDatabase extends _$AppDatabase {
             // inside a migration.
             await m.createTable(frames);
           }
+          if (from < 13) {
+            // v13: the seeded "Wings" template (the frame-bearing example).
+            // Insert ONLY the new id — onCreate seeds the full list for fresh
+            // installs, and existing installs may have edited/deleted the
+            // original defaults, so this must not touch them.
+            await _seedAddedDefaultTemplates(const ['t_wings']);
+          }
         },
         beforeOpen: (details) async {
           // Enforce the card→template foreign key (SQLite needs this per-conn).
@@ -311,6 +318,8 @@ class AppDatabase extends _$AppDatabase {
         mix: const Value(0.5),
         position: const Value(7),
       ),
+      PaletteColorsCompanion.insert(
+          id: 'c_black', name: 'Black', c1: 0xFF000000, position: const Value(8)),
     ];
     await batch((b) => b.insertAll(paletteColors, defaults));
   }
@@ -335,6 +344,26 @@ class AppDatabase extends _$AppDatabase {
     final rows = await select(templates).get();
     if (rows.isEmpty) return -1;
     return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
+  }
+
+  /// Insert only the given default-template ids — used by upgrade steps that
+  /// ADD a template to existing installs. insertOrIgnore keeps any row the
+  /// user already has; the position appends after their templates.
+  Future<void> _seedAddedDefaultTemplates(List<String> ids) async {
+    final defaults = defaultTemplates();
+    var pos = await maxTemplatePosition() + 1;
+    for (final t in defaults) {
+      if (!ids.contains(t.id)) continue;
+      await into(templates).insert(
+        TemplatesCompanion.insert(
+          id: t.id,
+          name: t.name,
+          spec: t.data,
+          position: Value(pos++),
+        ),
+        mode: InsertMode.insertOrIgnore,
+      );
+    }
   }
 
   Future<void> _seedDefaultTemplates() async {
