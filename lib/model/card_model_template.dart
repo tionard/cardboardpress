@@ -85,20 +85,44 @@ class TemplateData {
 
 /// A persisted template as the UI/state layer sees it: identity + name + the
 /// layout. (The drift row is mapped into this so features never import db types.)
+/// A template-browser folder. The Collection's sets are the analogue: real
+/// rows, so a folder can be created empty and renamed without touching its
+/// members. Deleting one is a decision about its templates (delete them, or
+/// keep them and unfile), never a cascade — see the browser's delete flow.
+class TemplateFolderEntry {
+  final String id;
+  final String name;
+  final int position;
+
+  const TemplateFolderEntry({
+    required this.id,
+    required this.name,
+    this.position = 0,
+  });
+}
+
 class TemplateEntry {
   final String id;
   final String name;
   final TemplateData data;
 
+  /// Optional folder for browser grouping: a [TemplateFolderEntry] id, or ''
+  /// for ungrouped (the default until the user files it). Purely
+  /// organisational — nothing in rendering or composition reads this.
+  final String folder;
+
   const TemplateEntry({
     required this.id,
     required this.name,
     required this.data,
+    this.folder = '',
   });
 
-  TemplateEntry copyWith({String? name, TemplateData? data}) => TemplateEntry(
+  TemplateEntry copyWith({String? name, TemplateData? data, String? folder}) =>
+      TemplateEntry(
         id: id,
         name: name ?? this.name,
         data: data ?? this.data,
+        folder: folder ?? this.folder,
       );
 }

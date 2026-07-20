@@ -627,6 +627,26 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
     );
   }
 
+  /// Opens the searchable template picker (a scrollable, folder-grouped list
+  /// with a search box) and applies the choice. Replaces the old dropdown:
+  /// a plain menu got unusable once a collection had more than a handful of
+  /// templates, and offered no way to find one by name.
+  Future<void> _pickTemplate() async {
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (_) => _TemplatePickerDialog(
+        templates: widget.templates,
+        folders: ref.read(templateFoldersProvider).maybeWhen(
+              data: (l) => l,
+              orElse: () => const <TemplateFolderEntry>[],
+            ),
+        currentId: _working.templateId,
+      ),
+    );
+    if (chosen == null) return; // cancelled
+    _changeTemplate(chosen);
+  }
+
   /// The TEMPLATE header row (picker) shown above the preview on every layout.
   /// Moved here from the Card settings panel so there is one picker, always in
   /// the same place, matching the phone wireframes.
@@ -653,49 +673,39 @@ class _CardEditorBodyState extends ConsumerState<_CardEditorBody> {
             // desktop windows instead of stretching across half of them.
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 360),
-              child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHighest,
+              child: InkWell(
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: scheme.outlineVariant),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  isDense: true,
-                  isExpanded: true,
-                  value: currentId,
-                  hint: const Text('No template'),
-                  icon: const Icon(Icons.expand_more, size: 20),
-                  borderRadius: BorderRadius.circular(12),
-                  items: [
-                    for (final t in widget.templates)
-                      DropdownMenuItem(
-                        value: t.id,
-                        child:
-                            Text(t.name, overflow: TextOverflow.ellipsis),
+                onTap: _pickTemplate,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: scheme.outlineVariant),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.style_outlined,
+                          size: 16, color: scheme.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          currentId == null
+                              ? 'No template'
+                              : widget.templates
+                                  .firstWhere((t) => t.id == currentId)
+                                  .name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                  ],
-                  // Show a little template glyph beside the name in the closed
-                  // state, like the pill in the wireframe.
-                  selectedItemBuilder: (context) => [
-                    for (final t in widget.templates)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.style_outlined,
-                              size: 16, color: scheme.onSurfaceVariant),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(t.name,
-                                overflow: TextOverflow.ellipsis),
-                          ),
-                        ],
-                      ),
-                  ],
-                  onChanged: _changeTemplate,
+                      const SizedBox(width: 4),
+                      Icon(Icons.expand_more,
+                          size: 20, color: scheme.onSurfaceVariant),
+                    ],
+                  ),
                 ),
-              ),
               ),
             ),
           ),

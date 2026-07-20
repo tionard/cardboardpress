@@ -43,6 +43,24 @@ class Templates extends Table {
   IntColumn get position => integer().withDefault(const Constant(0))();
   TextColumn get spec => text().map(const TemplateSpecConverter())();
 
+  /// Optional browser grouping; '' = ungrouped. Implicit folders: no folders
+  /// table, a folder exists while some template names it (see TemplateEntry).
+  TextColumn get folder => text().withDefault(const Constant(''))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// A template FOLDER: an optional, user-made grouping in the template browser
+/// (the Collection's sets are the analogue). Real rows rather than a name on
+/// each template, so a folder can exist while EMPTY — "New folder" then file
+/// templates into it — and so renaming one doesn't have to touch its members.
+/// [Templates.folder] holds the folder id ('' = ungrouped).
+class TemplateFolders extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  IntColumn get position => integer().withDefault(const Constant(0))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -163,7 +181,8 @@ class AppSettings extends Table {
 }
 
 @DriftDatabase(
-    tables: [PaletteColors, Templates, Cards, Sets, Rarities, TextSymbols, Symbols,
+    tables: [PaletteColors, Templates,
+  TemplateFolders, Cards, Sets, Rarities, TextSymbols, Symbols,
     Frames, AppSettings])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'cardboardpress'));
@@ -177,7 +196,7 @@ class AppDatabase extends _$AppDatabase {
   /// The schema version this build writes. A static so startup code (the
   /// pre-migration snapshot) can compare it against the file on disk WITHOUT
   /// opening the database. Bump here — the getter follows.
-  static const latestSchemaVersion = 13;
+  static const latestSchemaVersion = 15;
 
   @override
   int get schemaVersion => latestSchemaVersion;
@@ -264,6 +283,33 @@ class AppDatabase extends _$AppDatabase {
             // original defaults, so this must not touch them.
             await _seedAddedDefaultTemplates(const ['t_wings']);
           }
+          if (from < 14) {
+            // v14: optional template folders. Defaults to '' (ungrouped), so
+            // every existing template keeps its current place in the browser.
+            await m.addColumn(templates, templates.folder);
+          }
+          if (from < 15) {
+            // v15: folders become real rows, so they can be created empty and
+            // renamed. v14 stored the folder NAME in Templates.folder; back-fill
+            // one row per distinct name, then rewrite the column to hold ids.
+            await m.createTable(templateFolders);
+            final rows = await select(templates).get();
+            final names = <String>{
+              for (final r in rows)
+                if (r.folder.trim().isNotEmpty) r.folder.trim(),
+            };
+            var pos = 0;
+            for (final name in names) {
+              final id = 'tf_${DateTime.now().microsecondsSinceEpoch}_$pos';
+              await into(templateFolders).insert(TemplateFoldersCompanion.insert(
+                id: id,
+                name: name,
+                position: Value(pos++),
+              ));
+              await (update(templates)..where((t) => t.folder.equals(name)))
+                  .write(TemplatesCompanion(folder: Value(id)));
+            }
+          }
         },
         beforeOpen: (details) async {
           // Enforce the card→template foreign key (SQLite needs this per-conn).
@@ -330,6 +376,33 @@ class AppDatabase extends _$AppDatabase {
       (select(templates)
             ..orderBy([(t) => OrderingTerm(expression: t.position)]))
           .watch();
+
+  // ---- template folders ----
+
+  Stream<List<TemplateFolder>> watchTemplateFolders() =>
+      (select(templateFolders)
+            ..orderBy([
+              (t) => OrderingTerm(expression: t.position),
+              (t) => OrderingTerm(expression: t.name),
+            ]))
+          .watch();
+
+  Future<int> maxTemplateFolderPosition() async {
+    final rows = await select(templateFolders).get();
+    if (rows.isEmpty) return -1;
+    return rows.map((r) => r.position).reduce((a, b) => a > b ? a : b);
+  }
+
+  Future<void> insertTemplateFolder(TemplateFoldersCompanion c) =>
+      into(templateFolders).insert(c);
+
+  Future<void> updateTemplateFolder(String id, TemplateFoldersCompanion c) =>
+      (update(templateFolders)..where((t) => t.id.equals(id))).write(c);
+
+  /// Delete the folder row only. Callers decide what happens to its templates
+  /// first (delete them, or unfile them by setting folder to '').
+  Future<void> deleteTemplateFolder(String id) =>
+      (delete(templateFolders)..where((t) => t.id.equals(id))).go();
 
   Future<void> insertTemplate(TemplatesCompanion c) =>
       into(templates).insert(c);

@@ -120,10 +120,14 @@ class _TemplateEditorScreenState extends ConsumerState<TemplateEditorScreen> {
         if (open == null) {
           return _TemplateBrowser(
             templates: templates,
+            folders: ref.watch(templateFoldersProvider).maybeWhen(
+                  data: (l) => l,
+                  orElse: () => const <TemplateFolderEntry>[],
+                ),
             inUseIds: inUseIds,
             palette: palette,
             onOpen: (id) => setState(() => _openId = id),
-            onNew: () => _newTemplate(repo),
+            onNew: (folderId) => _newTemplate(repo, folderId),
             onDuplicate: (entry) => _duplicate(repo, entry),
             onDelete: (entry) => _confirmDelete(repo, entry),
           );
@@ -148,15 +152,21 @@ class _TemplateEditorScreenState extends ConsumerState<TemplateEditorScreen> {
     );
   }
 
-  Future<void> _newTemplate(TemplateRepository repo) async {
-    final id = await repo.create('New template', starterTemplate());
+  /// New blank template, filed into [folderId] ('' = ungrouped) so creating
+  /// one while inside a folder puts it there.
+  Future<void> _newTemplate(TemplateRepository repo,
+      [String folderId = '']) async {
+    final id = await repo.create('New template', starterTemplate(),
+        folder: folderId);
     if (!mounted) return;
     setState(() => _openId = id); // open the blank template straight away
   }
 
   Future<void> _duplicate(TemplateRepository repo, TemplateEntry entry) async {
     // Unique-named: duplicating twice yields "X copy", "X copy (2)"…
-    await repo.createWithUniqueName('${entry.name} copy', entry.data);
+    // The copy stays in the original's folder.
+    await repo.createWithUniqueName('${entry.name} copy', entry.data,
+        folder: entry.folder);
     // Stay in the browser; the copy appears in the grid.
   }
 

@@ -15,6 +15,7 @@ import '../data/palette_repository.dart';
 import '../data/rarity_repository.dart';
 import '../data/set_repository.dart';
 import '../data/symbol_repository.dart';
+import '../data/template_folder_repository.dart';
 import '../data/template_repository.dart';
 import '../data/text_symbol_repository.dart';
 import '../model/card_model.dart';
@@ -48,6 +49,13 @@ final paletteMapProvider = Provider<Map<String, ColorValue>>((ref) {
 });
 
 /// Data API for templates.
+final templateFolderRepositoryProvider = Provider<TemplateFolderRepository>(
+    (ref) => TemplateFolderRepository(ref.watch(databaseProvider)));
+
+/// Template-browser folders, in display order.
+final templateFoldersProvider = StreamProvider<List<TemplateFolderEntry>>(
+    (ref) => ref.watch(templateFolderRepositoryProvider).watch());
+
 final templateRepositoryProvider = Provider<TemplateRepository>(
   (ref) => TemplateRepository(ref.watch(databaseProvider)),
 );

@@ -270,3 +270,172 @@ class _RailTile extends StatelessWidget {
     );
   }
 }
+
+/// The card editor's template picker: a scrollable, searchable list replacing
+/// the old dropdown (which became unusable past a handful of templates and
+/// offered no way to find one by name). Groups by the browser's optional
+/// folders, marks the current template, and pops the chosen id.
+///
+/// Owns its search controller and disposes it in State.dispose — the
+/// dialog-lifecycle rule (see template_editor_layer_dialogs.dart).
+class _TemplatePickerDialog extends StatefulWidget {
+  final List<TemplateEntry> templates;
+
+  /// Browser folders, so groups can show NAMES (TemplateEntry.folder holds a
+  /// folder id).
+  final List<TemplateFolderEntry> folders;
+  final String? currentId;
+
+  const _TemplatePickerDialog({
+    required this.templates,
+    this.folders = const [],
+    this.currentId,
+  });
+
+  @override
+  State<_TemplatePickerDialog> createState() => _TemplatePickerDialogState();
+}
+
+class _TemplatePickerDialogState extends State<_TemplatePickerDialog> {
+  final TextEditingController _ctl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  void _pop(String? id) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.pop(context, id);
+  }
+
+  /// Folder display name for a folder id; '' when unfiled or unresolved.
+  String _folderName(String id) {
+    for (final f in widget.folders) {
+      if (f.id == id) return f.name;
+    }
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final q = _query.trim().toLowerCase();
+    // Search matches the folder name too, so typing a folder shows its
+    // contents. Searching flattens the grouping (same rule as the browser).
+    final matches = [
+      for (final t in widget.templates)
+        if (q.isEmpty ||
+            t.name.toLowerCase().contains(q) ||
+            _folderName(t.folder.trim()).toLowerCase().contains(q))
+          t,
+    ];
+
+    // Only folders that actually resolve get a header; a template whose folder
+    // id is unknown falls into the ungrouped list rather than vanishing.
+    final folderIds = <String>{
+      for (final t in matches)
+        if (_folderName(t.folder.trim()).isNotEmpty) t.folder.trim(),
+    }.toList()
+      ..sort((a, b) =>
+          _folderName(a).toLowerCase().compareTo(_folderName(b).toLowerCase()));
+    final loose = [
+      for (final t in matches)
+        if (_folderName(t.folder.trim()).isEmpty) t,
+    ];
+
+    final rows = <Widget>[];
+    if (q.isNotEmpty || folderIds.isEmpty) {
+      // Flat: search results, or a library with no folders at all.
+      rows.addAll(matches.map(_row));
+    } else {
+      rows.addAll(loose.map(_row));
+      for (final id in folderIds) {
+        rows.add(Padding(
+          padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+          child: Row(children: [
+            Icon(Icons.folder_outlined,
+                size: 16, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(_folderName(id),
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge),
+            ),
+          ]),
+        ));
+        rows.addAll([
+          for (final t in matches)
+            if (t.folder.trim() == id) _row(t),
+        ]);
+      }
+    }
+
+    return AlertDialog(
+      title: const Text('Choose template'),
+      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      content: SizedBox(
+        width: 420,
+        // Tall but bounded: the list scrolls inside the dialog rather than
+        // growing it past the screen on phones.
+        height: 420,
+        child: Column(
+          children: [
+            TextField(
+              controller: _ctl,
+              autofocus: true,
+              onChanged: (v) => setState(() => _query = v),
+              decoration: const InputDecoration(
+                isDense: true,
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search templates…',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: rows.isEmpty
+                  ? Center(
+                      child: Text(
+                        widget.templates.isEmpty
+                            ? 'No templates yet.'
+                            : 'No templates match "$_query".',
+                        style: TextStyle(color: scheme.onSurfaceVariant),
+                      ),
+                    )
+                  : ListView(children: rows),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => _pop(null), child: const Text('Cancel')),
+      ],
+    );
+  }
+
+  Widget _row(TemplateEntry t) {
+    final scheme = Theme.of(context).colorScheme;
+    final selected = t.id == widget.currentId;
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      leading: Icon(Icons.style_outlined,
+          size: 20,
+          color: selected ? scheme.primary : scheme.onSurfaceVariant),
+      title: Text(
+        t.name.isEmpty ? '(unnamed)' : t.name,
+        overflow: TextOverflow.ellipsis,
+        style: selected
+            ? TextStyle(color: scheme.primary, fontWeight: FontWeight.w600)
+            : null,
+      ),
+      trailing: selected
+          ? Icon(Icons.check, size: 18, color: scheme.primary)
+          : null,
+      onTap: () => _pop(t.id),
+    );
+  }
+}

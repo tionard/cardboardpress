@@ -643,8 +643,18 @@ class $TemplatesTable extends Templates
         type: DriftSqlType.string,
         requiredDuringInsert: true,
       ).withConverter<TemplateData>($TemplatesTable.$converterspec);
+  static const VerificationMeta _folderMeta = const VerificationMeta('folder');
   @override
-  List<GeneratedColumn> get $columns => [id, name, position, spec];
+  late final GeneratedColumn<String> folder = GeneratedColumn<String>(
+    'folder',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, position, spec, folder];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -676,6 +686,12 @@ class $TemplatesTable extends Templates
         position.isAcceptableOrUnknown(data['position']!, _positionMeta),
       );
     }
+    if (data.containsKey('folder')) {
+      context.handle(
+        _folderMeta,
+        folder.isAcceptableOrUnknown(data['folder']!, _folderMeta),
+      );
+    }
     return context;
   }
 
@@ -703,6 +719,10 @@ class $TemplatesTable extends Templates
           data['${effectivePrefix}spec'],
         )!,
       ),
+      folder: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}folder'],
+      )!,
     );
   }
 
@@ -720,11 +740,16 @@ class Template extends DataClass implements Insertable<Template> {
   final String name;
   final int position;
   final TemplateData spec;
+
+  /// Optional browser grouping; '' = ungrouped. Implicit folders: no folders
+  /// table, a folder exists while some template names it (see TemplateEntry).
+  final String folder;
   const Template({
     required this.id,
     required this.name,
     required this.position,
     required this.spec,
+    required this.folder,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -737,6 +762,7 @@ class Template extends DataClass implements Insertable<Template> {
         $TemplatesTable.$converterspec.toSql(spec),
       );
     }
+    map['folder'] = Variable<String>(folder);
     return map;
   }
 
@@ -746,6 +772,7 @@ class Template extends DataClass implements Insertable<Template> {
       name: Value(name),
       position: Value(position),
       spec: Value(spec),
+      folder: Value(folder),
     );
   }
 
@@ -759,6 +786,7 @@ class Template extends DataClass implements Insertable<Template> {
       name: serializer.fromJson<String>(json['name']),
       position: serializer.fromJson<int>(json['position']),
       spec: serializer.fromJson<TemplateData>(json['spec']),
+      folder: serializer.fromJson<String>(json['folder']),
     );
   }
   @override
@@ -769,6 +797,7 @@ class Template extends DataClass implements Insertable<Template> {
       'name': serializer.toJson<String>(name),
       'position': serializer.toJson<int>(position),
       'spec': serializer.toJson<TemplateData>(spec),
+      'folder': serializer.toJson<String>(folder),
     };
   }
 
@@ -777,11 +806,13 @@ class Template extends DataClass implements Insertable<Template> {
     String? name,
     int? position,
     TemplateData? spec,
+    String? folder,
   }) => Template(
     id: id ?? this.id,
     name: name ?? this.name,
     position: position ?? this.position,
     spec: spec ?? this.spec,
+    folder: folder ?? this.folder,
   );
   Template copyWithCompanion(TemplatesCompanion data) {
     return Template(
@@ -789,6 +820,7 @@ class Template extends DataClass implements Insertable<Template> {
       name: data.name.present ? data.name.value : this.name,
       position: data.position.present ? data.position.value : this.position,
       spec: data.spec.present ? data.spec.value : this.spec,
+      folder: data.folder.present ? data.folder.value : this.folder,
     );
   }
 
@@ -798,13 +830,14 @@ class Template extends DataClass implements Insertable<Template> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('position: $position, ')
-          ..write('spec: $spec')
+          ..write('spec: $spec, ')
+          ..write('folder: $folder')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, position, spec);
+  int get hashCode => Object.hash(id, name, position, spec, folder);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -812,7 +845,8 @@ class Template extends DataClass implements Insertable<Template> {
           other.id == this.id &&
           other.name == this.name &&
           other.position == this.position &&
-          other.spec == this.spec);
+          other.spec == this.spec &&
+          other.folder == this.folder);
 }
 
 class TemplatesCompanion extends UpdateCompanion<Template> {
@@ -820,12 +854,14 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
   final Value<String> name;
   final Value<int> position;
   final Value<TemplateData> spec;
+  final Value<String> folder;
   final Value<int> rowid;
   const TemplatesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.position = const Value.absent(),
     this.spec = const Value.absent(),
+    this.folder = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TemplatesCompanion.insert({
@@ -833,6 +869,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     required String name,
     this.position = const Value.absent(),
     required TemplateData spec,
+    this.folder = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -842,6 +879,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     Expression<String>? name,
     Expression<int>? position,
     Expression<String>? spec,
+    Expression<String>? folder,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -849,6 +887,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
       if (name != null) 'name': name,
       if (position != null) 'position': position,
       if (spec != null) 'spec': spec,
+      if (folder != null) 'folder': folder,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -858,6 +897,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     Value<String>? name,
     Value<int>? position,
     Value<TemplateData>? spec,
+    Value<String>? folder,
     Value<int>? rowid,
   }) {
     return TemplatesCompanion(
@@ -865,6 +905,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
       name: name ?? this.name,
       position: position ?? this.position,
       spec: spec ?? this.spec,
+      folder: folder ?? this.folder,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -886,6 +927,9 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
         $TemplatesTable.$converterspec.toSql(spec.value),
       );
     }
+    if (folder.present) {
+      map['folder'] = Variable<String>(folder.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -899,6 +943,264 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
           ..write('name: $name, ')
           ..write('position: $position, ')
           ..write('spec: $spec, ')
+          ..write('folder: $folder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TemplateFoldersTable extends TemplateFolders
+    with TableInfo<$TemplateFoldersTable, TemplateFolder> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TemplateFoldersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, position];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'template_folders';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TemplateFolder> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TemplateFolder map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TemplateFolder(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+    );
+  }
+
+  @override
+  $TemplateFoldersTable createAlias(String alias) {
+    return $TemplateFoldersTable(attachedDatabase, alias);
+  }
+}
+
+class TemplateFolder extends DataClass implements Insertable<TemplateFolder> {
+  final String id;
+  final String name;
+  final int position;
+  const TemplateFolder({
+    required this.id,
+    required this.name,
+    required this.position,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['position'] = Variable<int>(position);
+    return map;
+  }
+
+  TemplateFoldersCompanion toCompanion(bool nullToAbsent) {
+    return TemplateFoldersCompanion(
+      id: Value(id),
+      name: Value(name),
+      position: Value(position),
+    );
+  }
+
+  factory TemplateFolder.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TemplateFolder(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      position: serializer.fromJson<int>(json['position']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'position': serializer.toJson<int>(position),
+    };
+  }
+
+  TemplateFolder copyWith({String? id, String? name, int? position}) =>
+      TemplateFolder(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        position: position ?? this.position,
+      );
+  TemplateFolder copyWithCompanion(TemplateFoldersCompanion data) {
+    return TemplateFolder(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      position: data.position.present ? data.position.value : this.position,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TemplateFolder(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('position: $position')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, position);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TemplateFolder &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.position == this.position);
+}
+
+class TemplateFoldersCompanion extends UpdateCompanion<TemplateFolder> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<int> position;
+  final Value<int> rowid;
+  const TemplateFoldersCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TemplateFoldersCompanion.insert({
+    required String id,
+    required String name,
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name);
+  static Insertable<TemplateFolder> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<int>? position,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (position != null) 'position': position,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TemplateFoldersCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<int>? position,
+    Value<int>? rowid,
+  }) {
+    return TemplateFoldersCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      position: position ?? this.position,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TemplateFoldersCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('position: $position, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3644,6 +3946,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $PaletteColorsTable paletteColors = $PaletteColorsTable(this);
   late final $TemplatesTable templates = $TemplatesTable(this);
+  late final $TemplateFoldersTable templateFolders = $TemplateFoldersTable(
+    this,
+  );
   late final $CardsTable cards = $CardsTable(this);
   late final $SetsTable sets = $SetsTable(this);
   late final $RaritiesTable rarities = $RaritiesTable(this);
@@ -3658,6 +3963,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     paletteColors,
     templates,
+    templateFolders,
     cards,
     sets,
     rarities,
@@ -3981,6 +4287,7 @@ typedef $$TemplatesTableCreateCompanionBuilder =
       required String name,
       Value<int> position,
       required TemplateData spec,
+      Value<String> folder,
       Value<int> rowid,
     });
 typedef $$TemplatesTableUpdateCompanionBuilder =
@@ -3989,6 +4296,7 @@ typedef $$TemplatesTableUpdateCompanionBuilder =
       Value<String> name,
       Value<int> position,
       Value<TemplateData> spec,
+      Value<String> folder,
       Value<int> rowid,
     });
 
@@ -4046,6 +4354,11 @@ class $$TemplatesTableFilterComposer
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
 
+  ColumnFilters<String> get folder => $composableBuilder(
+    column: $table.folder,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> cardsRefs(
     Expression<bool> Function($$CardsTableFilterComposer f) f,
   ) {
@@ -4100,6 +4413,11 @@ class $$TemplatesTableOrderingComposer
     column: $table.spec,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get folder => $composableBuilder(
+    column: $table.folder,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$TemplatesTableAnnotationComposer
@@ -4122,6 +4440,9 @@ class $$TemplatesTableAnnotationComposer
 
   GeneratedColumnWithTypeConverter<TemplateData, String> get spec =>
       $composableBuilder(column: $table.spec, builder: (column) => column);
+
+  GeneratedColumn<String> get folder =>
+      $composableBuilder(column: $table.folder, builder: (column) => column);
 
   Expression<T> cardsRefs<T extends Object>(
     Expression<T> Function($$CardsTableAnnotationComposer a) f,
@@ -4181,12 +4502,14 @@ class $$TemplatesTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<int> position = const Value.absent(),
                 Value<TemplateData> spec = const Value.absent(),
+                Value<String> folder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TemplatesCompanion(
                 id: id,
                 name: name,
                 position: position,
                 spec: spec,
+                folder: folder,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4195,12 +4518,14 @@ class $$TemplatesTableTableManager
                 required String name,
                 Value<int> position = const Value.absent(),
                 required TemplateData spec,
+                Value<String> folder = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TemplatesCompanion.insert(
                 id: id,
                 name: name,
                 position: position,
                 spec: spec,
+                folder: folder,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -4250,6 +4575,174 @@ typedef $$TemplatesTableProcessedTableManager =
       (Template, $$TemplatesTableReferences),
       Template,
       PrefetchHooks Function({bool cardsRefs})
+    >;
+typedef $$TemplateFoldersTableCreateCompanionBuilder =
+    TemplateFoldersCompanion Function({
+      required String id,
+      required String name,
+      Value<int> position,
+      Value<int> rowid,
+    });
+typedef $$TemplateFoldersTableUpdateCompanionBuilder =
+    TemplateFoldersCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<int> position,
+      Value<int> rowid,
+    });
+
+class $$TemplateFoldersTableFilterComposer
+    extends Composer<_$AppDatabase, $TemplateFoldersTable> {
+  $$TemplateFoldersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TemplateFoldersTableOrderingComposer
+    extends Composer<_$AppDatabase, $TemplateFoldersTable> {
+  $$TemplateFoldersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TemplateFoldersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TemplateFoldersTable> {
+  $$TemplateFoldersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+}
+
+class $$TemplateFoldersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TemplateFoldersTable,
+          TemplateFolder,
+          $$TemplateFoldersTableFilterComposer,
+          $$TemplateFoldersTableOrderingComposer,
+          $$TemplateFoldersTableAnnotationComposer,
+          $$TemplateFoldersTableCreateCompanionBuilder,
+          $$TemplateFoldersTableUpdateCompanionBuilder,
+          (
+            TemplateFolder,
+            BaseReferences<
+              _$AppDatabase,
+              $TemplateFoldersTable,
+              TemplateFolder
+            >,
+          ),
+          TemplateFolder,
+          PrefetchHooks Function()
+        > {
+  $$TemplateFoldersTableTableManager(
+    _$AppDatabase db,
+    $TemplateFoldersTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TemplateFoldersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TemplateFoldersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TemplateFoldersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TemplateFoldersCompanion(
+                id: id,
+                name: name,
+                position: position,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TemplateFoldersCompanion.insert(
+                id: id,
+                name: name,
+                position: position,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TemplateFoldersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TemplateFoldersTable,
+      TemplateFolder,
+      $$TemplateFoldersTableFilterComposer,
+      $$TemplateFoldersTableOrderingComposer,
+      $$TemplateFoldersTableAnnotationComposer,
+      $$TemplateFoldersTableCreateCompanionBuilder,
+      $$TemplateFoldersTableUpdateCompanionBuilder,
+      (
+        TemplateFolder,
+        BaseReferences<_$AppDatabase, $TemplateFoldersTable, TemplateFolder>,
+      ),
+      TemplateFolder,
+      PrefetchHooks Function()
     >;
 typedef $$CardsTableCreateCompanionBuilder =
     CardsCompanion Function({
@@ -5849,6 +6342,8 @@ class $AppDatabaseManager {
       $$PaletteColorsTableTableManager(_db, _db.paletteColors);
   $$TemplatesTableTableManager get templates =>
       $$TemplatesTableTableManager(_db, _db.templates);
+  $$TemplateFoldersTableTableManager get templateFolders =>
+      $$TemplateFoldersTableTableManager(_db, _db.templateFolders);
   $$CardsTableTableManager get cards =>
       $$CardsTableTableManager(_db, _db.cards);
   $$SetsTableTableManager get sets => $$SetsTableTableManager(_db, _db.sets);
