@@ -28,6 +28,23 @@ class TemplateRepository {
     return id;
   }
 
+  /// [create], but de-duplicating the display name against existing templates:
+  /// "Wings" → "Wings (2)" → "Wings (3)"… (trimmed, case-insensitive compare).
+  /// Used by template-JSON import and by Duplicate, where colliding names are
+  /// expected rather than exceptional.
+  Future<String> createWithUniqueName(String name, TemplateData data) async {
+    final base = name.trim().isEmpty ? 'New template' : name.trim();
+    // One-shot read: a drift watch stream emits the current rows immediately.
+    final existing = (await _db.watchTemplates().first)
+        .map((r) => r.name.trim().toLowerCase())
+        .toSet();
+    var candidate = base;
+    for (var n = 2; existing.contains(candidate.toLowerCase()); n++) {
+      candidate = '$base ($n)';
+    }
+    return create(candidate, data);
+  }
+
   Future<void> save(TemplateEntry e) => _db.updateTemplateRow(
         e.id,
         TemplatesCompanion(name: Value(e.name), spec: Value(e.data)),

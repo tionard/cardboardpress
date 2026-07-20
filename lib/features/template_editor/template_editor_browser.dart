@@ -258,9 +258,12 @@ class _TemplateBrowserState extends ConsumerState<_TemplateBrowser> {
       return;
     }
 
-    // Always a NEW template (fresh id, appended position) — imports never
-    // overwrite, even if the sender exported one of the seeded defaults.
-    await ref.read(templateRepositoryProvider).create(share.name, share.data);
+    // Always a NEW template (fresh id, appended position, name de-duplicated
+    // to "Name (2)" on collision) — imports never overwrite, even if the
+    // sender exported one of the seeded defaults.
+    await ref
+        .read(templateRepositoryProvider)
+        .createWithUniqueName(share.name, share.data);
     _snack('Imported "${share.name}". Images aren\'t included in template '
         'files, so any custom sprites need re-attaching.');
   }

@@ -34,8 +34,6 @@ const _inkRef =
     ColorRef(id: 'c_ink', snapshot: ColorValue.single(Color(0xFF2C2B27)));
 const _paperRef =
     ColorRef(id: 'c_paper', snapshot: ColorValue.single(Color(0xFFF1EFE8)));
-const _blackRef =
-    ColorRef(id: 'c_black', snapshot: ColorValue.single(Color(0xFF000000)));
 
 // ---------------------------------------------------------------------------
 // Seeded Frames-library constants — the single source of truth shared by the

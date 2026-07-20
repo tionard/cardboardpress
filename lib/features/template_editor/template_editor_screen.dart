@@ -155,7 +155,8 @@ class _TemplateEditorScreenState extends ConsumerState<TemplateEditorScreen> {
   }
 
   Future<void> _duplicate(TemplateRepository repo, TemplateEntry entry) async {
-    await repo.create('${entry.name} copy', entry.data);
+    // Unique-named: duplicating twice yields "X copy", "X copy (2)"…
+    await repo.createWithUniqueName('${entry.name} copy', entry.data);
     // Stay in the browser; the copy appears in the grid.
   }
 
