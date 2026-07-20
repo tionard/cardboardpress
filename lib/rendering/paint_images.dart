@@ -55,6 +55,91 @@ void _paintTintedSymbol(
   canvas.restore();
 }
 
+/// Tint dispatcher: silhouette (alpha-mask fill, the original recipe) or
+/// multiply (keeps the picture's own values — black stays black, light areas
+/// take the colour). All symbol-tint call sites route through here.
+void _paintSymbolTint(ui.Canvas canvas, ui.Image img, ui.Rect dst,
+    ColorValue cv, double alpha, TintMode mode) {
+  if (mode == TintMode.multiply) {
+    _paintMultipliedSymbol(canvas, img, dst, cv, alpha);
+  } else {
+    _paintTintedSymbol(canvas, img, dst, cv, alpha);
+  }
+}
+
+/// Draws [img] contain-fit + centred in [dst], then MULTIPLIES [cv] over it
+/// (BlendMode.modulate): black detail survives, white areas take the full
+/// tint, greys shade between — the "keep the line art" tint for overlay /
+/// rarity colours on shaded symbols. The tint colour's own alpha acts as
+/// STRENGTH (lerped toward white, i.e. toward "no tint") rather than
+/// translucency — a translucent modulate would darken instead of fade.
+/// [alpha] is the use-site opacity of the whole result. Transparent glyph
+/// pixels stay transparent: everything happens inside a saveLayer, where
+/// modulate against nothing is nothing.
+void _paintMultipliedSymbol(
+    ui.Canvas canvas, ui.Image img, ui.Rect dst, ColorValue cv, double alpha) {
+  final box = _containRect(img, dst);
+  if (box == null) return;
+  final a = alpha.clamp(0.0, 1.0);
+  if (a <= 0.0) return;
+
+  final adj = _tintStrength(cv);
+
+  canvas.saveLayer(box, ui.Paint()..color = ui.Color.fromRGBO(0, 0, 0, a));
+  canvas.drawImageRect(
+    img,
+    ui.Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+    box,
+    ui.Paint()..filterQuality = ui.FilterQuality.medium,
+  );
+  final fill = ui.Paint()..blendMode = ui.BlendMode.modulate;
+  final shader = _doubleShader(adj, box, 1.0);
+  if (shader != null) {
+    fill.shader = shader; // double colour → split gradient, full strength
+  } else {
+    fill.color = adj.c1;
+  }
+  canvas.drawRect(box, fill);
+  canvas.restore();
+}
+
+/// Multiply-mode strength: the tint colour's own alpha lerps it toward white
+/// (= toward "no tint") rather than acting as translucency — a translucent
+/// modulate would darken instead of fade. Shared by both multiplied painters.
+ColorValue _tintStrength(ColorValue cv) {
+  ui.Color strength(ui.Color c) => ui.Color.lerp(
+      const ui.Color(0xFFFFFFFF), c.withValues(alpha: 1.0), c.a)!;
+  return cv.isDouble
+      ? ColorValue.duo(strength(cv.c1), strength(cv.c2!),
+          orientation: cv.orientation, mix: cv.mix)
+      : ColorValue.single(strength(cv.c1));
+}
+
+/// Multiply tint for a FIXED IMAGE used as artwork/background: draws exactly
+/// like the untinted path — cover-fit with the layer's zoom/pan [tr], clipped
+/// to the rounded rect — then multiplies [cv] over the result. This is the
+/// "tinted background" recipe; the contain-fit [_paintMultipliedSymbol] is the
+/// symbol-stamp recipe (set symbol, watermark), which has no transform.
+void _paintMultipliedImage(ui.Canvas canvas, ui.Rect rect, ui.RRect rrect,
+    ui.Image img, ArtTransform tr, ColorValue cv, double alpha) {
+  final a = alpha.clamp(0.0, 1.0);
+  if (a <= 0.0) return;
+  canvas.saveLayer(rect, ui.Paint()..color = ui.Color.fromRGBO(0, 0, 0, a));
+  _paintArtImage(canvas, rrect, img, tr);
+  final fill = ui.Paint()..blendMode = ui.BlendMode.modulate;
+  final adj = _tintStrength(cv);
+  final shader = _doubleShader(adj, rect, 1.0);
+  if (shader != null) {
+    fill.shader = shader;
+  } else {
+    fill.color = adj.c1;
+  }
+  // Pixels outside the rounded clip are transparent in this layer, and
+  // transparent × tint = transparent — safe to modulate the whole rect.
+  canvas.drawRect(rect, fill);
+  canvas.restore();
+}
+
 /// The centred, aspect-preserving rect for [img] fitted inside [dst]
 /// (contain-fit). Null when the image has no pixels.
 ui.Rect? _containRect(ui.Image img, ui.Rect dst) {

@@ -128,20 +128,38 @@ class WatermarkSpec {
   final String symbolId;
   final ColorRef color;
   final double alpha;
+  final TintMode tintMode;
 
   const WatermarkSpec({
     this.symbolId = '',
     required this.color,
     this.alpha = 0.15,
+    this.tintMode = TintMode.silhouette,
   });
 
-  WatermarkSpec copyWith({String? symbolId, ColorRef? color, double? alpha}) =>
+  WatermarkSpec copyWith(
+          {String? symbolId,
+          ColorRef? color,
+          double? alpha,
+          TintMode? tintMode}) =>
       WatermarkSpec(
         symbolId: symbolId ?? this.symbolId,
         color: color ?? this.color,
         alpha: alpha ?? this.alpha,
+        tintMode: tintMode ?? this.tintMode,
       );
 }
+
+/// How a tint colour is applied to a symbol/image.
+///
+/// [silhouette] (the original behaviour, and the serialization default):
+/// the picture acts as a pure alpha mask and the tint colour fills its shape —
+/// interior shading is discarded. [multiply] keeps the picture's own values
+/// and multiplies the tint over them: black stays black, white takes the full
+/// tint, greys shade between — right for line-art symbols where the dark
+/// detail should survive an overlay/rarity colour. A tint colour's own alpha
+/// acts as tint STRENGTH in multiply mode (0 = untinted original, 1 = full).
+enum TintMode { silhouette, multiply }
 
 /// How a 9-slice patch fills the space it's given.
 ///

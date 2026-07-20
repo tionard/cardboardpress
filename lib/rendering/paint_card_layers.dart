@@ -155,8 +155,8 @@ void _paintGenericLayer(
     if (wmImg != null) {
       canvas.save();
       canvas.clipRRect(rrect);
-      _paintTintedSymbol(
-          canvas, wmImg, rect, refs.resolveColor(wm.color), wm.alpha);
+      _paintSymbolTint(canvas, wmImg, rect, refs.resolveColor(wm.color),
+          wm.alpha, wm.tintMode);
       canvas.restore();
     }
   }
@@ -195,8 +195,10 @@ void _paintLayerImage(ui.Canvas canvas, ui.Rect rect, ui.RRect rrect,
     if (img == null) return;
     final tint = card.setSymbolTint;
     if (tint != null) {
-      _paintTintedSymbol(
-          canvas, img, rect, refs.resolveColor(tint), image.alpha);
+      // The rarity tint honours the layer's tint MODE too: multiply keeps a
+      // shaded set symbol's own detail under the rarity colour.
+      _paintSymbolTint(canvas, img, rect, refs.resolveColor(tint), image.alpha,
+          image.tintMode);
     } else {
       _paintSetSymbol(canvas, img, rect, image.alpha);
     }
@@ -238,8 +240,16 @@ void _paintLayerImage(ui.Canvas canvas, ui.Rect rect, ui.RRect rrect,
     return;
   }
   if (image.tint != null) {
-    _paintTintedSymbol(
-        canvas, img, rect, refs.resolveColor(image.tint!), image.alpha);
+    if (image.tintMode == TintMode.multiply) {
+      // Multiply keeps artwork semantics: cover-fit + the layer's zoom/pan,
+      // tint multiplied over — the "tinted background" case. Silhouette stays
+      // the contain-fit symbol stamp (its designed, pre-existing behaviour).
+      _paintMultipliedImage(canvas, rect, rrect, img, image.transform,
+          refs.resolveColor(image.tint!), image.alpha);
+    } else {
+      _paintSymbolTint(canvas, img, rect, refs.resolveColor(image.tint!),
+          image.alpha, image.tintMode);
+    }
   } else if (image.alpha >= 1.0) {
     _paintArtImage(canvas, rrect, img, image.transform);
   } else {

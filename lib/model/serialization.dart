@@ -134,6 +134,7 @@ Map<String, dynamic> _fieldToMap(FieldSpec f) => {
           'sym': f.watermark!.symbolId,
           'color': _colorRefToMap(f.watermark!.color),
           'a': f.watermark!.alpha,
+          if (f.watermark!.tintMode != TintMode.silhouette) 'tm': 'multiply',
         },
       if (f.footer != null) 'footer': _footerToMap(f.footer!),
       if (f.frame != null) 'frame': _nineSliceToMap(f.frame!),
@@ -197,6 +198,9 @@ WatermarkSpec _watermarkFromMap(Map m) => WatermarkSpec(
       symbolId: (m['sym'] as String?) ?? '',
       color: _colorRefFromMap((m['color'] as Map?) ?? const {}),
       alpha: _d(m['a'], 0.15),
+      // Absent key = silhouette: pre-tintMode data keeps its exact look.
+      tintMode:
+          m['tm'] == 'multiply' ? TintMode.multiply : TintMode.silhouette,
     );
 
 // ---- FooterSpec ----
@@ -442,6 +446,7 @@ Map<String, dynamic> _layerToMap(Layer l) => {
           'src': l.image!.source.name,
           if (l.image!.imageId.isNotEmpty) 'img': l.image!.imageId,
           if (l.image!.tint != null) 'tint': _colorRefToMap(l.image!.tint!),
+          if (l.image!.tintMode != TintMode.silhouette) 'tm': 'multiply',
           'a': l.image!.alpha,
           if (!l.image!.transform.isIdentity)
             't': {
@@ -468,6 +473,7 @@ Map<String, dynamic> _layerToMap(Layer l) => {
           'sym': l.watermark!.symbolId,
           'color': _colorRefToMap(l.watermark!.color),
           'a': l.watermark!.alpha,
+          if (l.watermark!.tintMode != TintMode.silhouette) 'tm': 'multiply',
         },
       if (l.footer != null) 'footer': _footerToMap(l.footer!),
       if (l.exposed.isNotEmpty)
@@ -503,6 +509,10 @@ Layer _layerFromMap(Map m) {
             tint: img['tint'] == null
                 ? null
                 : _colorRefFromMap(img['tint'] as Map),
+            // Absent key = silhouette (pre-tintMode data unchanged).
+            tintMode: img['tm'] == 'multiply'
+                ? TintMode.multiply
+                : TintMode.silhouette,
             alpha: _d(img['a'], 1.0),
             transform: img['t'] == null
                 ? const ArtTransform()

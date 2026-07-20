@@ -57,8 +57,11 @@ class FillAspect {
 
 /// An image drawn in the layer's rect.
 ///
-/// * `source == fixed` with a non-null [tint] → the image is a silhouette filled
-///   with the tint colour (alpha-mask), like the watermark / set-symbol tint.
+/// * `source == fixed` with a non-null [tint] → tinted per [tintMode]:
+///   silhouette = contain-fit alpha-mask stamp (like the watermark /
+///   set-symbol tint, transform ignored); multiply = cover-fit with the
+///   layer's zoom/pan like an untinted image, tint multiplied over (the
+///   "tinted background" recipe — black detail survives).
 /// * `source == fixed` with a null [tint] → the image is drawn as-is, cover-fit
 ///   with [transform] (like card art or a template background).
 /// * `source == setSymbol` → the picture is resolved from the card's set at
@@ -70,7 +73,9 @@ class FillAspect {
 class ImageAspect {
   final ImageSource source;
   final String imageId; // template ImageStore id for fixed images; '' otherwise
-  final ColorRef? tint; // null = draw as-is; non-null = silhouette tint
+  final ColorRef? tint; // null = draw as-is; non-null = tinted per [tintMode]
+  final TintMode tintMode; // silhouette (default) or multiply; also governs
+  // the rarity tint when source == setSymbol
   final double alpha; // use-site opacity, 0..1
   final ArtTransform transform; // cover-fit zoom/pan for as-is images
 
@@ -78,6 +83,7 @@ class ImageAspect {
     this.source = ImageSource.fixed,
     this.imageId = '',
     this.tint,
+    this.tintMode = TintMode.silhouette,
     this.alpha = 1.0,
     this.transform = const ArtTransform(),
   });
@@ -86,6 +92,7 @@ class ImageAspect {
     ImageSource? source,
     String? imageId,
     Object? tint = _unset,
+    TintMode? tintMode,
     double? alpha,
     ArtTransform? transform,
   }) =>
@@ -93,6 +100,7 @@ class ImageAspect {
         source: source ?? this.source,
         imageId: imageId ?? this.imageId,
         tint: identical(tint, _unset) ? this.tint : tint as ColorRef?,
+        tintMode: tintMode ?? this.tintMode,
         alpha: alpha ?? this.alpha,
         transform: transform ?? this.transform,
       );

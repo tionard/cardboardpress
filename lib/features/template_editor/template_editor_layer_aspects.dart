@@ -97,10 +97,15 @@ extension _TemplateLayerAspects on _TemplateBodyState {
                   'ART placeholder.',
                   style: Theme.of(context).textTheme.bodySmall),
             ),
+          if (image.source == ImageSource.setSymbol)
+            _tintModeRow(
+              image.tintMode,
+              (m) => _updateLayer(id,
+                  (l) => l.copyWith(image: l.image?.copyWith(tintMode: m))),
+            ),
           const SizedBox(height: 8),
           if (image.source == ImageSource.fixed) ...[
-            Text('Tint (silhouette)',
-                style: Theme.of(context).textTheme.bodySmall),
+            Text('Tint', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 6),
             _colorWell(
               current: image.tint,
@@ -110,6 +115,12 @@ extension _TemplateLayerAspects on _TemplateBodyState {
               onClear: () => _updateLayer(
                   id, (l) => l.copyWith(image: l.image?.copyWith(tint: null))),
             ),
+            if (image.tint != null)
+              _tintModeRow(
+                image.tintMode,
+                (m) => _updateLayer(id,
+                    (l) => l.copyWith(image: l.image?.copyWith(tintMode: m))),
+              ),
           ],
           _labeledSlider('Opacity', image.alpha, 0, 1,
               (v) => _updateLayer(id,
@@ -305,6 +316,13 @@ extension _TemplateLayerAspects on _TemplateBodyState {
             use: SwatchUse.symbol,
             onPicked: (r) => _updateLayer(id,
                 (l) => l.copyWith(watermark: l.watermark?.copyWith(color: r))),
+          ),
+          _tintModeRow(
+            wm.tintMode,
+            (m) => _updateLayer(
+                id,
+                (l) =>
+                    l.copyWith(watermark: l.watermark?.copyWith(tintMode: m))),
           ),
           _labeledSlider(
               'Opacity',
@@ -590,4 +608,36 @@ extension _TemplateLayerAspects on _TemplateBodyState {
         Switch(value: value, onChanged: onChanged),
       ]);
 
+  /// Silhouette / Multiply toggle for a tint surface, with a one-line
+  /// explanation of the selected mode. Silhouette = the original alpha-mask
+  /// fill; Multiply keeps dark detail (black stays black, light areas take
+  /// the colour; the tint colour's alpha acts as strength).
+  Widget _tintModeRow(TintMode current, ValueChanged<TintMode> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SegmentedButton<TintMode>(
+            segments: const [
+              ButtonSegment(
+                  value: TintMode.silhouette, label: Text('Silhouette')),
+              ButtonSegment(value: TintMode.multiply, label: Text('Multiply')),
+            ],
+            selected: {current},
+            showSelectedIcon: false,
+            onSelectionChanged: (sel) => onChanged(sel.first),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            current == TintMode.multiply
+                ? 'Keeps the picture\u2019s dark detail: black stays black, '
+                    'light areas take the colour.'
+                : 'Fills the picture\u2019s whole shape with the colour.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
 }
