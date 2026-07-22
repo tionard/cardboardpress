@@ -50,14 +50,9 @@ class CardExporter {
       fileName: suggested,
       type: FileType.custom,
       allowedExtensions: ['png'],
-      bytes: bytes, // used on mobile/web; desktop returns a path to write
+      bytes: bytes,
     );
-    if (path == null) return null;
-
-    // On desktop saveFile returns the chosen path without writing — write here.
-    final out = path.toLowerCase().endsWith('.png') ? path : '$path.png';
-    await File(out).writeAsBytes(bytes, flush: true);
-    return out;
+    return path;
   }
 
   /// Android: render [card] and save the PNG into the device photo gallery.
@@ -152,22 +147,17 @@ class CardExporter {
     required String extension,
     String dialogTitle = 'Save file',
   }) async {
-    final path = await FilePicker.saveFile(
+    final safeName = _safe(fileName);
+    final suggested = safeName.toLowerCase().endsWith('.$extension')
+        ? safeName
+        : '$safeName.$extension';
+    return FilePicker.saveFile(
       dialogTitle: dialogTitle,
-      fileName: _safe(fileName),
+      fileName: suggested,
       type: FileType.custom,
       allowedExtensions: [extension],
-      bytes: bytes, // used on mobile; desktop returns a path to write
+      bytes: bytes,
     );
-    if (path == null) return null;
-    final out =
-        path.toLowerCase().endsWith('.$extension') ? path : '$path.$extension';
-    // On mobile the picker already wrote the bytes; writing again is a no-op
-    // overwrite. On desktop this IS the write.
-    if (!Platform.isAndroid && !Platform.isIOS) {
-      await File(out).writeAsBytes(bytes, flush: true);
-    }
-    return out;
   }
 
   // The card's name comes from its Name field's content.
